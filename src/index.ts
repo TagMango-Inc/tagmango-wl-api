@@ -7,7 +7,12 @@ import { prettyJSON } from 'hono/pretty-json';
 
 import { serve } from '@hono/node-server';
 
-import { appRouter, buildRouter, getAllCustomHostsRouter } from './routers';
+import {
+  appRouter,
+  buildRouter,
+  getAllCustomHostsRouter,
+  uploadAssetRouter,
+} from './routers';
 import databaseConntect from './utils/database';
 
 const app = new Hono().basePath('/wl');
@@ -18,6 +23,7 @@ app.use('/*', cors());
 app.route('/build', buildRouter);
 app.route('/apps', getAllCustomHostsRouter);
 app.route('/app', appRouter);
+app.route('/upload/asset', uploadAssetRouter);
 
 app.use(prettyJSON());
 
