@@ -7,29 +7,29 @@ import { prettyJSON } from 'hono/pretty-json';
 
 import { serve } from '@hono/node-server';
 
-import { buildRouter } from './routers';
+import { appRouter, buildRouter, getAllCustomHostsRouter } from './routers';
+import databaseConntect from './utils/database';
 
 const app = new Hono().basePath('/wl');
 
 app.use(logger());
 app.use('/*', cors());
 
-app.get('/', (c) => {
-  const DB_URI = process.env.DB_URI;
-  console.log('DB_URI:', DB_URI);
-  return c.json({
-    message: 'Hello World',
-    DB_URI,
-  });
-});
 app.route('/build', buildRouter);
+app.route('/apps', getAllCustomHostsRouter);
+app.route('/app', appRouter);
 
 app.use(prettyJSON());
 
 const port = Number(process.env.PORT) || 3000;
 console.log(`Server is running on port ${port}`);
 
-serve({
-  fetch: app.fetch,
-  port,
-});
+serve(
+  {
+    fetch: app.fetch,
+    port,
+  },
+  async (info) => {
+    await databaseConntect();
+  }
+);
