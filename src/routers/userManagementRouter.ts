@@ -1,3 +1,4 @@
+import bcrypt from 'bcrypt';
 import { Hono } from 'hono';
 
 import { zValidator } from '@hono/zod-validator';
@@ -6,6 +7,7 @@ import AdminUserModel from '../models/adminUser.model';
 import {
   createUserSchema,
   roleActionSchema,
+  updatePasswordSchema,
 } from '../validations/userManagement';
 
 const router = new Hono();
@@ -125,6 +127,56 @@ router.patch('/users', zValidator('json', roleActionSchema), async (c) => {
     });
   }
 });
+/**
+    PATCH /wl/user-management/users/:id/update-password
+    Updating a Dashboard User Password
+*/
+
+router.patch(
+  '/users/update-password',
+  zValidator('json', updatePasswordSchema),
+  async (c) => {
+    try {
+      const { password, userId } = c.req.valid('json');
+
+      const user = await AdminUserModel.findById(userId);
+
+      if (!user) {
+        return c.json({
+          message: 'User not found',
+          status: 404,
+        });
+      }
+
+      // use bcrypt to hash the password
+
+      const salt = await bcrypt.genSalt(5);
+
+      const hashedPassword = await bcrypt.hash(password, salt);
+
+      user.password = hashedPassword;
+
+      const updatedUser = await user.save();
+
+      return c.json(
+        {
+          message: 'Password updated successfully',
+          user: updatedUser._id,
+        },
+        {
+          status: 200,
+          statusText: 'OK',
+        }
+      );
+    } catch (error) {
+      return c.json({
+        message: 'Internal Server Error',
+        status: 500,
+      });
+    }
+  }
+);
+
 /**
     DELETE /wl/user-management/users/:id
     Deleting a Dashboard User

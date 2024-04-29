@@ -17,4 +17,14 @@ const roleActionSchema = z.object({
   role: z.enum(['admin', 'read', 'write']).optional(),
 });
 
-export { createUserSchema, roleActionSchema, updateUserSchema };
+const updatePasswordSchema = z.object({
+  userId: z.string(),
+  password: z.string(),
+});
+
+export {
+  createUserSchema,
+  roleActionSchema,
+  updatePasswordSchema,
+  updateUserSchema,
+};
