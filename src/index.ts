@@ -7,12 +7,7 @@ import { prettyJSON } from 'hono/pretty-json';
 
 import { serve } from '@hono/node-server';
 
-import {
-  appRouter,
-  buildRouter,
-  getAllCustomHostsRouter,
-  uploadAssetRouter,
-} from './routers';
+import customHostRouter from './routers/customHostRouter';
 import databaseConntect from './utils/database';
 
 const app = new Hono().basePath('/wl');
@@ -20,10 +15,28 @@ const app = new Hono().basePath('/wl');
 app.use(logger());
 app.use('/*', cors());
 
-app.route('/build', buildRouter);
-app.route('/apps', getAllCustomHostsRouter);
-app.route('/app', appRouter);
-app.route('/upload/asset', uploadAssetRouter);
+/**
+** Auth Router
+/wl/auth/login [ POST ]
+/wl/auth/register [ POST ]
+
+*! Protected Routes
+** User Management Router
+/wl/user-management/assign-role [ POST ]
+/wl/user-management/revoke-role [ POST ]
+/wl/user-management/roles [ GET ]
+/wl/user-management/users [ GET ]
+
+*! Protected Routes
+** App Router 
+/wl/apps/
+/wl/apps/{:id} [ GET PATCH ]
+/wl/apps/{:id}/deploy/{:target} [ GET ]  [sse]  [ fetching all the required data for the build process  from database without passing it through query params ]
+/wl/apps/{:id}/upload/asset [ POST ]  [ ":id" is for future purpose, may be someday we may have to upload the asset to S3 and store the URL in the database.]
+
+*/
+
+app.route('/apps', customHostRouter);
 
 app.use(prettyJSON());
 
