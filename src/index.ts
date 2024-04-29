@@ -7,7 +7,9 @@ import { prettyJSON } from 'hono/pretty-json';
 
 import { serve } from '@hono/node-server';
 
+import authenticationRouter from './routers/authenticationRouter';
 import customHostRouter from './routers/customHostRouter';
+import userManagementRouter from './routers/userManagementRouter';
 import databaseConntect from './utils/database';
 
 const app = new Hono().basePath('/wl');
@@ -22,10 +24,8 @@ app.use('/*', cors());
 
 *! Protected Routes
 ** User Management Router
-/wl/user-management/assign-role [ POST ]
-/wl/user-management/revoke-role [ POST ]
-/wl/user-management/roles [ GET ]
-/wl/user-management/users [ GET ]
+/wl/user-management/roles [ GET POST DELETE ]
+/wl/user-management/users [ GET POST]
 
 *! Protected Routes
 ** App Router 
@@ -37,6 +37,8 @@ app.use('/*', cors());
 */
 
 app.route('/apps', customHostRouter);
+app.route('/auth', authenticationRouter);
+app.route('/user-management', userManagementRouter);
 
 app.use(prettyJSON());
 
