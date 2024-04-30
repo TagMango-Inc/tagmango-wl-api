@@ -35,7 +35,12 @@ app.use('/*', cors());
 /wl/apps/{:id}/upload/asset [ POST ]  [ ":id" is for future purpose, may be someday we may have to upload the asset to S3 and store the URL in the database.]
 
 */
-
+app.get('/', async (c) => {
+  return c.json({
+    message: 'Welcome to TagMango App Deployment API',
+    version: '1.0.0',
+  });
+});
 app.route('/apps', customHostRouter);
 app.route('/auth', authenticationRouter);
 app.route('/user-management', userManagementRouter);
@@ -54,3 +59,5 @@ serve(
     await databaseConntect();
   }
 );
+
+export default app;
