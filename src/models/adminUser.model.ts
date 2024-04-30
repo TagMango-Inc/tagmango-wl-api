@@ -1,16 +1,16 @@
 import { Document, model, Schema } from 'mongoose';
 
 export interface IAdminUser extends Document {
-  approved: Boolean; // true
-  email: String;
-  name: String;
-  password: String;
-  allowedFunctions: [String]; // optional
-  sensitiveAllowedActions: [String]; // optional
-  isRestricted: Boolean; // optional
+  approved: boolean; // true
+  email: string;
+  name: string;
+  password: string;
+  allowedFunctions: [string]; // optional
+  sensitiveAllowedActions: [string]; // optional
+  isRestricted: boolean; // optional
   customhostDashboardAccess: {
-    role: String;
-    isRestricted: Boolean;
+    role: string;
+    isRestricted: boolean;
   };
 }
 

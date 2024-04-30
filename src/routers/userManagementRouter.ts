@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import bcrypt from 'bcrypt';
 import { Hono } from 'hono';
 
@@ -38,10 +40,15 @@ router.get('/users', async (c) => {
       users: allUsers,
     });
   } catch (error) {
-    return c.json({
-      message: 'Internal Server Error',
-      status: 500,
-    });
+    return c.json(
+      {
+        message: 'Internal Server Error',
+      },
+      {
+        status: 500,
+        statusText: 'Internal Server Error',
+      }
+    );
   }
 });
 
@@ -78,10 +85,15 @@ router.post('/users', zValidator('json', createUserSchema), async (c) => {
       }
     );
   } catch (error) {
-    return c.json({
-      message: 'Internal Server Error',
-      status: 500,
-    });
+    return c.json(
+      {
+        message: 'Internal Server Error',
+      },
+      {
+        status: 500,
+        statusText: 'Internal Server Error',
+      }
+    );
   }
 });
 
@@ -97,10 +109,15 @@ router.patch('/users', zValidator('json', roleActionSchema), async (c) => {
     const user = await AdminUserModel.findById(userId);
 
     if (!user) {
-      return c.json({
-        message: 'User not found',
-        status: 404,
-      });
+      return c.json(
+        {
+          message: 'User not found',
+        },
+        {
+          status: 404,
+          statusText: 'Not Found',
+        }
+      );
     }
 
     if (action && action === 'assign') {
@@ -121,10 +138,15 @@ router.patch('/users', zValidator('json', roleActionSchema), async (c) => {
     });
   } catch (error) {
     console.log(error);
-    return c.json({
-      message: 'Internal Server Error',
-      status: 500,
-    });
+    return c.json(
+      {
+        message: 'Internal Server Error',
+      },
+      {
+        status: 500,
+        statusText: 'Internal Server Error',
+      }
+    );
   }
 });
 /**
@@ -142,15 +164,22 @@ router.patch(
       const user = await AdminUserModel.findById(userId);
 
       if (!user) {
-        return c.json({
-          message: 'User not found',
-          status: 404,
-        });
+        return c.json(
+          {
+            message: 'User not found',
+          },
+          {
+            status: 404,
+            statusText: 'Not Found',
+          }
+        );
       }
 
       // use bcrypt to hash the password
 
       const salt = await bcrypt.genSalt(5);
+
+      console.log(salt);
 
       const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -169,10 +198,16 @@ router.patch(
         }
       );
     } catch (error) {
-      return c.json({
-        message: 'Internal Server Error',
-        status: 500,
-      });
+      console.log(error);
+      return c.json(
+        {
+          message: 'Internal Server Error',
+        },
+        {
+          status: 500,
+          statusText: 'Internal Server Error',
+        }
+      );
     }
   }
 );
@@ -187,20 +222,30 @@ router.delete('/users/:id', async (c) => {
     const { id } = c.req.param();
     const deletedUser = await AdminUserModel.findByIdAndDelete(id);
     if (!deletedUser) {
-      return c.json({
-        message: 'User not found',
-        status: 404,
-      });
+      return c.json(
+        {
+          message: 'User not found',
+        },
+        {
+          status: 404,
+          statusText: 'Not Found',
+        }
+      );
     }
     return c.json({
       message: 'User deleted successfully',
       user: deletedUser,
     });
   } catch (error) {
-    return c.json({
-      message: 'Internal Server Error',
-      status: 500,
-    });
+    return c.json(
+      {
+        message: 'Internal Server Error',
+      },
+      {
+        status: 500,
+        statusText: 'Internal Server Error',
+      }
+    );
   }
 });
 
