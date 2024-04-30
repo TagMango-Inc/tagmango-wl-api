@@ -3,6 +3,7 @@ import 'dotenv/config';
 import bcrypt from 'bcrypt';
 import { Hono } from 'hono';
 import { sign } from 'hono/jwt';
+import { JWTPayloadType } from 'src/types';
 
 import { zValidator } from '@hono/zod-validator';
 
@@ -40,7 +41,7 @@ router.post('/login', zValidator('json', loginDataSchema), async (c) => {
       );
     }
 
-    const payload = {
+    const payload: JWTPayloadType = {
       id: user._id,
       email: user.email,
       exp: Math.floor(Date.now() / 1000) + 60 * (60 * 24 * 15), // 15 days

@@ -7,6 +7,7 @@ import { prettyJSON } from 'hono/pretty-json';
 
 import { serve } from '@hono/node-server';
 
+import authenticationMiddleware from './middleware/authentication';
 import authenticationRouter from './routers/authenticationRouter';
 import customHostRouter from './routers/customHostRouter';
 import userManagementRouter from './routers/userManagementRouter';
@@ -16,6 +17,9 @@ const app = new Hono().basePath('/wl');
 
 app.use(logger());
 app.use('/*', cors());
+
+app.use('/user-management/*', authenticationMiddleware);
+app.use('/apps/*', authenticationMiddleware);
 
 /**
 ** Auth Router
