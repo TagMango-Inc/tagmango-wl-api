@@ -13,13 +13,13 @@ import customHostRouter from './routers/customHostRouter';
 import userManagementRouter from './routers/userManagementRouter';
 import databaseConntect from './utils/database';
 
-const app = new Hono().basePath('/wl');
+const app = new Hono().basePath("/wl");
 
 app.use(logger());
-app.use('/*', cors());
+app.use("/*", cors());
 
-app.use('/user-management/*', authenticationMiddleware);
-app.use('/apps/*', authenticationMiddleware);
+app.use("/user-management/*", authenticationMiddleware);
+app.use("/apps/*", authenticationMiddleware);
 
 /**
 ** Auth Router
@@ -39,15 +39,15 @@ app.use('/apps/*', authenticationMiddleware);
 /wl/apps/{:id}/upload/asset [ POST ]  [ ":id" is for future purpose, may be someday we may have to upload the asset to S3 and store the URL in the database.]
 
 */
-app.get('/', async (c) => {
+app.get("/", async (c) => {
   return c.json({
-    message: 'Welcome to TagMango App Deployment API',
-    version: '1.0.0',
+    message: "Welcome to TagMango App Deployment API",
+    version: "1.0.0",
   });
 });
-app.route('/apps', customHostRouter);
-app.route('/auth', authenticationRouter);
-app.route('/user-management', userManagementRouter);
+app.route("/apps", customHostRouter);
+app.route("/auth", authenticationRouter);
+app.route("/user-management", userManagementRouter);
 
 app.use(prettyJSON());
 

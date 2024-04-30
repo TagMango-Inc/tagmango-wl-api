@@ -4,15 +4,15 @@ import mongoose, { Schema } from 'mongoose';
 // import { MangoDocument } from './mango';
 
 export const SystemPointsTypeList = [
-  'dailyActive',
-  'likeOnPost',
-  'commentOnPost',
-  'messageInRoom',
-  'createPost',
-  '10perCourseCompletion',
-  '50perCourseCompletion',
-  '100perCourseCompletion',
-  'attendance',
+  "dailyActive",
+  "likeOnPost",
+  "commentOnPost",
+  "messageInRoom",
+  "createPost",
+  "10perCourseCompletion",
+  "50perCourseCompletion",
+  "100perCourseCompletion",
+  "attendance",
 ] as const;
 export type SystemPointsType = (typeof SystemPointsTypeList)[number];
 
@@ -83,10 +83,10 @@ export type CustomHostDocument = mongoose.Document & {
   certificateArn: string;
   pwaDistributionId: string;
   whitelableStatus:
-    | 'initiated'
-    | 'domain_verified'
-    | 'details_added'
-    | 'drafted';
+    | "initiated"
+    | "domain_verified"
+    | "details_added"
+    | "drafted";
   enableCache: boolean;
   isPWAEnabled: boolean;
   supportWidget: any;
@@ -110,9 +110,9 @@ export type CustomHostDocument = mongoose.Document & {
 
 const CustomHostSchema = new mongoose.Schema(
   {
-    creator: { type: mongoose.Schema.Types.ObjectId, ref: 'user' },
-    tagmangoCreator: { type: mongoose.Schema.Types.ObjectId, ref: 'user' },
-    aliasCreator: { type: mongoose.Schema.Types.ObjectId, ref: 'user' },
+    creator: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
+    tagmangoCreator: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
+    aliasCreator: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
     host: {
       type: String,
       required: true,
@@ -140,9 +140,9 @@ const CustomHostSchema = new mongoose.Schema(
     colors: {
       type: Object,
       default: {
-        PRIMARY: '#004AAD',
-        LAUNCH_BG: '#FEDC5A',
-        LAUNCH_TEXT: '#004AAD',
+        PRIMARY: "#004AAD",
+        LAUNCH_BG: "#FEDC5A",
+        LAUNCH_TEXT: "#004AAD",
       },
     },
     appName: { type: String },
@@ -164,14 +164,14 @@ const CustomHostSchema = new mongoose.Schema(
     androidDeepLinkConfig: {
       type: Object,
       default: {
-        relation: ['delegate_permission/common.handle_all_urls'],
+        relation: ["delegate_permission/common.handle_all_urls"],
         target: {
-          namespace: 'android_app',
-          package_name: 'com.tagmango.app',
+          namespace: "android_app",
+          package_name: "com.tagmango.app",
           sha256_cert_fingerprints: [
-            '72:2C:BF:A9:80:A7:53:ED:BF:10:39:6C:27:72:24:99:33:F9:DC:7B:5D:64:08:99:04:02:58:EA:07:C8:2F:54',
-            'FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C',
-            '26:5D:F6:40:FD:0A:53:11:A2:5A:34:34:11:68:EE:B1:ED:20:59:08:8A:09:5B:A5:57:66:21:89:AC:31:93:3D',
+            "72:2C:BF:A9:80:A7:53:ED:BF:10:39:6C:27:72:24:99:33:F9:DC:7B:5D:64:08:99:04:02:58:EA:07:C8:2F:54",
+            "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C",
+            "26:5D:F6:40:FD:0A:53:11:A2:5A:34:34:11:68:EE:B1:ED:20:59:08:8A:09:5B:A5:57:66:21:89:AC:31:93:3D",
           ],
         },
       },
@@ -183,37 +183,52 @@ const CustomHostSchema = new mongoose.Schema(
           apps: [],
           details: [
             {
-              appID: 'UK3JSUMFQ9.com.tagmango.app',
-              paths: ['NOT /zoom*', '*'],
+              appID: "UK3JSUMFQ9.com.tagmango.app",
+              paths: ["NOT /zoom*", "*"],
             },
           ],
         },
       },
     },
     // **
-    deploymentDetails: {
-      androidVersionName: {
-        type: String,
-      },
-      androidBuildNumber: {
-        type: String,
-      },
-      iosVersionName: {
-        type: String,
-      },
-      iosBuildNumber: {
-        type: String,
-      },
-      isIOSUnderReview: {
-        type: Boolean,
-      },
-    },
+    // deploymentDetails: {
+    //   androidVersionName: {
+    //     type: String,
+    //   },
+    //   androidBuildNumber: {
+    //     type: String,
+    //   },
+    //   iosVersionName: {
+    //     type: String,
+    //   },
+    //   iosBuildNumber: {
+    //     type: String,
+    //   },
+    //   isIOSUnderReview: {
+    //     type: Boolean,
+    //   },
+    // },
     //** */
+    iosDeploymentDetails: {
+      bundleId: String,
+      versionName: String,
+      buildNumber: String,
+      isUnderReview: Boolean,
+    },
+    androidDeploymentDetails: {
+      bundleId: String,
+      versionName: String,
+      buildNumber: String,
+    },
+    deploymentDetails: {
+      appLogo: String,
+      appName: String,
+    },
     versionDetails: {
       type: Object,
       default: {
         minimum_required_version: 32,
-        version_name: '2.2.3',
+        version_name: "2.2.3",
         minIosBuildVersion: 33,
         minAndroidBuildVersion: 32,
         isUnderReview: false,
@@ -251,34 +266,34 @@ const CustomHostSchema = new mongoose.Schema(
     pwaManifest: {
       type: Object,
       default: {
-        short_name: 'TagMango',
+        short_name: "TagMango",
         name: "TagMango | Creator's Platform to host live workshops and launch courses.",
         description:
-          'TagMango helps content creators monetize better. It helps them host live workshops and launch their courses.',
+          "TagMango helps content creators monetize better. It helps them host live workshops and launch their courses.",
         icons: [
           {
-            src: 'tagmango.png',
-            sizes: '512x512',
-            type: 'image/png',
+            src: "tagmango.png",
+            sizes: "512x512",
+            type: "image/png",
           },
           {
-            src: 'maskable_icon_x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'maskable',
+            src: "maskable_icon_x192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "maskable",
           },
           {
-            src: 'maskable_icon_x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable',
+            src: "maskable_icon_x512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
           },
         ],
-        id: '.',
-        start_url: '.',
-        display: 'standalone',
-        theme_color: '#f18926',
-        background_color: '#ffffff',
+        id: ".",
+        start_url: ".",
+        display: "standalone",
+        theme_color: "#f18926",
+        background_color: "#ffffff",
       },
     },
     whatsappAccountId: {
@@ -301,7 +316,7 @@ const CustomHostSchema = new mongoose.Schema(
     distributionId: { type: String },
     certificateArn: { type: String },
     pwaDistributionId: { type: String },
-    whitelableStatus: { type: String, default: 'drafted' },
+    whitelableStatus: { type: String, default: "drafted" },
 
     enableCache: { type: Boolean, default: false },
     isPWAEnabled: { type: Boolean, default: true },
@@ -325,9 +340,9 @@ const CustomHostSchema = new mongoose.Schema(
     pointsConfig: {
       type: Object,
     },
-    gamifiedMangoes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'mango' }],
+    gamifiedMangoes: [{ type: mongoose.Schema.Types.ObjectId, ref: "mango" }],
     communityEnabledMangoes: [
-      { type: mongoose.Schema.Types.ObjectId, ref: 'mango' },
+      { type: mongoose.Schema.Types.ObjectId, ref: "mango" },
     ],
     iapMangoes: { type: Object },
     onesignalAppId: { type: String },
@@ -338,7 +353,7 @@ const CustomHostSchema = new mongoose.Schema(
 );
 
 const CustomHostModel = mongoose.model<CustomHostDocument>(
-  'customhost',
+  "customhost",
   CustomHostSchema
 );
 
