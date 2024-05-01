@@ -15,7 +15,12 @@ const router = new Hono();
 router.post('/login', zValidator('json', loginDataSchema), async (c) => {
   try {
     const { email, password } = c.req.valid('json');
-    const user = await AdminUserModel.findOne({ email });
+    const user = await AdminUserModel.findOne({
+      email, 
+      customhostDashboardAccess: {$exists: true},
+      "customhostDashboardAccess.isRestricted": {$ne: true}
+    });
+    
     if (!user) {
       return c.json(
         {
@@ -54,7 +59,13 @@ router.post('/login', zValidator('json', loginDataSchema), async (c) => {
     return c.json(
       {
         message: 'Login successful',
-        authToken: token,
+        token,
+        user: {
+          _id: user._id,
+          email: user.email,
+          name: user.name,
+          role: user.customhostDashboardAccess.role,
+        },
       },
       {
         status: 200,

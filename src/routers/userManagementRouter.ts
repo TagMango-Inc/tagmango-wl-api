@@ -26,16 +26,17 @@ router.get("/users", async (c) => {
     const allUsers = await AdminUserModel.aggregate([
       {
         $match: {
-          customhostDashboardAccess: { $exists: true },
+          isRestricted: { $ne: true },
         },
       },
       {
-        $project: {
+         $project: {
+          _id: 1,
           name: 1,
           email: 1,
-          customhostDashboardAccess: 1,
-          isRestricted: 1,
-        },
+          role: "$customhostDashboardAccess.role",
+          isRestricted: "$customhostDashboardAccess.isRestricted"
+        }
       },
     ]);
     return c.json({
@@ -75,6 +76,7 @@ router.post("/users", zValidator("json", createUserSchema), async (c) => {
       email: user.email,
       customhostDashboardAccess: {
         role: user.role,
+        isRestricted: false,
       },
     });
 
@@ -208,10 +210,26 @@ router.patch(
 
       const updatedUser = await user.save();
 
+      const payload: JWTPayloadType = {
+        id: user._id,
+        email: user.email,
+        exp: Math.floor(Date.now() / 1000) + 60 * (60 * 24 * 15), // 15 days
+      };
+
+      const secret = process.env.JWT_SECRET as string;
+
+      const token = await sign(payload, secret);
+
       return c.json(
         {
           message: "Password updated successfully",
-          user: updatedUser._id,
+          user: {
+            _id: updatedUser._id,
+            email: updatedUser.email,
+            name: updatedUser.name,
+            role: updatedUser.customhostDashboardAccess.role,
+          },
+          token,
         },
         {
           status: 200,
@@ -309,6 +327,51 @@ router.post("/users/:id/resend-verification-email", async (c) => {
 
     return c.json({
       message: "Auth Token resent successfully",
+    });
+  } catch (error) {
+    return c.json(
+      {
+        message: "Internal Server Error",
+      },
+      {
+        status: 500,
+        statusText: "Internal Server Error",
+      },
+    );
+  }
+});
+
+// api to get the current user
+/**
+ * GET /wl/user-management/users/me
+ * Get the current user
+ */
+router.get("/users/me", async (c) => {
+  try {
+    const { id } = c.get("jwtPayload");
+    const user = await AdminUserModel.findOne({
+      _id: id,
+      isRestricted: { $ne: true },
+    });
+    if (!user) {
+      return c.json(
+        {
+          message: "User not found",
+        },
+        {
+          status: 404,
+          statusText: "Not Found",
+        },
+      );
+    }
+    return c.json({
+      message: "Current User",
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        role: user.customhostDashboardAccess.role,
+      },
     });
   } catch (error) {
     return c.json(

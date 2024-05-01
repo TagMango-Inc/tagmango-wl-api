@@ -41,6 +41,7 @@ router.get('/', async (c) => {
       ],
     })
       .select('appName host logo createdAt updatedAt deploymentDetails')
+      .sort({ updatedAt: -1 })
       .skip((PAGE - 1) * LIMIT)
       .limit(LIMIT);
 
