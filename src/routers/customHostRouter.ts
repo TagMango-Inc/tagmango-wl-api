@@ -39,6 +39,9 @@ router.get('/', async (c) => {
         { host: { $regex: new RegExp(SEARCH, 'i') } },
         { brandname: { $regex: new RegExp(SEARCH, 'i') } },
       ],
+      whitelableStatus: {
+        $ne: 'drafted'
+      }
     })
       .select('appName host logo createdAt updatedAt deploymentDetails')
       .sort({ updatedAt: -1 })
