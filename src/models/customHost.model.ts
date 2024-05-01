@@ -212,13 +212,21 @@ const CustomHostSchema = new mongoose.Schema(
     iosDeploymentDetails: {
       bundleId: String,
       versionName: String,
-      buildNumber: String,
+      buildNumber: Number,
       isUnderReview: Boolean,
+      lastDeploymentDetails: {
+        versionName: String,
+        buildNumber: Number,
+      }
     },
     androidDeploymentDetails: {
       bundleId: String,
       versionName: String,
-      buildNumber: String,
+      buildNumber: Number,
+      lastDeploymentDetails: {
+        versionName: String,
+        buildNumber: Number,
+      }
     },
     deploymentDetails: {
       appLogo: String,
