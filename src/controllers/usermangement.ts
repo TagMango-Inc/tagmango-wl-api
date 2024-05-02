@@ -20,10 +20,11 @@ const factory = createFactory();
 */
 const getAllDashboardUsers = factory.createHandlers(async (c) => {
   try {
-    const { page, limit, search } = c.req.query();
+    const { page, limit, search, role } = c.req.query();
     let PAGE = page ? parseInt(page as string) : 1;
     let LIMIT = limit ? parseInt(limit as string) : 10;
     let SEARCH = search ? (search as string) : "";
+    let ROLE = role ? (role as string) : "";
 
     const totalUsers = await AdminUserModel.find({
       isRestricted: { $ne: true },
@@ -33,6 +34,7 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
       {
         $match: {
           isRestricted: { $ne: true },
+          "customhostDashboardAccess.role": ROLE ? ROLE : { $ne: null },
           $or: [
             { name: { $regex: new RegExp(SEARCH, "i") } },
             { email: { $regex: new RegExp(SEARCH, "i") } },
