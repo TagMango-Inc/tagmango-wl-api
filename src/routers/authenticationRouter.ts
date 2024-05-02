@@ -1,35 +1,35 @@
-import 'dotenv/config';
+import "dotenv/config";
 
-import bcrypt from 'bcrypt';
-import { Hono } from 'hono';
-import { sign } from 'hono/jwt';
-import { JWTPayloadType } from 'src/types';
+import bcrypt from "bcrypt";
+import { Hono } from "hono";
+import { sign } from "hono/jwt";
+import { JWTPayloadType } from "src/types";
 
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from "@hono/zod-validator";
 
-import AdminUserModel from '../models/adminUser.model';
-import { loginDataSchema } from '../validations/authentication';
+import AdminUserModel from "../models/adminUser.model";
+import { loginDataSchema } from "../validations/authentication";
 
 const router = new Hono();
 
-router.post('/login', zValidator('json', loginDataSchema), async (c) => {
+router.post("/login", zValidator("json", loginDataSchema), async (c) => {
   try {
-    const { email, password } = c.req.valid('json');
+    const { email, password } = c.req.valid("json");
     const user = await AdminUserModel.findOne({
-      email, 
-      customhostDashboardAccess: {$exists: true},
-      "customhostDashboardAccess.isRestricted": {$ne: true}
+      email,
+      customhostDashboardAccess: { $exists: true },
+      "customhostDashboardAccess.isRestricted": { $ne: true },
     });
-    
+
     if (!user) {
       return c.json(
         {
-          message: 'User not found',
+          message: "User not found",
         },
         {
           status: 404,
-          statusText: 'Not Found',
-        }
+          statusText: "Not Found",
+        },
       );
     }
 
@@ -37,12 +37,12 @@ router.post('/login', zValidator('json', loginDataSchema), async (c) => {
     if (!isPasswordValid) {
       return c.json(
         {
-          message: 'Invalid password',
+          message: "Invalid password",
         },
         {
           status: 401,
-          statusText: 'Unauthorized',
-        }
+          statusText: "Unauthorized",
+        },
       );
     }
 
@@ -58,7 +58,7 @@ router.post('/login', zValidator('json', loginDataSchema), async (c) => {
 
     return c.json(
       {
-        message: 'Login successful',
+        message: "Login successful",
         token,
         user: {
           _id: user._id,
@@ -69,18 +69,18 @@ router.post('/login', zValidator('json', loginDataSchema), async (c) => {
       },
       {
         status: 200,
-        statusText: 'OK',
-      }
+        statusText: "OK",
+      },
     );
   } catch (error) {
     return c.json(
       {
-        message: 'Internal Server Error',
+        message: "Internal Server Error",
       },
       {
         status: 500,
-        statusText: 'Internal Server Error',
-      }
+        statusText: "Internal Server Error",
+      },
     );
   }
 });

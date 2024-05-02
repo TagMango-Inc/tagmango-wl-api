@@ -39,12 +39,28 @@ export type CustomHostDocument = mongoose.Document & {
   androidDeepLinkConfig: object;
   iosDeepLinkConfig: object;
   // **
+  iosDeploymentDetails: {
+    bundleId: string;
+    versionName: string;
+    buildNumber: number;
+    isUnderReview: boolean;
+    lastDeploymentDetails: {
+      versionName: string;
+      buildNumber: number;
+    }
+  };
+  androidDeploymentDetails: {
+    bundleId: string;
+    versionName: string;
+    buildNumber: number;
+    lastDeploymentDetails: {
+      versionName: string;
+      buildNumber: number;
+    }
+  };
   deploymentDetails: {
-    androidVersionName: string;
-    androidBuildNumber: string;
-    iosVersionName: string;
-    iosBuildNumber: string;
-    isIOSUnderReview: boolean;
+    appLogo: string;
+    appName: string;
   };
   //** */
   versionDetails: object;
@@ -191,24 +207,6 @@ const CustomHostSchema = new mongoose.Schema(
       },
     },
     // **
-    // deploymentDetails: {
-    //   androidVersionName: {
-    //     type: String,
-    //   },
-    //   androidBuildNumber: {
-    //     type: String,
-    //   },
-    //   iosVersionName: {
-    //     type: String,
-    //   },
-    //   iosBuildNumber: {
-    //     type: String,
-    //   },
-    //   isIOSUnderReview: {
-    //     type: Boolean,
-    //   },
-    // },
-    //** */
     iosDeploymentDetails: {
       bundleId: String,
       versionName: String,
@@ -232,6 +230,7 @@ const CustomHostSchema = new mongoose.Schema(
       appLogo: String,
       appName: String,
     },
+    //** */
     versionDetails: {
       type: Object,
       default: {

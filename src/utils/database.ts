@@ -1,12 +1,12 @@
-import 'dotenv/config';
+import "dotenv/config";
 
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 async function databaseConntect() {
   try {
-    const DB_URI = process.env.MONGO_URI || '';
+    const DB_URI = process.env.MONGO_URI || "";
     const connection = await mongoose.connect(`${DB_URI}`, {
-      dbName: 'tagmango-production',
+      dbName: "test",
     });
     console.log(`Connected to database: ${connection.connection.name}`);
   } catch (error) {
