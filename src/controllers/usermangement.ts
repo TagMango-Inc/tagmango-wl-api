@@ -48,6 +48,13 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
           email: 1,
           role: "$customhostDashboardAccess.role",
           isRestricted: "$customhostDashboardAccess.isRestricted",
+          isEmailVerified: {
+            $cond: {
+              if: { $eq: [{ $type: "$password" }, "string"] },
+              then: true,
+              else: false,
+            },
+          },
           createdAt: 1,
           updatedAt: 1,
         },
@@ -145,12 +152,15 @@ const createNewDashboardUser = factory.createHandlers(
       return c.json(
         {
           message: "User created successfully",
-          user: {
-            _id: createdUser._id,
-            email: createdUser.email,
-            name: createdUser.name,
-            role: createdUser.customhostDashboardAccess.role,
-            isRestricted: createdUser.customhostDashboardAccess.isRestricted,
+          result: {
+            user: {
+              _id: createdUser._id,
+              email: createdUser.email,
+              name: createdUser.name,
+              role: createdUser.customhostDashboardAccess.role,
+              isRestricted: createdUser.customhostDashboardAccess.isRestricted,
+              isEmailVerified: false,
+            },
           },
         },
         {
@@ -210,12 +220,21 @@ const updateDashboardUser = factory.createHandlers(
 
       return c.json({
         message: `${action}ed access for user successfully`,
-        user: {
-          _id: updatedUser._id,
-          email: updatedUser.email,
-          name: updatedUser.name,
-          role: updatedUser.customhostDashboardAccess.role,
-          isRestricted: updatedUser.customhostDashboardAccess.isRestricted,
+        result: {
+          user: {
+            _id: updatedUser._id,
+            email: updatedUser.email,
+            name: updatedUser.name,
+            role: updatedUser.customhostDashboardAccess.role,
+            isRestricted: updatedUser.customhostDashboardAccess.isRestricted,
+            isEmailVerified: {
+              $cond: {
+                if: { $eq: [{ $type: "$password" }, "string"] },
+                then: true,
+                else: false,
+              },
+            },
+          },
         },
       });
     } catch (error) {
@@ -280,12 +299,14 @@ const updateDashboardUserPassword = factory.createHandlers(
       return c.json(
         {
           message: "Password updated successfully",
-          user: {
-            _id: updatedUser._id,
-            email: updatedUser.email,
-            name: updatedUser.name,
-            role: updatedUser.customhostDashboardAccess.role,
-            isRestricted: updatedUser.customhostDashboardAccess.isRestricted,
+          result: {
+            user: {
+              _id: updatedUser._id,
+              email: updatedUser.email,
+              name: updatedUser.name,
+              role: updatedUser.customhostDashboardAccess.role,
+              isRestricted: updatedUser.customhostDashboardAccess.isRestricted,
+            },
           },
           token,
         },
@@ -329,7 +350,9 @@ const deleteDashboardUser = factory.createHandlers(async (c) => {
     }
     return c.json({
       message: "User deleted successfully",
-      userId: deletedUser._id,
+      result: {
+        userId: deletedUser._id,
+      },
     });
   } catch (error) {
     return c.json(
@@ -422,12 +445,14 @@ const getCurrentUser = factory.createHandlers(async (c) => {
     }
     return c.json({
       message: "Current User",
-      user: {
-        _id: user._id,
-        email: user.email,
-        name: user.name,
-        role: user.customhostDashboardAccess.role,
-        isRestricted: user.customhostDashboardAccess.isRestricted,
+      result: {
+        user: {
+          _id: user._id,
+          email: user.email,
+          name: user.name,
+          role: user.customhostDashboardAccess.role,
+          isRestricted: user.customhostDashboardAccess.isRestricted,
+        },
       },
     });
   } catch (error) {
