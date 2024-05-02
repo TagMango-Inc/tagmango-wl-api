@@ -74,7 +74,7 @@ const deploymentSchema = new Schema<IDeployment>(
     status: {
       type: String,
       required: true,
-      enum: ["processing", "failed", "success"],
+      enum: ["processing", "failed", "success", "cancelled"],
     },
   },
   {

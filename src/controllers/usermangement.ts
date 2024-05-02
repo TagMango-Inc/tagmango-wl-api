@@ -46,8 +46,9 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
           _id: 1,
           name: 1,
           email: 1,
-          role: "$customhostDashboardAccess.role",
-          isRestricted: "$customhostDashboardAccess.isRestricted",
+          customhostDashboardAccess: 1,
+          createdAt: 1,
+          updatedAt: 1,
         },
       },
       {
