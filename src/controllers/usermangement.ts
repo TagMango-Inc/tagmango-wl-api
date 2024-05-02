@@ -46,7 +46,8 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
           _id: 1,
           name: 1,
           email: 1,
-          customhostDashboardAccess: 1,
+          role: "$customhostDashboardAccess.role",
+          isRestricted: "$customhostDashboardAccess.isRestricted",
           createdAt: 1,
           updatedAt: 1,
         },
@@ -64,6 +65,7 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
 
     const totalSearchResults = await AdminUserModel.find({
       isRestricted: { $ne: true },
+      "customhostDashboardAccess.role": ROLE ? ROLE : { $ne: null },
       $or: [
         { name: { $regex: new RegExp(SEARCH, "i") } },
         { email: { $regex: new RegExp(SEARCH, "i") } },
@@ -143,7 +145,13 @@ const createNewDashboardUser = factory.createHandlers(
       return c.json(
         {
           message: "User created successfully",
-          user: createdUser,
+          user: {
+            _id: createdUser._id,
+            email: createdUser.email,
+            name: createdUser.name,
+            role: createdUser.customhostDashboardAccess.role,
+            isRestricted: createdUser.customhostDashboardAccess.isRestricted,
+          },
         },
         {
           status: 201,
@@ -202,7 +210,13 @@ const updateDashboardUser = factory.createHandlers(
 
       return c.json({
         message: `${action}ed access for user successfully`,
-        user: updatedUser,
+        user: {
+          _id: updatedUser._id,
+          email: updatedUser.email,
+          name: updatedUser.name,
+          role: updatedUser.customhostDashboardAccess.role,
+          isRestricted: updatedUser.customhostDashboardAccess.isRestricted,
+        },
       });
     } catch (error) {
       console.log(error);
@@ -273,6 +287,7 @@ const updateDashboardUserPassword = factory.createHandlers(
             email: updatedUser.email,
             name: updatedUser.name,
             role: updatedUser.customhostDashboardAccess.role,
+            isRestricted: updatedUser.customhostDashboardAccess.isRestricted,
           },
           token,
         },
@@ -316,7 +331,7 @@ const deleteDashboardUser = factory.createHandlers(async (c) => {
     }
     return c.json({
       message: "User deleted successfully",
-      user: deletedUser,
+      userId: deletedUser._id,
     });
   } catch (error) {
     return c.json(
@@ -410,10 +425,11 @@ const getCurrentUser = factory.createHandlers(async (c) => {
     return c.json({
       message: "Current User",
       user: {
-        id: user._id,
+        _id: user._id,
         email: user.email,
         name: user.name,
         role: user.customhostDashboardAccess.role,
+        isRestricted: user.customhostDashboardAccess.isRestricted,
       },
     });
   } catch (error) {
