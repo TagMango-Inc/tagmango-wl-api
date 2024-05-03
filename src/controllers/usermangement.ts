@@ -136,13 +136,13 @@ const createNewDashboardUser = factory.createHandlers(
 
       const secret = process.env.JWT_SECRET as string;
 
-      const authToken = sign(payload, secret);
+      const authToken = await sign(payload, secret);
 
       // Send an email with the authToken to the user
       sendMail({
         recipient: createdUser.email,
         subject: "Welcome to WL Dashboard",
-        text: `Here is your authToken: ${authToken}`,
+        text: `Here is your authToken: http://localhost:5173/update-password?token=${authToken}`,
       });
 
       return c.json(
@@ -303,8 +303,8 @@ const updateDashboardUserPassword = factory.createHandlers(
               role: updatedUser.customhostDashboardAccess.role,
               isRestricted: updatedUser.customhostDashboardAccess.isRestricted,
             },
+            token,
           },
-          token,
         },
         {
           status: 200,
@@ -391,13 +391,13 @@ const resendEmailVerification = factory.createHandlers(async (c) => {
 
     const secret = process.env.JWT_SECRET as string;
 
-    const authToken = sign(payload, secret);
+    const authToken = await sign(payload, secret);
 
     // Send an email with the authToken to the user
     sendMail({
       recipient: user.email,
       subject: "Welcome to WL Dashboard",
-      text: `Here is your authToken: ${authToken}`,
+      text: `Here is your authToken: http://localhost:5173/update-password?token=${authToken}`,
     });
 
     return c.json({

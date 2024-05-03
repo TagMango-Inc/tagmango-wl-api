@@ -131,6 +131,51 @@ const getCustomHostByIdHandler = factory.createHandlers(async (c) => {
 });
 
 /**
+ * /wl/apps/{:id}
+ * PATCH
+ * Update custom host by id
+ * Protected Route
+ * Not accepted fields: _id, domain
+ * All other fields are accepted
+ */
+const patchCustomHostByIdHandler = factory.createHandlers(async (c) => {
+  try {
+    const { id } = c.req.param();
+    const body = await c.req.parseBody({
+      all: true,
+    });
+
+    const customHost = await CustomHostModel.findById(id);
+    if (!customHost) {
+      return c.json(
+        { message: "Custom Host not found" },
+        { status: 404, statusText: "Not Found" },
+      );
+    }
+
+    const { _id, domain, ...update } = body;
+
+    const updatedCustomHost = await CustomHostModel.findByIdAndUpdate(
+      id,
+      update,
+      {
+        new: true,
+      },
+    );
+
+    return c.json(
+      { message: "Custom Host Updated", result: updatedCustomHost },
+      { status: 200, statusText: "OK" },
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      { status: 500, statusText: "Internal Server Error" },
+    );
+  }
+});
+
+/**
     /wl/apps/{:id}/deploy/{:target}
     GET
     Deploy custom host for android | ios
@@ -519,5 +564,6 @@ export {
   getAllDeploymentsHandler,
   getCustomHostByIdHandler,
   getLastDeploymentDetailsHandler,
+  patchCustomHostByIdHandler,
   uploadAssetHandler,
 };

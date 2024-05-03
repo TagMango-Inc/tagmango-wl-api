@@ -59,12 +59,14 @@ router.post("/login", zValidator("json", loginDataSchema), async (c) => {
     return c.json(
       {
         message: "Login successful",
-        token,
-        user: {
-          _id: user._id,
-          email: user.email,
-          name: user.name,
-          role: user.customhostDashboardAccess.role,
+        result: {
+          token,
+          user: {
+            _id: user._id,
+            email: user.email,
+            name: user.name,
+            role: user.customhostDashboardAccess.role,
+          },
         },
       },
       {
