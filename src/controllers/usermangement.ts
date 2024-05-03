@@ -256,7 +256,11 @@ const updateDashboardUserPassword = factory.createHandlers(
   zValidator("json", updatePasswordSchema),
   async (c) => {
     try {
-      const { password, userId } = c.req.valid("json");
+      const jwtPayload: JWTPayloadType = c.get("jwtPayload");
+
+      const userId = jwtPayload.id;
+
+      const { password } = c.req.valid("json");
 
       const user = await AdminUserModel.findById(userId);
 
