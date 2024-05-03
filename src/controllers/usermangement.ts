@@ -30,16 +30,18 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
       isRestricted: { $ne: true },
     }).countDocuments();
 
+    const query = {
+      isRestricted: { $ne: true },
+      ...(ROLE ? { "customhostDashboardAccess.role": ROLE } : {}),
+      $or: [
+        { name: { $regex: new RegExp(SEARCH, "i") } },
+        { email: { $regex: new RegExp(SEARCH, "i") } },
+      ],
+    };
+
     const users = await AdminUserModel.aggregate([
       {
-        $match: {
-          isRestricted: { $ne: true },
-          "customhostDashboardAccess.role": ROLE ? ROLE : { $ne: null },
-          $or: [
-            { name: { $regex: new RegExp(SEARCH, "i") } },
-            { email: { $regex: new RegExp(SEARCH, "i") } },
-          ],
-        },
+        $match: query,
       },
       {
         $project: {
@@ -70,14 +72,8 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
       },
     ]);
 
-    const totalSearchResults = await AdminUserModel.find({
-      isRestricted: { $ne: true },
-      "customhostDashboardAccess.role": ROLE ? ROLE : { $ne: null },
-      $or: [
-        { name: { $regex: new RegExp(SEARCH, "i") } },
-        { email: { $regex: new RegExp(SEARCH, "i") } },
-      ],
-    }).countDocuments();
+    const totalSearchResults =
+      await AdminUserModel.find(query).countDocuments();
 
     const hasNextPage = totalSearchResults > PAGE * LIMIT;
 
@@ -213,7 +209,7 @@ const updateDashboardUser = factory.createHandlers(
       }
 
       if (role) {
-        user.customhostDashboardAccess.role = role;
+        user.customhostDashboardAccess.role = role ?? "read";
       }
 
       const updatedUser = await user.save();
