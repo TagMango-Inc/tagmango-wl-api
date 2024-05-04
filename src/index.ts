@@ -1,17 +1,18 @@
-import 'dotenv/config';
+import "dotenv/config";
 
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
-import { prettyJSON } from 'hono/pretty-json';
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { logger } from "hono/logger";
+import { prettyJSON } from "hono/pretty-json";
 
-import { serve } from '@hono/node-server';
+import { serve } from "@hono/node-server";
 
-import authenticationMiddleware from './middleware/authentication';
-import authenticationRouter from './routers/authenticationRouter';
-import customHostRouter from './routers/customHostRouter';
-import userManagementRouter from './routers/userManagementRouter';
-import databaseConntect from './utils/database';
+import authenticationMiddleware from "./middleware/authentication";
+import authenticationRouter from "./routers/authenticationRouter";
+import customHostRouter from "./routers/customHostRouter";
+import iapRouter from "./routers/iapRouter";
+import userManagementRouter from "./routers/userManagementRouter";
+import databaseConntect from "./utils/database";
 
 const app = new Hono().basePath("/wl");
 
@@ -20,6 +21,7 @@ app.use("/*", cors());
 
 app.use("/user-management/*", authenticationMiddleware);
 app.use("/apps/*", authenticationMiddleware);
+app.use("/iap/*", authenticationMiddleware);
 
 /**
 ** Auth Router
@@ -48,6 +50,7 @@ app.get("/", async (c) => {
 app.route("/apps", customHostRouter);
 app.route("/auth", authenticationRouter);
 app.route("/user-management", userManagementRouter);
+app.route("/iap", iapRouter);
 
 app.use(prettyJSON());
 
@@ -61,7 +64,7 @@ serve(
   },
   async (info) => {
     await databaseConntect();
-  }
+  },
 );
 
 export default app;
