@@ -61,4 +61,13 @@ export const patchCustomHostByIdSchema = z.object({
     })
     .optional(),
   onesignalAppId: z.string().optional(),
+  enableSupportWidget: z.boolean().optional(),
+  supportWidget: z
+    .array(
+      z.object({
+        type: z.enum(["email", "whatsapp", "customScript"]),
+        value: z.string(),
+      }),
+    )
+    .optional(),
 });
