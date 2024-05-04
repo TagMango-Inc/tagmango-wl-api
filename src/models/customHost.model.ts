@@ -1,4 +1,4 @@
-import mongoose, { Schema } from 'mongoose';
+import mongoose, { Schema } from "mongoose";
 
 // import { UserDocument } from './user';
 // import { MangoDocument } from './mango';
@@ -47,7 +47,7 @@ export type CustomHostDocument = mongoose.Document & {
     lastDeploymentDetails: {
       versionName: string;
       buildNumber: number;
-    }
+    };
   };
   androidDeploymentDetails: {
     bundleId: string;
@@ -56,7 +56,7 @@ export type CustomHostDocument = mongoose.Document & {
     lastDeploymentDetails: {
       versionName: string;
       buildNumber: number;
-    }
+    };
   };
   deploymentDetails: {
     appLogo: string;
@@ -65,6 +65,7 @@ export type CustomHostDocument = mongoose.Document & {
   //** */
   versionDetails: object;
   colors: any;
+  theme: "light" | "dark";
   appName: string;
   androidShareLink: string;
   iosShareLink: string;
@@ -124,7 +125,7 @@ export type CustomHostDocument = mongoose.Document & {
   emailDomainVerificationRecords?: any;
 };
 
-const CustomHostSchema = new mongoose.Schema(
+export const CustomHostSchema = new mongoose.Schema(
   {
     creator: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
     tagmangoCreator: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
@@ -159,7 +160,12 @@ const CustomHostSchema = new mongoose.Schema(
         PRIMARY: "#004AAD",
         LAUNCH_BG: "#FEDC5A",
         LAUNCH_TEXT: "#004AAD",
+        DARKBLUE: "#004AAD",
       },
+    },
+    theme: {
+      type: String,
+      default: "light",
     },
     appName: { type: String },
     emailDomain: {
@@ -215,7 +221,7 @@ const CustomHostSchema = new mongoose.Schema(
       lastDeploymentDetails: {
         versionName: String,
         buildNumber: Number,
-      }
+      },
     },
     androidDeploymentDetails: {
       bundleId: String,
@@ -224,7 +230,7 @@ const CustomHostSchema = new mongoose.Schema(
       lastDeploymentDetails: {
         versionName: String,
         buildNumber: Number,
-      }
+      },
     },
     deploymentDetails: {
       appLogo: String,
@@ -356,12 +362,12 @@ const CustomHostSchema = new mongoose.Schema(
     domainVerificationRecords: { type: Object },
     emailDomainVerificationRecords: { type: Object },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const CustomHostModel = mongoose.model<CustomHostDocument>(
   "customhost",
-  CustomHostSchema
+  CustomHostSchema,
 );
 
 export default CustomHostModel;
