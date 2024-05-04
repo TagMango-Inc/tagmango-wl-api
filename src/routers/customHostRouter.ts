@@ -5,7 +5,7 @@ import {
   getAllCustomHostsHandler,
   getAllDeploymentsHandler,
   getCustomHostByIdHandler,
-  getLastDeploymentDetailsHandler,
+  getDeploymentDetails,
   uploadAssetHandler,
 } from "src/controllers/customhost";
 
@@ -24,10 +24,7 @@ router.get("/", ...getAllCustomHostsHandler);
 router.get("/:id", ...getCustomHostByIdHandler);
 router.get("/:id/deploy/:target", ...deployCustomHostHandler);
 router.post("/:id/upload/asset", ...uploadAssetHandler);
-router.get(
-  "/:id/last-deployment-details/:target",
-  ...getLastDeploymentDetailsHandler,
-);
+router.get("/:id/deployment-details/:target", ...getDeploymentDetails);
 router.get("/:id/deployments", ...getAllDeploymentsHandler);
 router.post("/:id/deployments", ...createNewDeploymentHandler);
 

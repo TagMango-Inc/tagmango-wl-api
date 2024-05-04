@@ -257,7 +257,7 @@ const uploadAssetHandler = factory.createHandlers(async (c) => {
   }
 });
 
-const getLastDeploymentDetailsHandler = factory.createHandlers(async (c) => {
+const getDeploymentDetails = factory.createHandlers(async (c) => {
   try {
     const { id, target } = c.req.param();
     const deploymentDetails = await CustomHostModel.aggregate([
@@ -277,13 +277,22 @@ const getLastDeploymentDetailsHandler = factory.createHandlers(async (c) => {
               else: "$iosDeploymentDetails.bundleId",
             },
           },
-          lastDeploymentDetails: {
+          versionName: {
             $cond: {
               if: {
                 $eq: [target, "android"],
               },
-              then: "$androidDeploymentDetails.lastDeploymentDetails",
-              else: "$iosDeploymentDetails.lastDeploymentDetails",
+              then: "$androidDeploymentDetails.versionName",
+              else: "$iosDeploymentDetails.versionName",
+            },
+          },
+          buildNumber: {
+            $cond: {
+              if: {
+                $eq: [target, "android"],
+              },
+              then: "$androidDeploymentDetails.buildNumber",
+              else: "$iosDeploymentDetails.buildNumber",
             },
           },
         },
@@ -354,9 +363,10 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
       },
       {
         $project: {
+          "user._id": 1,
           "user.name": 1,
-          "user.customhostDashboardAccess": 1,
-          host: 1,
+          // "user.customhostDashboardAccess": 1,
+          // host: 1,
           platform: 1,
           versionName: 1,
           buildNumber: 1,
@@ -377,6 +387,7 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
     ]);
 
     const totalSearchResults = await DeploymentModel.find({
+      _id: new mongoose.Types.ObjectId(id),
       $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
     }).countDocuments();
 
@@ -495,10 +506,34 @@ const createNewDeploymentHandler = factory.createHandlers(
         tasks: [],
       });
 
-      return c.json({
-        message: "Create New Deployment",
-        result: createdDeployment,
+      // populating the user details
+      await createdDeployment.populate({
+        path: "user",
+        select: "name",
       });
+
+      const { user, platform, versionName, buildNumber, status } =
+        createdDeployment;
+
+      return c.json(
+        {
+          message: "Create New Deployment",
+          result: {
+            _id: createdDeployment._id,
+            user,
+            platform,
+            versionName,
+            buildNumber,
+            status,
+            createdAt: (createdDeployment as any).createdAt,
+            updatedAt: (createdDeployment as any).updatedAt,
+          },
+        },
+        {
+          status: 201,
+          statusText: "Created",
+        },
+      );
     } catch (error) {
       console.log(error);
       return c.json(
@@ -518,6 +553,6 @@ export {
   getAllCustomHostsHandler,
   getAllDeploymentsHandler,
   getCustomHostByIdHandler,
-  getLastDeploymentDetailsHandler,
+  getDeploymentDetails,
   uploadAssetHandler,
 };
