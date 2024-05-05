@@ -126,6 +126,14 @@ const worker = new Worker<BuildJobPayloadType>(
       // updating the version details for the target platform after successful deployment
       await updateVersionDetails({ deploymentId, hostId, platform });
     } catch (error) {
+      // if we are getting any erro (throw error) then we need to remove the deployment/{bundleId} folder
+      await executeTask(
+        [`rm -rf ${customhostDeploymentDir}/${bundle}`],
+        `Removing the ${customhostDeploymentDir}/${bundle} folder`,
+        job,
+        deploymentId,
+      );
+
       // updating the deployment status to failed
       await DeploymentModel.findByIdAndUpdate(deploymentId, {
         status: "failed",
