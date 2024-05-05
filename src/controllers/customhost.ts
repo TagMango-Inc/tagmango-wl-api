@@ -1,15 +1,15 @@
+import { Job } from "bullmq";
 import fs from "fs";
 import { createFactory } from "hono/factory";
 import { streamSSE } from "hono/streaming";
 import mongoose from "mongoose";
+import { buildQueue, buildQueueEvents } from "src/job/config";
 import CustomHostModel from "src/models/customHost.model";
 import DeploymentModel from "src/models/deployment.model";
-import { JWTPayloadType } from "src/types";
+import { JobProgressType, JWTPayloadType } from "src/types";
 import { createNewDeploymentSchema } from "src/validations/customhost";
 
 import { zValidator } from "@hono/zod-validator";
-
-import executeCommands from "../utils/executeCommands";
 
 const factory = createFactory();
 
@@ -140,62 +140,69 @@ const getCustomHostByIdHandler = factory.createHandlers(async (c) => {
 
 const deployCustomHostHandler = factory.createHandlers(async (c) => {
   const { id, target } = c.req.param();
-  const customHosts = await CustomHostModel.aggregate([
-    {
-      $match: {
-        _id: new mongoose.Types.ObjectId(id),
-      },
-    },
-    {
-      $project: {
-        colors: 1,
-        onesignalAppId: 1,
-        appName: 1,
-        deploymentDetails: 1,
-        host: 1,
-        androidBundleId: "$androidDeepLinkConfig.target.package_name",
-        iosBundleId: "$iosDeepLinkConfig.applinks.details.appID",
-      },
-    },
-  ]);
 
-  if (customHosts.length === 0) {
-    return c.json(
-      { message: "Custom Host not found" },
-      { status: 404, statusText: "Not Found" },
-    );
-  }
+  const jobCompletePromise = new Promise<void>((resolve) => {
+    // Set up event listener for job completion
+    buildQueueEvents.on("completed", async (job) => {
+      console.log(`Job ${job.jobId} completed`, JSON.stringify(job, null, 2));
+      if (job.jobId) {
+        // Assuming jobId is set elsewhere
+        resolve();
+      }
+    });
+  });
 
-  const customHost = customHosts[0];
-  const {
-    colors,
-    onesignalAppId,
-    appName,
-    deploymentDetails,
-    host,
-    androidBundleId,
-    iosBundleId,
-  } = customHost;
+  const message = (data: object | string) => {
+    if (typeof data === "string") {
+      return {
+        data: `${JSON.stringify({
+          message: data,
+          taskId: "0",
+          timestamp: Date.now(),
+        } as JobProgressType)}`,
+      };
+    }
+    return {
+      data: `${JSON.stringify(data)}`,
+    };
+  };
 
   return streamSSE(c, async (stream) => {
-    await stream.writeSSE({
-      data: `${JSON.stringify(customHost)}`,
-    });
-
-    await stream.writeSSE({
-      data: "__________________________ INSTALLING DEPENDENCIES __________________________",
-    }); // Send output to client
-
-    await executeCommands(
-      ["cd deployments", "npm install"],
-      "Install Dependencies",
-      stream,
+    await stream.writeSSE(message("Starting Deployment"));
+    await stream.writeSSE(
+      message(" ************* starting script ************* "),
     );
 
-    // Start npm run build process
-    await stream.writeSSE({
-      data: "__________________________ BUILDING __________________________",
-    }); // Send output to client
+    // listen to the progress of the job (set by job.updateProgress() in worker.ts
+    buildQueueEvents.on("progress", async (job) => {
+      const jobDetails = await Job.fromId(buildQueue, job.jobId);
+
+      if (!jobDetails) return;
+
+      const jobName = jobDetails.name;
+
+      const [deploymentId, targetPlatform, lastDeploymentVersionName] =
+        jobName.split("-");
+
+      if (deploymentId !== id || targetPlatform !== target) {
+        await stream.writeSSE(
+          message(" ************* Job not found ************* "),
+        );
+        stream.close();
+      }
+
+      if (typeof job.data === "object") {
+        const jobData = job.data as JobProgressType;
+        await stream.writeSSE(message(jobData));
+      }
+    });
+
+    // Wait for job to complete before closing the stream
+    await jobCompletePromise;
+
+    await stream.writeSSE(
+      message(" ************* Deployment Completed ************* "),
+    );
   });
 });
 
@@ -430,78 +437,52 @@ const createNewDeploymentHandler = factory.createHandlers(
       const { target } = c.req.valid("json");
       const payload: JWTPayloadType = c.get("jwtPayload");
 
-      const results = await CustomHostModel.aggregate([
-        {
-          $match: {
-            _id: new mongoose.Types.ObjectId(customHostId),
-          },
-        },
-        {
-          $project: {
-            deploymentSettings: {
-              $cond: {
-                if: {
-                  $eq: [target, "android"],
-                },
-                then: "$androidDeploymentDetails",
-                else: "$iosDeploymentDetails",
-              },
-            },
-          },
-        },
-      ]);
+      const customhost = await CustomHostModel.findById(customHostId);
 
-      if (results.length === 0) {
+      if (!customhost) {
         return c.json(
-          { message: "Deployment details not found" },
+          { message: "Custom Host not found" },
           { status: 404, statusText: "Not Found" },
         );
       }
 
-      const result = results[0];
+      const { versionName: productionVersionName, lastDeploymentDetails } =
+        target === "android"
+          ? customhost.androidDeploymentDetails
+          : customhost.iosDeploymentDetails;
 
-      let updatedCustomHost = null;
+      const {
+        versionName: lastDeploymentVersionName,
+        buildNumber: lastDeploymentBuildNumber,
+      } = lastDeploymentDetails;
 
-      // if we are deploying the same version name, then increament the last deployment version name by 1
-      if (
-        result.deploymentSettings.versionName ===
-        result.deploymentSettings.lastDeploymentDetails.versionName
-      ) {
-        const updateBuildNumberProperty =
-          target === "android"
-            ? {
-                "androidDeploymentDetails.lastDeploymentDetails.buildNumber": 1,
-              }
-            : { "iosDeploymentDetails.lastDeploymentDetails.buildNumber": 1 };
+      let updatedBuildNumber = lastDeploymentBuildNumber;
 
-        updatedCustomHost = await CustomHostModel.findOneAndUpdate(
+      if (productionVersionName === lastDeploymentVersionName) {
+        // increment the build number
+        await CustomHostModel.findOneAndUpdate(
           {
             _id: new mongoose.Types.ObjectId(customHostId),
           },
           {
-            $inc: updateBuildNumberProperty,
-          },
-          {
-            new: true,
+            $inc: {
+              "androidDeploymentDetails.lastDeploymentDetails.buildNumber":
+                target === "android" ? 1 : 0,
+              "iosDeploymentDetails.lastDeploymentDetails.buildNumber":
+                target === "ios" ? 1 : 0,
+            },
           },
         );
-      }
 
-      const updatedBuildNumber =
-        target === "android"
-          ? updatedCustomHost?.androidDeploymentDetails.lastDeploymentDetails
-              .buildNumber
-          : updatedCustomHost?.iosDeploymentDetails.lastDeploymentDetails
-              .buildNumber;
+        updatedBuildNumber = lastDeploymentBuildNumber + 1;
+      }
 
       const createdDeployment = await DeploymentModel.create({
         host: new mongoose.Types.ObjectId(customHostId),
         user: new mongoose.Types.ObjectId(payload.id),
         platform: target,
-        versionName: result.deploymentSettings.versionName,
-        buildNumber: updatedBuildNumber
-          ? updatedBuildNumber
-          : result.deploymentSettings.buildNumber,
+        versionName: lastDeploymentVersionName,
+        buildNumber: updatedBuildNumber,
         status: "processing",
         tasks: [],
       });
@@ -512,19 +493,38 @@ const createNewDeploymentHandler = factory.createHandlers(
         select: "name",
       });
 
-      const { user, platform, versionName, buildNumber, status } =
-        createdDeployment;
+      // creating a new job for deployment
+      await buildQueue.add(
+        `${createdDeployment._id}-${target}-${lastDeploymentVersionName}`,
+        {
+          deploymentId: createdDeployment._id.toString(),
+          hostId: customHostId,
+          name: customhost.appName,
+          bundle:
+            target === "android"
+              ? customhost.androidDeploymentDetails.bundleId
+              : customhost.iosDeploymentDetails.bundleId,
+          domain: customhost.host,
+          color: customhost.colors.PRIMARY,
+          bgColor: customhost.colors.LAUNCH_BG,
+          onesignal_id: customhost.onesignalAppId || "",
+          platform: target,
+        },
+        {
+          attempts: 0,
+        },
+      );
 
       return c.json(
         {
-          message: "Create New Deployment",
+          message: "Created New Deployment and added new job",
           result: {
             _id: createdDeployment._id,
-            user,
-            platform,
-            versionName,
-            buildNumber,
-            status,
+            user: createdDeployment.user,
+            platform: target,
+            versionName: createdDeployment.versionName,
+            buildNumber: createdDeployment.buildNumber,
+            status: createdDeployment.status,
             createdAt: (createdDeployment as any).createdAt,
             updatedAt: (createdDeployment as any).updatedAt,
           },
@@ -535,7 +535,6 @@ const createNewDeploymentHandler = factory.createHandlers(
         },
       );
     } catch (error) {
-      console.log(error);
       return c.json(
         { message: "Internal Server Error" },
         {

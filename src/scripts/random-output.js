@@ -40,7 +40,7 @@ const generateRandomInterval = () => {
   return Math.floor(Math.random() * 2000) + 1000; // Random number between 1000ms (1s) and 3000ms (3s)
 };
 const interval = 1000; // 1 second
-const duration = 0.2 * 60 * 1000; // 1 minutes in milliseconds
+const duration = 2 * 60 * 1000; // 1 minutes in milliseconds
 const endTime = Date.now() + duration;
 
 const args = process.argv.slice(2);

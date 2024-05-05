@@ -1,8 +1,9 @@
-import { Queue } from "bullmq";
+import { Queue, QueueEvents } from "bullmq";
+import { BuildJobPayloadType } from "src/types";
 
 const queueRedisOptions = { host: "localhost", port: 6379 };
 
-const builQueue = new Queue("buildQueue", {
+const buildQueue = new Queue<BuildJobPayloadType>("buildQueue", {
   connection: queueRedisOptions,
   defaultJobOptions: {
     removeOnComplete: true,
@@ -11,4 +12,8 @@ const builQueue = new Queue("buildQueue", {
   },
 });
 
-export { builQueue, queueRedisOptions };
+const buildQueueEvents = new QueueEvents("buildQueue", {
+  connection: queueRedisOptions,
+});
+
+export { buildQueue, buildQueueEvents, queueRedisOptions };
