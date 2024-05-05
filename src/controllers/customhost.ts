@@ -199,15 +199,22 @@ const deployCustomHostHandler = factory.createHandlers(async (c) => {
     });
   });
 
-  const message = (data: object | string) => {
+  const message = (
+    data: object | string,
+    stage: "initial" | "finished" = "initial",
+  ) => {
     if (typeof data === "string") {
       return {
         data: `${JSON.stringify({
           task: {
-            id: "0",
-            name: "Initialising",
+            id: stage === "initial" ? "0" : "-1",
+            name:
+              stage === "initial"
+                ? "Initialising execution"
+                : "completed execution",
           },
           message: data,
+          type: stage === "initial" ? "initialized" : "success",
           timestamp: Date.now(),
         } as JobProgressType)}`,
       };
@@ -218,9 +225,8 @@ const deployCustomHostHandler = factory.createHandlers(async (c) => {
   };
 
   return streamSSE(c, async (stream) => {
-    await stream.writeSSE(message("Starting Deployment"));
     await stream.writeSSE(
-      message(" ************* starting script ************* "),
+      message(" ************* Starting Deployment ************* ", "initial"),
     );
 
     // listen to the progress of the job (set by job.updateProgress() in worker.ts
@@ -236,7 +242,7 @@ const deployCustomHostHandler = factory.createHandlers(async (c) => {
 
       if (deploymentId !== id || targetPlatform !== target) {
         await stream.writeSSE(
-          message(" ************* Job not found ************* "),
+          message(" ************* Job not found ************* ", "finished"),
         );
         stream.close();
       }
@@ -251,7 +257,7 @@ const deployCustomHostHandler = factory.createHandlers(async (c) => {
     await jobCompletePromise;
 
     await stream.writeSSE(
-      message(" ************* Deployment Completed ************* "),
+      message(" ************* Deployment Completed ************* ", "finished"),
     );
   });
 });

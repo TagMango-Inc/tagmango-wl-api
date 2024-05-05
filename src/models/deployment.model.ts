@@ -15,7 +15,7 @@ export interface IDeployment {
   user: Types.ObjectId;
   platform: "android" | "ios";
   versionName: string;
-  buildNumber: string;
+  buildNumber: number;
   tasks: IDeploymentTaskType[];
   status: "pending" | "processing" | "failed" | "success" | "cancelled";
   cancelledBy: Types.ObjectId;
@@ -35,7 +35,7 @@ const deploymentSchema = new Schema<IDeployment>(
       required: true,
     },
     buildNumber: {
-      type: String,
+      type: Number,
       required: true,
     },
     tasks: [

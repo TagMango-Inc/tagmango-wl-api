@@ -115,6 +115,14 @@ const worker = new Worker<BuildJobPayloadType>(
 
       // step 5: Running the fastlane deployment
 
+      // step 6: Removing the deployment/{bundleId} folder after successful deployment
+      await executeTask(
+        [`rm -rf ${customhostDeploymentDir}/${bundle}`],
+        `Removing the ${customhostDeploymentDir}/${bundle} folder`,
+        job,
+        deploymentId,
+      );
+
       // updating the version details for the target platform after successful deployment
       await updateVersionDetails({ deploymentId, hostId, platform });
     } catch (error) {
@@ -151,6 +159,18 @@ const executeTask = async (
   );
 
   const taskId = uuid(); // creating a unique id for the task
+
+  // sending job progress to sse
+  job.updateProgress({
+    task: {
+      id: taskId,
+      name: taskName,
+    },
+    type: "initialized",
+    message: `Initialized task [ ${taskName} ]`,
+    timestamp: Date.now(),
+  } as JobProgressType);
+
   const e = exec(commands.join(" && "), {
     cwd: process.cwd(),
   });
@@ -170,6 +190,7 @@ const executeTask = async (
           name: taskName,
         },
         message: data,
+        type: "success",
         timestamp: Date.now(),
       } as JobProgressType);
 
@@ -192,6 +213,7 @@ const executeTask = async (
           name: taskName,
         },
         message: data,
+        type: "success",
         timestamp: Date.now(),
       } as JobProgressType);
 
@@ -221,14 +243,33 @@ const executeTask = async (
 
     task.status = "success";
     task.logs = outputLogs;
+
+    job.updateProgress({
+      task: {
+        id: taskId,
+        name: taskName,
+      },
+      message: `Task [ ${taskName} ] executed successfully`,
+      type: "success",
+      timestamp: Date.now(),
+    } as JobProgressType);
   } else {
     // add logs to the task and update the status to failed
 
     task.status = "failed";
     task.logs = errorLogs;
 
+    job.updateProgress({
+      task: {
+        id: taskId,
+        name: taskName,
+      },
+      message: `Failed to execute task [ ${taskName} ]`,
+      type: "failed",
+      timestamp: Date.now(),
+    } as JobProgressType);
+
     console.error(`Failed to execute task [ ${taskName} ]`);
-    throw new Error(`Failed to execute task [ ${taskName} ]`);
   }
 
   await DeploymentModel.findByIdAndUpdate(deploymentId, {
@@ -236,6 +277,10 @@ const executeTask = async (
       tasks: task,
     },
   });
+
+  if (task.status === "failed") {
+    throw new Error(`Failed to execute task [ ${taskName} ]`);
+  }
 
   return code;
 };
