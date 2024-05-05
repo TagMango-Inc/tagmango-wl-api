@@ -36,6 +36,10 @@ const worker = new Worker<BuildJobPayloadType>(
     const formatedAppName = name.replace(/ /g, "");
     const customhostDeploymentDir = "deployments";
 
+    console.log(
+      ` ---------------------------------------- Initiated Deployment Process ---------------------------------------- `,
+    );
+
     try {
       // Changing deployment status to processing from pending
 
@@ -139,6 +143,10 @@ const worker = new Worker<BuildJobPayloadType>(
         status: "failed",
       });
     }
+
+    console.log(
+      ` ---------------------------------------- Completed Deployment Process ---------------------------------------- `,
+    );
   },
   {
     connection: queueRedisOptions,
