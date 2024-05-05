@@ -533,7 +533,6 @@ const createNewDeploymentHandler = factory.createHandlers(
         platform: target,
         versionName: lastDeploymentVersionName,
         buildNumber: updatedBuildNumber,
-        status: "processing",
         tasks: [],
       });
 

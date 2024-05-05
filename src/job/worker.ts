@@ -1,5 +1,10 @@
 import { Job, Worker } from "bullmq";
 import { exec } from "child_process";
+import mongoose from "mongoose";
+import CustomHostModel from "src/models/customHost.model";
+import DeploymentModel, {
+  IDeploymentTaskType,
+} from "src/models/deployment.model";
 import databaseConntect from "src/utils/database";
 import { v4 as uuid } from "uuid";
 
@@ -32,6 +37,12 @@ const worker = new Worker<BuildJobPayloadType>(
     const customhostDeploymentDir = "deployments";
 
     try {
+      // Changing deployment status to processing from pending
+
+      await DeploymentModel.findByIdAndUpdate(deploymentId, {
+        status: "processing",
+      });
+
       // Pre Deployment Steps
       // step: 1: Fetching lastest changes to root TagMango project ( for testing fetching lastest changes from test-build-m1)
 
@@ -43,6 +54,7 @@ const worker = new Worker<BuildJobPayloadType>(
         ],
         `Fetching latest changes from origin ${rootBranch}`,
         job,
+        deploymentId,
       );
 
       // step: 2: Copying the lastest root project to deployment/{bundleId} folder
@@ -54,6 +66,7 @@ const worker = new Worker<BuildJobPayloadType>(
         ],
         `Copying root project to ${customhostDeploymentDir}/${bundle}`,
         job,
+        deploymentId,
       );
 
       // step: 3 : Creating the WLApps/{formatedName} folder in the deployment/{bundleId} folder
@@ -62,6 +75,7 @@ const worker = new Worker<BuildJobPayloadType>(
         [`mkdir -p ${customhostDeploymentDir}/${bundle}/${githubrepo}/WLApps`],
         `Creating WLApps/${formatedAppName} folder in ${customhostDeploymentDir}/${bundle}`,
         job,
+        deploymentId,
       );
 
       // step: 4: Copying the WL assets from WLApps/{formatedName} to deployment/{bundleId}/WLApps/{formatedName}
@@ -72,6 +86,7 @@ const worker = new Worker<BuildJobPayloadType>(
         ],
         `Copying WLApps/${bundle} to ${customhostDeploymentDir}/${bundle}/WLApps/${bundle}`,
         job,
+        deploymentId,
       );
 
       // step: 4: Running the pre deployment and bundle script for the deployment/{bundleId} folder
@@ -84,65 +99,30 @@ const worker = new Worker<BuildJobPayloadType>(
         ],
         `Running pre deployment and bundle script`,
         job,
+        deploymentId,
       );
 
-      // Deployment Steps
-    } catch (error) {}
+      // step 5: Running the fastlane build for specific targer platform
+      await executeTask(
+        [
+          `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
+          `fastlane ${platform} build`,
+        ],
+        "Running the fastlane build for specific targer platform",
+        job,
+        deploymentId,
+      );
 
-    // //**
-    // //** Post Deployment Updated and steps
-    // //** 2. Update the deployment status based on the code
-    // try {
-    //   const deployment = await DeploymentModel.findById(deploymentId);
-    //   const customhost = await CustomHostModel.findById(hostId);
-    //   if (!deployment) {
-    //     console.log(`Deployment with ID ${deploymentId} not found`);
-    //     return;
-    //   }
-    //   if (!customhost) {
-    //     console.log(`Custom host with ID ${hostId} not found`);
-    //     return;
-    //   }
-    //   // for deployment success then update the status to success
-    //   // and updating last deployment details for custom host
-    //   if (code === 0) {
-    //     deployment.status = "success";
-    //     await CustomHostModel.updateOne(
-    //       { _id: new mongoose.Types.ObjectId(hostId) },
-    //       [
-    //         platform === "android"
-    //           ? {
-    //               $set: {
-    //                 "androidDeploymentDetails.buildNumber":
-    //                   "$androidDeploymentDetails.lastDeploymentDetails.buildNumber",
-    //                 "androidDeploymentDetails.versionName":
-    //                   "$androidDeploymentDetails.lastDeploymentDetails.versionName",
-    //               },
-    //             }
-    //           : {
-    //               $set: {
-    //                 "iosDeploymentDetails.buildNumber":
-    //                   "$iosDeploymentDetails.lastDeploymentDetails.buildNumber",
-    //                 "iosDeploymentDetails.versionName":
-    //                   "$iosDeploymentDetails.lastDeploymentDetails.versionName",
-    //               },
-    //             },
-    //       ],
-    //     );
-    //   } else {
-    //     deployment.status = "failed";
-    //   }
-    //   await deployment.save();
-    //   await customhost.save();
+      // step 5: Running the fastlane deployment
 
-    //   console.log(
-    //     `Deployment ${deploymentId} status updated to ${deployment.status}`,
-    //   );
-    // } catch (error) {
-    //   console.error("Error updating deployment status:", error);
-    // }
-
-    // console.log(`Job ${job.name} completed with code ${code}`);
+      // updating the version details for the target platform after successful deployment
+      await updateVersionDetails({ deploymentId, hostId, platform });
+    } catch (error) {
+      // updating the deployment status to failed
+      await DeploymentModel.findByIdAndUpdate(deploymentId, {
+        status: "failed",
+      });
+    }
   },
   {
     connection: queueRedisOptions,
@@ -164,6 +144,7 @@ const executeTask = async (
   commands: string[],
   taskName: string = "",
   job: Job<BuildJobPayloadType, any, string>,
+  deploymentId: string,
 ) => {
   console.log(
     ` ************** Executing task  [ ${taskName} ] ************** `,
@@ -174,6 +155,9 @@ const executeTask = async (
     cwd: process.cwd(),
   });
   const { stdout, stderr } = e;
+
+  let outputLogs: Pick<IDeploymentTaskType, "logs">["logs"] = [];
+  let errorLogs: Pick<IDeploymentTaskType, "logs">["logs"] = [];
 
   if (stdout) {
     stdout.on("data", (data) => {
@@ -188,6 +172,13 @@ const executeTask = async (
         message: data,
         timestamp: Date.now(),
       } as JobProgressType);
+
+      // adding logs to the task
+      outputLogs.push({
+        message: data,
+        type: "success",
+        timestamp: new Date(),
+      });
     });
   }
   if (stderr) {
@@ -203,6 +194,13 @@ const executeTask = async (
         message: data,
         timestamp: Date.now(),
       } as JobProgressType);
+
+      // adding logs to the task
+      errorLogs.push({
+        message: data,
+        type: "failed",
+        timestamp: new Date(),
+      });
     });
   }
 
@@ -211,10 +209,90 @@ const executeTask = async (
     e.on("error", reject);
   });
 
-  if (code !== 0) {
+  let task: IDeploymentTaskType = {
+    id: taskId,
+    name: taskName,
+    status: "processing",
+    logs: [],
+  };
+
+  if (code === 0) {
+    // add task to database and no logs should be there
+
+    task.status = "success";
+    task.logs = outputLogs;
+  } else {
+    // add logs to the task and update the status to failed
+
+    task.status = "failed";
+    task.logs = errorLogs;
+
     console.error(`Failed to execute task [ ${taskName} ]`);
     throw new Error(`Failed to execute task [ ${taskName} ]`);
   }
 
+  await DeploymentModel.findByIdAndUpdate(deploymentId, {
+    $push: {
+      tasks: task,
+    },
+  });
+
   return code;
+};
+
+const updateVersionDetails = async ({
+  deploymentId,
+  hostId,
+  platform,
+}: {
+  deploymentId: string;
+  hostId: string;
+  platform: "android" | "ios";
+}) => {
+  try {
+    const deployment = await DeploymentModel.findById(deploymentId);
+    const customhost = await CustomHostModel.findById(hostId);
+    if (!deployment) {
+      console.log(`Deployment with ID ${deploymentId} not found`);
+      return;
+    }
+    if (!customhost) {
+      console.log(`Custom host with ID ${hostId} not found`);
+      return;
+    }
+    // for deployment success then update the status to success
+    // and updating last deployment details for custom host
+
+    deployment.status = "success";
+    await CustomHostModel.updateOne(
+      { _id: new mongoose.Types.ObjectId(hostId) },
+      [
+        platform === "android"
+          ? {
+              $set: {
+                "androidDeploymentDetails.buildNumber":
+                  "$androidDeploymentDetails.lastDeploymentDetails.buildNumber",
+                "androidDeploymentDetails.versionName":
+                  "$androidDeploymentDetails.lastDeploymentDetails.versionName",
+              },
+            }
+          : {
+              $set: {
+                "iosDeploymentDetails.buildNumber":
+                  "$iosDeploymentDetails.lastDeploymentDetails.buildNumber",
+                "iosDeploymentDetails.versionName":
+                  "$iosDeploymentDetails.lastDeploymentDetails.versionName",
+              },
+            },
+      ],
+    );
+
+    await deployment.save();
+    await customhost.save();
+    console.log(
+      `Deployment ${deploymentId} status updated to ${deployment.status}`,
+    );
+  } catch (error) {
+    console.error("Error updating deployment status:", error);
+  }
 };
