@@ -6,6 +6,7 @@ import {
   getAllDeploymentsHandler,
   getCustomHostByIdHandler,
   getDeploymentDetails,
+  patchCustomHostByIdHandler,
   uploadAssetHandler,
 } from "src/controllers/customhost";
 
@@ -22,6 +23,7 @@ const router = new Hono();
 
 router.get("/", ...getAllCustomHostsHandler);
 router.get("/:id", ...getCustomHostByIdHandler);
+router.patch("/:id", ...patchCustomHostByIdHandler);
 router.get("/:id/deploy/:target", ...deployCustomHostHandler);
 router.post("/:id/upload/asset", ...uploadAssetHandler);
 router.get("/:id/deployment-details/:target", ...getDeploymentDetails);

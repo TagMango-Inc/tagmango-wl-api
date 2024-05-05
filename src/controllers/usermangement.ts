@@ -30,16 +30,18 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
       isRestricted: { $ne: true },
     }).countDocuments();
 
+    const query = {
+      isRestricted: { $ne: true },
+      ...(ROLE ? { "customhostDashboardAccess.role": ROLE } : {}),
+      $or: [
+        { name: { $regex: new RegExp(SEARCH, "i") } },
+        { email: { $regex: new RegExp(SEARCH, "i") } },
+      ],
+    };
+
     const users = await AdminUserModel.aggregate([
       {
-        $match: {
-          isRestricted: { $ne: true },
-          "customhostDashboardAccess.role": ROLE ? ROLE : { $ne: null },
-          $or: [
-            { name: { $regex: new RegExp(SEARCH, "i") } },
-            { email: { $regex: new RegExp(SEARCH, "i") } },
-          ],
-        },
+        $match: query,
       },
       {
         $project: {
@@ -48,6 +50,13 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
           email: 1,
           role: "$customhostDashboardAccess.role",
           isRestricted: "$customhostDashboardAccess.isRestricted",
+          isEmailVerified: {
+            $cond: {
+              if: { $eq: [{ $type: "$password" }, "string"] },
+              then: true,
+              else: false,
+            },
+          },
           createdAt: 1,
           updatedAt: 1,
         },
@@ -63,14 +72,8 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
       },
     ]);
 
-    const totalSearchResults = await AdminUserModel.find({
-      isRestricted: { $ne: true },
-      "customhostDashboardAccess.role": ROLE ? ROLE : { $ne: null },
-      $or: [
-        { name: { $regex: new RegExp(SEARCH, "i") } },
-        { email: { $regex: new RegExp(SEARCH, "i") } },
-      ],
-    }).countDocuments();
+    const totalSearchResults =
+      await AdminUserModel.find(query).countDocuments();
 
     const hasNextPage = totalSearchResults > PAGE * LIMIT;
 
@@ -133,24 +136,27 @@ const createNewDashboardUser = factory.createHandlers(
 
       const secret = process.env.JWT_SECRET as string;
 
-      const authToken = sign(payload, secret);
+      const authToken = await sign(payload, secret);
 
       // Send an email with the authToken to the user
       sendMail({
         recipient: createdUser.email,
         subject: "Welcome to WL Dashboard",
-        text: `Here is your authToken: ${authToken}`,
+        text: `Here is your authToken: http://localhost:5173/update-password?token=${authToken}`,
       });
 
       return c.json(
         {
           message: "User created successfully",
-          user: {
-            _id: createdUser._id,
-            email: createdUser.email,
-            name: createdUser.name,
-            role: createdUser.customhostDashboardAccess.role,
-            isRestricted: createdUser.customhostDashboardAccess.isRestricted,
+          result: {
+            user: {
+              _id: createdUser._id,
+              email: createdUser.email,
+              name: createdUser.name,
+              role: createdUser.customhostDashboardAccess.role,
+              isRestricted: createdUser.customhostDashboardAccess.isRestricted,
+              isEmailVerified: false,
+            },
           },
         },
         {
@@ -203,19 +209,28 @@ const updateDashboardUser = factory.createHandlers(
       }
 
       if (role) {
-        user.customhostDashboardAccess.role = role;
+        user.customhostDashboardAccess.role = role ?? "read";
       }
 
       const updatedUser = await user.save();
 
       return c.json({
         message: `${action}ed access for user successfully`,
-        user: {
-          _id: updatedUser._id,
-          email: updatedUser.email,
-          name: updatedUser.name,
-          role: updatedUser.customhostDashboardAccess.role,
-          isRestricted: updatedUser.customhostDashboardAccess.isRestricted,
+        result: {
+          user: {
+            _id: updatedUser._id,
+            email: updatedUser.email,
+            name: updatedUser.name,
+            role: updatedUser.customhostDashboardAccess.role,
+            isRestricted: updatedUser.customhostDashboardAccess.isRestricted,
+            isEmailVerified: {
+              $cond: {
+                if: { $eq: [{ $type: "$password" }, "string"] },
+                then: true,
+                else: false,
+              },
+            },
+          },
         },
       });
     } catch (error) {
@@ -241,7 +256,11 @@ const updateDashboardUserPassword = factory.createHandlers(
   zValidator("json", updatePasswordSchema),
   async (c) => {
     try {
-      const { password, userId } = c.req.valid("json");
+      const jwtPayload: JWTPayloadType = c.get("jwtPayload");
+
+      const userId = jwtPayload.id;
+
+      const { password } = c.req.valid("json");
 
       const user = await AdminUserModel.findById(userId);
 
@@ -280,14 +299,16 @@ const updateDashboardUserPassword = factory.createHandlers(
       return c.json(
         {
           message: "Password updated successfully",
-          user: {
-            _id: updatedUser._id,
-            email: updatedUser.email,
-            name: updatedUser.name,
-            role: updatedUser.customhostDashboardAccess.role,
-            isRestricted: updatedUser.customhostDashboardAccess.isRestricted,
+          result: {
+            user: {
+              _id: updatedUser._id,
+              email: updatedUser.email,
+              name: updatedUser.name,
+              role: updatedUser.customhostDashboardAccess.role,
+              isRestricted: updatedUser.customhostDashboardAccess.isRestricted,
+            },
+            token,
           },
-          token,
         },
         {
           status: 200,
@@ -329,7 +350,9 @@ const deleteDashboardUser = factory.createHandlers(async (c) => {
     }
     return c.json({
       message: "User deleted successfully",
-      userId: deletedUser._id,
+      result: {
+        userId: deletedUser._id,
+      },
     });
   } catch (error) {
     return c.json(
@@ -372,13 +395,13 @@ const resendEmailVerification = factory.createHandlers(async (c) => {
 
     const secret = process.env.JWT_SECRET as string;
 
-    const authToken = sign(payload, secret);
+    const authToken = await sign(payload, secret);
 
     // Send an email with the authToken to the user
     sendMail({
       recipient: user.email,
       subject: "Welcome to WL Dashboard",
-      text: `Here is your authToken: ${authToken}`,
+      text: `Here is your authToken: http://localhost:5173/update-password?token=${authToken}`,
     });
 
     return c.json({
@@ -422,12 +445,14 @@ const getCurrentUser = factory.createHandlers(async (c) => {
     }
     return c.json({
       message: "Current User",
-      user: {
-        _id: user._id,
-        email: user.email,
-        name: user.name,
-        role: user.customhostDashboardAccess.role,
-        isRestricted: user.customhostDashboardAccess.isRestricted,
+      result: {
+        user: {
+          _id: user._id,
+          email: user.email,
+          name: user.name,
+          role: user.customhostDashboardAccess.role,
+          isRestricted: user.customhostDashboardAccess.isRestricted,
+        },
       },
     });
   } catch (error) {

@@ -7,7 +7,10 @@ import { buildQueue, buildQueueEvents } from "src/job/config";
 import CustomHostModel from "src/models/customHost.model";
 import DeploymentModel from "src/models/deployment.model";
 import { JobProgressType, JWTPayloadType } from "src/types";
-import { createNewDeploymentSchema } from "src/validations/customhost";
+import {
+  createNewDeploymentSchema,
+  patchCustomHostByIdSchema,
+} from "src/validations/customhost";
 
 import { zValidator } from "@hono/zod-validator";
 
@@ -129,6 +132,50 @@ const getCustomHostByIdHandler = factory.createHandlers(async (c) => {
     );
   }
 });
+
+/**
+ * /wl/apps/{:id}
+ * PATCH
+ * Update custom host by id
+ * Protected Route
+ * Not accepted fields: _id, domain
+ * All other fields are accepted
+ */
+const patchCustomHostByIdHandler = factory.createHandlers(
+  zValidator("json", patchCustomHostByIdSchema),
+  async (c) => {
+    try {
+      const { id } = c.req.param();
+      const { domain, ...update } = c.req.valid("json");
+
+      const customHost = await CustomHostModel.findById(id);
+      if (!customHost) {
+        return c.json(
+          { message: "Custom Host not found" },
+          { status: 404, statusText: "Not Found" },
+        );
+      }
+
+      const updatedCustomHost = await CustomHostModel.findByIdAndUpdate(
+        id,
+        update,
+        {
+          new: true,
+        },
+      );
+
+      return c.json(
+        { message: "Custom Host Updated", result: updatedCustomHost },
+        { status: 200, statusText: "OK" },
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        { status: 500, statusText: "Internal Server Error" },
+      );
+    }
+  },
+);
 
 /**
     /wl/apps/{:id}/deploy/{:target}
@@ -553,5 +600,6 @@ export {
   getAllDeploymentsHandler,
   getCustomHostByIdHandler,
   getDeploymentDetails,
+  patchCustomHostByIdHandler,
   uploadAssetHandler,
 };
