@@ -203,8 +203,11 @@ const deployCustomHostHandler = factory.createHandlers(async (c) => {
     if (typeof data === "string") {
       return {
         data: `${JSON.stringify({
+          task: {
+            id: "0",
+            name: "Initialising",
+          },
           message: data,
-          taskId: "0",
           timestamp: Date.now(),
         } as JobProgressType)}`,
       };
