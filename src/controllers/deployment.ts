@@ -305,7 +305,7 @@ const createNewDeploymentHandler = factory.createHandlers(
 const getDeploymentDetailsById = factory.createHandlers(async (c) => {
   try {
     const { id, deploymentId } = c.req.param();
-    const deployment = await DeploymentModel.aggregate([
+    const deployments = await DeploymentModel.aggregate([
       {
         $match: {
           _id: new mongoose.Types.ObjectId(deploymentId),
@@ -347,6 +347,8 @@ const getDeploymentDetailsById = factory.createHandlers(async (c) => {
         },
       },
     ]);
+
+    const deployment = deployments[0];
 
     if (!deployment) {
       return c.json(
