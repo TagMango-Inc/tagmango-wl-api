@@ -2,12 +2,10 @@ import { Job, Worker } from "bullmq";
 import { exec } from "child_process";
 import mongoose from "mongoose";
 import CustomHostModel from "src/models/customHost.model";
-import DeploymentModel, {
-  IDeploymentTaskType,
-} from "src/models/deployment.model";
+import DeploymentModel, { IDeploymentTask } from "src/models/deployment.model";
 import databaseConntect from "src/utils/database";
-import { v4 as uuid } from "uuid";
 
+import { customhostDeploymentDir, githubrepo, rootBranch } from "../constants";
 import { BuildJobPayloadType, JobProgressType } from "../types";
 import { queueRedisOptions } from "./config";
 
@@ -26,15 +24,76 @@ const worker = new Worker<BuildJobPayloadType>(
       onesignal_id,
     } = job.data;
 
-    console.log(
-      `Processing job ${job.name}`,
-      JSON.stringify(job.data, null, 2),
-    );
-
-    const rootBranch = "test-build-m1"; // will be updated to the actual branch name (main)
-    const githubrepo = "TagMangoApp";
     const formatedAppName = name.replace(/ /g, "");
-    const customhostDeploymentDir = "deployments";
+
+    /**
+     * Fetching the task names for the deployment
+     */
+    const results = await DeploymentModel.aggregate([
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(deploymentId),
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          taskNames: {
+            $map: {
+              input: "$tasks",
+              as: "task",
+              in: {
+                id: "$$task.id",
+                name: "$$task.name",
+              },
+            },
+          },
+        },
+      },
+    ]);
+
+    const { taskNames } = results[0] as {
+      taskNames: {
+        id: string;
+        name: string;
+      }[];
+    };
+
+    /**
+     * Combining commands with their respective task names and is
+     */
+
+    const commands = {
+      // step: 1: Fetching lastest changes to root TagMango project ( for testing fetching lastest changes from test-build-m1)
+      [taskNames[0].id]: [
+        `cd root/${githubrepo}`,
+        `git checkout ${rootBranch}`,
+        `git pull origin ${rootBranch}`,
+      ],
+      // step: 2: Copying the lastest root project to deployment/{bundleId} folder
+      [taskNames[1].id]: [
+        `mkdir -p ${customhostDeploymentDir}/${bundle}`,
+        `cp -r root/${githubrepo} ${customhostDeploymentDir}/${bundle}`,
+      ],
+      // step: 3: Copying the WL assets from WLApps/{formatedName} to deployment/{bundleId}/WLApps/{formatedName}
+      [taskNames[2].id]: [
+        `mkdir -p ${customhostDeploymentDir}/${bundle}/${githubrepo}/WLApps`,
+        `cp -r WLApps/${formatedAppName} ${customhostDeploymentDir}/${bundle}/${githubrepo}/WLApps/${formatedAppName}`,
+      ],
+      // step: 4: Running the pre deployment and bundle script for the deployment/{bundleId} folder
+      [taskNames[3].id]: [
+        `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
+        `npm install`,
+        `node ./scripts/app-build.js ${JSON.stringify({ name, bundle, domain, color, bgColor, onesignal_id })}`,
+      ],
+      // step 5: Running the fastlane build for specific targer platform
+      [taskNames[4].id]: [
+        `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
+        `fastlane ${platform} build`,
+      ],
+      // step 6: Removing the deployment/{bundleId} folder after successful deployment
+      [taskNames[5].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
+    };
 
     console.log(
       ` ---------------------------------------- Initiated Deployment Process ---------------------------------------- `,
@@ -42,108 +101,38 @@ const worker = new Worker<BuildJobPayloadType>(
 
     try {
       // Changing deployment status to processing from pending
-
       await DeploymentModel.findByIdAndUpdate(deploymentId, {
         status: "processing",
       });
 
-      // Pre Deployment Steps
-      // step: 1: Fetching lastest changes to root TagMango project ( for testing fetching lastest changes from test-build-m1)
-
-      await executeTask(
-        [
-          `cd root/${githubrepo}`,
-          `git checkout ${rootBranch}`,
-          `git pull origin ${rootBranch}`,
-        ],
-        `Fetching latest changes from origin ${rootBranch}`,
-        job,
-        deploymentId,
-      );
-
-      // step: 2: Copying the lastest root project to deployment/{bundleId} folder
-
-      await executeTask(
-        [
-          `mkdir -p ${customhostDeploymentDir}/${bundle}`,
-          `cp -r root/${githubrepo} ${customhostDeploymentDir}/${bundle}`,
-        ],
-        `Copying root project to ${customhostDeploymentDir}/${bundle}`,
-        job,
-        deploymentId,
-      );
-
-      // step: 3 : Creating the WLApps/{formatedName} folder in the deployment/{bundleId} folder
-
-      await executeTask(
-        [`mkdir -p ${customhostDeploymentDir}/${bundle}/${githubrepo}/WLApps`],
-        `Creating WLApps/${formatedAppName} folder in ${customhostDeploymentDir}/${bundle}`,
-        job,
-        deploymentId,
-      );
-
-      // step: 4: Copying the WL assets from WLApps/{formatedName} to deployment/{bundleId}/WLApps/{formatedName}
-
-      await executeTask(
-        [
-          `cp -r WLApps/${formatedAppName} ${customhostDeploymentDir}/${bundle}/${githubrepo}/WLApps/${formatedAppName}`,
-        ],
-        `Copying WLApps/${bundle} to ${customhostDeploymentDir}/${bundle}/WLApps/${bundle}`,
-        job,
-        deploymentId,
-      );
-
-      // step: 4: Running the pre deployment and bundle script for the deployment/{bundleId} folder
-
-      await executeTask(
-        [
-          `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
-          `npm install`,
-          `node ./scripts/app-build.js ${JSON.stringify({ name, bundle, domain, color, bgColor, onesignal_id })}`,
-        ],
-        `Running pre deployment and bundle script`,
-        job,
-        deploymentId,
-      );
-
-      // step 5: Running the fastlane build for specific targer platform
-      await executeTask(
-        [
-          `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
-          `fastlane ${platform} build`,
-        ],
-        "Running the fastlane build for specific targer platform",
-        job,
-        deploymentId,
-      );
-
-      // step 5: Running the fastlane deployment
-
-      // step 6: Removing the deployment/{bundleId} folder after successful deployment
-      await executeTask(
-        [`rm -rf ${customhostDeploymentDir}/${bundle}`],
-        `Removing the ${customhostDeploymentDir}/${bundle} folder`,
-        job,
-        deploymentId,
-      );
+      // executing the tasks
+      for (const task of taskNames) {
+        await executeTask({
+          commands: commands[task.id],
+          taskId: task.id,
+          taskName: task.name,
+          job,
+          deploymentId,
+        });
+      }
 
       // updating the version details for the target platform after successful deployment
       await updateVersionDetails({ deploymentId, hostId, platform });
     } catch (error) {
       // if we are getting any erro (throw error) then we need to remove the deployment/{bundleId} folder
-      await executeTask(
-        [`rm -rf ${customhostDeploymentDir}/${bundle}`],
-        `Removing the ${customhostDeploymentDir}/${bundle} folder`,
+      const task = taskNames.slice(-1)[0];
+      await executeTask({
+        commands: commands[task.id],
+        taskId: task.id,
+        taskName: task.name,
         job,
         deploymentId,
-      );
-
+      });
       // updating the deployment status to failed
       await DeploymentModel.findByIdAndUpdate(deploymentId, {
         status: "failed",
       });
     }
-
     console.log(
       ` ---------------------------------------- Completed Deployment Process ---------------------------------------- `,
     );
@@ -164,17 +153,22 @@ console.log("Worker started!");
   await databaseConntect();
 })();
 
-const executeTask = async (
-  commands: string[],
-  taskName: string = "",
-  job: Job<BuildJobPayloadType, any, string>,
-  deploymentId: string,
-) => {
+const executeTask = async ({
+  commands,
+  taskId,
+  taskName,
+  job,
+  deploymentId,
+}: {
+  commands: string[];
+  taskId: string;
+  taskName: string;
+  job: Job<BuildJobPayloadType, any, string>;
+  deploymentId: string;
+}) => {
   console.log(
     ` ************** Executing task  [ ${taskName} ] ************** `,
   );
-
-  const taskId = uuid(); // creating a unique id for the task
 
   // sending job progress to sse
   job.updateProgress({
@@ -187,13 +181,16 @@ const executeTask = async (
     timestamp: Date.now(),
   } as JobProgressType);
 
+  // started executing the task
   const e = exec(commands.join(" && "), {
     cwd: process.cwd(),
   });
   const { stdout, stderr } = e;
+  // start time of the task
+  const startTime = Date.now();
 
-  let outputLogs: Pick<IDeploymentTaskType, "logs">["logs"] = [];
-  let errorLogs: Pick<IDeploymentTaskType, "logs">["logs"] = [];
+  let outputLogs: Pick<IDeploymentTask, "logs">["logs"] = [];
+  let errorLogs: Pick<IDeploymentTask, "logs">["logs"] = [];
 
   if (stdout) {
     stdout.on("data", (data) => {
@@ -242,24 +239,16 @@ const executeTask = async (
     });
   }
 
+  // waiting for the task to complete
+  // if the task is completed then we will get the code
   const code = await new Promise((resolve, reject) => {
     e.on("close", resolve);
     e.on("error", reject);
   });
 
-  let task: IDeploymentTaskType = {
-    id: taskId,
-    name: taskName,
-    status: "processing",
-    logs: [],
-  };
-
+  // if the code is 0 then the task is completed successfully
   if (code === 0) {
-    // add task to database and no logs should be there
-
-    task.status = "success";
-    task.logs = outputLogs;
-
+    // sending job progress to sse
     job.updateProgress({
       task: {
         id: taskId,
@@ -269,12 +258,23 @@ const executeTask = async (
       type: "success",
       timestamp: Date.now(),
     } as JobProgressType);
+
+    // update the task status to success and add logs to the task
+    await DeploymentModel.updateOne(
+      {
+        _id: new mongoose.Types.ObjectId(deploymentId),
+        "tasks.id": taskId,
+      },
+      {
+        $set: {
+          "tasks.$.status": "success",
+          "tasks.$.logs": outputLogs,
+          "tasks.$.duration": Date.now() - startTime,
+        },
+      },
+    );
   } else {
     // add logs to the task and update the status to failed
-
-    task.status = "failed";
-    task.logs = errorLogs;
-
     job.updateProgress({
       task: {
         id: taskId,
@@ -285,16 +285,26 @@ const executeTask = async (
       timestamp: Date.now(),
     } as JobProgressType);
 
+    // update the task status to failed and add logs to the task
+    await DeploymentModel.updateOne(
+      {
+        _id: new mongoose.Types.ObjectId(deploymentId),
+        "tasks.id": taskId,
+      },
+      {
+        $set: {
+          "tasks.$.status": "failed",
+          "tasks.$.logs": errorLogs,
+          "tasks.$.duration": Date.now() - startTime,
+        },
+      },
+    );
+
     console.error(`Failed to execute task [ ${taskName} ]`);
   }
 
-  await DeploymentModel.findByIdAndUpdate(deploymentId, {
-    $push: {
-      tasks: task,
-    },
-  });
-
-  if (task.status === "failed") {
+  // after all updates (success or failed) are done in the database then we can return error
+  if (code !== 0) {
     throw new Error(`Failed to execute task [ ${taskName} ]`);
   }
 

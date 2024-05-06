@@ -1,14 +1,15 @@
 import { model, Schema, Types } from "mongoose";
 
-export interface IDeploymentTaskType {
+export interface IDeploymentTask {
   id: string;
   name: string;
-  status: "processing" | "failed" | "success";
+  status: "pending" | "processing" | "failed" | "success";
   logs: {
     message: string;
     type: "initialized" | "success" | "failed" | "warning";
     timestamp: Date;
   }[];
+  duration: number;
 }
 export interface IDeployment {
   host: Types.ObjectId;
@@ -16,7 +17,7 @@ export interface IDeployment {
   platform: "android" | "ios";
   versionName: string;
   buildNumber: number;
-  tasks: IDeploymentTaskType[];
+  tasks: IDeploymentTask[];
   status: "pending" | "processing" | "failed" | "success" | "cancelled";
   cancelledBy: Types.ObjectId;
 }
@@ -51,7 +52,11 @@ const deploymentSchema = new Schema<IDeployment>(
         status: {
           type: String,
           required: true,
-          enum: ["processing", "failed", "success"],
+          enum: ["pending", "processing", "failed", "success"],
+        },
+        duration: {
+          type: Number,
+          default: 0,
         },
         logs: [
           {
@@ -72,6 +77,7 @@ const deploymentSchema = new Schema<IDeployment>(
         ],
       },
     ],
+
     status: {
       type: String,
       default: "pending",
