@@ -123,7 +123,45 @@ export type CustomHostDocument = mongoose.Document & {
   onesignalAppId?: string;
   domainVerificationRecords?: any;
   emailDomainVerificationRecords?: any;
+
+  routingConfig?: RoutingConfig;
 };
+
+export interface RoutingConfig {
+  initialRoutes?: InitialRoutes;
+  routes: Route[];
+}
+
+export type InitialRoutes = Record<string, InitialRoute>;
+
+export interface InitialRoute {
+  path: string;
+  key: string;
+  isTMProject?: boolean;
+}
+
+export interface Route {
+  key: string;
+  path: string;
+  title: string;
+  apps?: CustomApp[];
+  icon?: string;
+  iconPack?: string;
+}
+
+export interface CustomApp {
+  domain?: string;
+  name: string;
+  entryPath?: string;
+  slug: string;
+  target?: CustomAppTarget;
+  description?: string;
+}
+
+export enum CustomAppTarget {
+  SELF = "_self",
+  BLANK = "_blank",
+}
 
 export const CustomHostSchema = new mongoose.Schema(
   {
@@ -361,6 +399,9 @@ export const CustomHostSchema = new mongoose.Schema(
     onesignalAppId: { type: String },
     domainVerificationRecords: { type: Object },
     emailDomainVerificationRecords: { type: Object },
+    routingConfig: {
+      type: Object,
+    },
   },
   { timestamps: true },
 );

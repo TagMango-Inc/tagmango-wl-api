@@ -1,3 +1,4 @@
+import { RoutingConfig } from "src/models/customHost.model";
 import { z } from "zod";
 
 export const createNewDeploymentSchema = z.object({
@@ -70,4 +71,5 @@ export const patchCustomHostByIdSchema = z.object({
       }),
     )
     .optional(),
+  routingConfig: z.custom<RoutingConfig>().optional(),
 });
