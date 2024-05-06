@@ -15,6 +15,7 @@ export function generateTaskNames({
     `Fetching latest changes from origin ${rootBranch}`,
     `Copying root project to ${customhostDeploymentDir}/${bundle} directory`,
     `Copying WLApps/${formatedAppName} to ${customhostDeploymentDir}/${bundle}/WLApps/${formatedAppName}`,
+    `Running pre deployment and bundle script`,
     `Running the fastlane build for ${platform} platform`,
     // `Deploying the project`,
     // `Pushing changes to the Repository Branch`,
