@@ -457,8 +457,7 @@ const getDeploymentTaskStatusSSE = factory.createHandlers(async (c) => {
             name: task.name,
           })}`,
         };
-        // there is no reason to send message again and again for stdout or stderr (processing)
-        if (task.type !== "processing") await stream.writeSSE(message);
+        await stream.writeSSE(message);
       } else {
         stream.close();
       }
