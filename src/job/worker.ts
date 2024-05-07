@@ -181,6 +181,19 @@ const executeTask = async ({
     timestamp: Date.now(),
   } as JobProgressType);
 
+  // updating task status to processing
+  await DeploymentModel.updateOne(
+    {
+      _id: new mongoose.Types.ObjectId(deploymentId),
+      "tasks.id": taskId,
+    },
+    {
+      $set: {
+        "tasks.$.status": "success",
+      },
+    },
+  );
+
   // started executing the task
   const e = exec(commands.join(" && "), {
     cwd: process.cwd(),
