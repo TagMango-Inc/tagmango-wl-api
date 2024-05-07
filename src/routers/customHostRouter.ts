@@ -12,7 +12,6 @@ import {
   getDeploymentDetails,
   getDeploymentDetailsById,
   getDeploymentTaskLogsByTaskId,
-  getDeploymentTaskStatusSSE,
 } from "src/controllers/deployment";
 
 const router = new Hono();
@@ -38,10 +37,6 @@ router.post("/:id/deployments", ...createNewDeploymentHandler);
 router.get(
   "/:id/deployments/:deploymentId/logs/:taskId",
   ...getDeploymentTaskLogsByTaskId,
-);
-router.get(
-  "/deployments-task-status-sse/:deploymentId",
-  ...getDeploymentTaskStatusSSE,
 );
 
 export default router;
