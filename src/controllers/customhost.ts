@@ -1,10 +1,6 @@
-import { Job } from "bullmq";
 import fs from "fs";
 import { createFactory } from "hono/factory";
-import { streamSSE } from "hono/streaming";
-import { buildQueue, buildQueueEvents } from "src/job/config";
 import CustomHostModel from "src/models/customHost.model";
-import { JobProgressType } from "src/types";
 import { patchCustomHostByIdSchema } from "src/validations/customhost";
 
 import { zValidator } from "@hono/zod-validator";
@@ -173,91 +169,6 @@ const patchCustomHostByIdHandler = factory.createHandlers(
 );
 
 /**
-    /wl/apps/{:id}/deploy/{:target}
-    GET
-    Deploy custom host for android | ios
-    Protected Route
-    target = android | ios
-*/
-
-const deployCustomHostHandler = factory.createHandlers(async (c) => {
-  const { id, target } = c.req.param();
-
-  const jobCompletePromise = new Promise<void>((resolve) => {
-    // Set up event listener for job completion
-    buildQueueEvents.on("completed", async (job) => {
-      console.log(`Job ${job.jobId} completed`, JSON.stringify(job, null, 2));
-      if (job.jobId) {
-        // Assuming jobId is set elsewhere
-        resolve();
-      }
-    });
-  });
-
-  const message = (
-    data: object | string,
-    stage: "initial" | "finished" = "initial",
-  ) => {
-    if (typeof data === "string") {
-      return {
-        data: `${JSON.stringify({
-          task: {
-            id: stage === "initial" ? "0" : "-1",
-            name:
-              stage === "initial"
-                ? "Initialising execution"
-                : "completed execution",
-            type: stage === "initial" ? "processing" : "success",
-          },
-          message: data,
-          timestamp: Date.now(),
-        } as JobProgressType)}`,
-      };
-    }
-    return {
-      data: `${JSON.stringify(data)}`,
-    };
-  };
-
-  return streamSSE(c, async (stream) => {
-    await stream.writeSSE(
-      message(" ************* Starting Deployment ************* ", "initial"),
-    );
-
-    // listen to the progress of the job (set by job.updateProgress() in worker.ts
-    buildQueueEvents.on("progress", async (job) => {
-      const jobDetails = await Job.fromId(buildQueue, job.jobId);
-
-      if (!jobDetails) return;
-
-      const jobName = jobDetails.name;
-
-      const [deploymentId, targetPlatform, lastDeploymentVersionName] =
-        jobName.split("-");
-
-      if (deploymentId !== id || targetPlatform !== target) {
-        await stream.writeSSE(
-          message(" ************* Job not found ************* ", "finished"),
-        );
-        stream.close();
-      }
-
-      if (typeof job.data === "object") {
-        const jobData = job.data as JobProgressType;
-        await stream.writeSSE(message(jobData));
-      }
-    });
-
-    // Wait for job to complete before closing the stream
-    await jobCompletePromise;
-
-    await stream.writeSSE(
-      message(" ************* Deployment Completed ************* ", "finished"),
-    );
-  });
-});
-
-/**
     /wl/apps/{:id}/upload/asset
     POST
     Protected Route
@@ -316,7 +227,6 @@ const uploadAssetHandler = factory.createHandlers(async (c) => {
 });
 
 export {
-  deployCustomHostHandler,
   getAllCustomHostsHandler,
   getCustomHostByIdHandler,
   patchCustomHostByIdHandler,

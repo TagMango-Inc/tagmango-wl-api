@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import {
-  deployCustomHostHandler,
   getAllCustomHostsHandler,
   getCustomHostByIdHandler,
   patchCustomHostByIdHandler,
@@ -28,7 +27,6 @@ const router = new Hono();
 router.get("/", ...getAllCustomHostsHandler);
 router.get("/:id", ...getCustomHostByIdHandler);
 router.patch("/:id", ...patchCustomHostByIdHandler);
-router.get("/:id/deploy/:target", ...deployCustomHostHandler);
 router.post("/:id/upload/asset", ...uploadAssetHandler);
 router.get("/:id/deployment-details/:target", ...getDeploymentDetails);
 router.get("/:id/deployments", ...getAllDeploymentsHandler);

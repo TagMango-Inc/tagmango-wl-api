@@ -178,8 +178,9 @@ const executeTask = async ({
       type: "initialised",
       duration: 0,
     },
+    type: "success",
     message: `Initialized task [ ${taskName} ]`,
-    timestamp: Date.now(),
+    timestamp: new Date(),
   } as JobProgressType);
 
   // updating task status to processing
@@ -218,8 +219,9 @@ const executeTask = async ({
           type: "processing",
           duration: Date.now() - startTime,
         },
+        type: "success",
         message: data,
-        timestamp: Date.now(),
+        timestamp: new Date(),
       } as JobProgressType);
 
       // adding logs to the task
@@ -242,8 +244,9 @@ const executeTask = async ({
           type: "processing",
           duration: Date.now() - startTime,
         },
+        type: "failed",
         message: data,
-        timestamp: Date.now(),
+        timestamp: new Date(),
       } as JobProgressType);
 
       // adding logs to the task
@@ -272,8 +275,9 @@ const executeTask = async ({
         type: "success",
         duration: Date.now() - startTime,
       },
+      type: "success",
       message: `Task [ ${taskName} ] executed successfully`,
-      timestamp: Date.now(),
+      timestamp: new Date(),
     } as JobProgressType);
 
     // update the task status to success and add logs to the task
@@ -299,8 +303,9 @@ const executeTask = async ({
         type: "failed",
         duration: Date.now() - startTime,
       },
+      type: "failed",
       message: `Failed to execute task [ ${taskName} ]`,
-      timestamp: Date.now(),
+      timestamp: new Date(),
     } as JobProgressType);
 
     // update the task status to failed and add logs to the task
