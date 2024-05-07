@@ -11,6 +11,7 @@ import {
   getAllDeploymentsHandler,
   getDeploymentDetails,
   getDeploymentDetailsById,
+  getDeploymentTaskLogsByTaskId,
 } from "src/controllers/deployment";
 
 const router = new Hono();
@@ -33,5 +34,9 @@ router.get("/:id/deployment-details/:target", ...getDeploymentDetails);
 router.get("/:id/deployments", ...getAllDeploymentsHandler);
 router.get("/:id/deployments/:deploymentId", ...getDeploymentDetailsById);
 router.post("/:id/deployments", ...createNewDeploymentHandler);
+router.get(
+  "/:id/deployments/:deploymentId/logs/:taskId",
+  ...getDeploymentTaskLogsByTaskId,
+);
 
 export default router;

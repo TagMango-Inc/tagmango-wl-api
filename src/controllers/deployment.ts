@@ -372,9 +372,61 @@ const getDeploymentDetailsById = factory.createHandlers(async (c) => {
   }
 });
 
+const getDeploymentTaskLogsByTaskId = factory.createHandlers(async (c) => {
+  try {
+    const { deploymentId, taskId } = c.req.param();
+    const deploymentLogs = await DeploymentModel.aggregate([
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(deploymentId),
+        },
+      },
+      {
+        $unwind: {
+          path: "$tasks",
+        },
+      },
+      {
+        $match: {
+          "tasks.id": taskId,
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          logs: "$tasks.logs",
+        },
+      },
+    ]);
+
+    const logs = deploymentLogs[0];
+
+    if (!logs) {
+      return c.json(
+        { message: "Deployment logs not found" },
+        { status: 404, statusText: "Not Found" },
+      );
+    }
+
+    return c.json(
+      { message: "Fetched Deployment logs", result: logs },
+      { status: 200, statusText: "OK" },
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      {
+        status: 500,
+        statusText: "Internal Server Error",
+      },
+    );
+  }
+});
+
 export {
   createNewDeploymentHandler,
   getAllDeploymentsHandler,
   getDeploymentDetails,
   getDeploymentDetailsById,
+  getDeploymentTaskLogsByTaskId,
 };
