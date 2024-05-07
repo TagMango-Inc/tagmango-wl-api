@@ -190,7 +190,7 @@ const executeTask = async ({
     },
     {
       $set: {
-        "tasks.$.status": "success",
+        "tasks.$.status": "processing",
       },
     },
   );
