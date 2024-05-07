@@ -30,6 +30,7 @@ export type JobProgressType = {
     id: string;
     name: string;
     type: "initialised" | "processing" | "success" | "failed";
+    duration: number;
   };
   message: string;
   timestamp: number;
