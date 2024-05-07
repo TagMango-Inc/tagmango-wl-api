@@ -6,7 +6,7 @@ export interface IDeploymentTask {
   status: "pending" | "processing" | "failed" | "success";
   logs: {
     message: string;
-    type: "initialized" | "success" | "failed" | "warning";
+    type: "success" | "failed" | "warning";
     timestamp: Date;
   }[];
   duration: number;
@@ -67,7 +67,7 @@ const deploymentSchema = new Schema<IDeployment>(
             type: {
               type: String,
               required: true,
-              enum: ["initialized", "success", "failed", "warning"],
+              enum: ["success", "failed", "warning"],
             },
             timestamp: {
               type: Date,

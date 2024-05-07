@@ -1,9 +1,11 @@
+import { Job } from "bullmq";
 import { createFactory } from "hono/factory";
+import { streamSSE } from "hono/streaming";
 import mongoose from "mongoose";
-import { buildQueue } from "src/job/config";
+import { buildQueue, buildQueueEvents } from "src/job/config";
 import CustomHostModel from "src/models/customHost.model";
 import DeploymentModel from "src/models/deployment.model";
-import { JWTPayloadType } from "src/types";
+import { JobProgressType, JWTPayloadType } from "src/types";
 import { generateDeploymentTasks } from "src/utils/generateTaskDetails";
 import { createNewDeploymentSchema } from "src/validations/customhost";
 
@@ -423,10 +425,54 @@ const getDeploymentTaskLogsByTaskId = factory.createHandlers(async (c) => {
   }
 });
 
+const getDeploymentTaskStatusSSE = factory.createHandlers(async (c) => {
+  const { deploymentId: deploymentIdFromParam } = c.req.param();
+
+  const jobCompletePromise = new Promise<void>((resolve) => {
+    buildQueueEvents.on("completed", async (job) => {
+      console.log(`Job ${job.jobId} completed`, JSON.stringify(job, null, 2));
+      if (job.jobId) {
+        resolve();
+      }
+    });
+  });
+
+  return streamSSE(c, async (stream) => {
+    buildQueueEvents.on("progress", async (job) => {
+      const jobDetails = await Job.fromId(buildQueue, job.jobId);
+
+      if (!jobDetails) return;
+
+      const jobName = jobDetails.name;
+
+      const [deploymentId, targetPlatform, lastDeploymentVersionName] =
+        jobName.split("-");
+
+      if (deploymentId === deploymentIdFromParam) {
+        const { task } = job.data as JobProgressType;
+        const message = {
+          data: `${JSON.stringify({
+            id: task.id,
+            type: task.type,
+            name: task.name,
+          })}`,
+        };
+        // there is no reason to send message again and again for stdout or stderr (processing)
+        if (task.type !== "processing") await stream.writeSSE(message);
+      } else {
+        stream.close();
+      }
+    });
+
+    await jobCompletePromise;
+  });
+});
+
 export {
   createNewDeploymentHandler,
   getAllDeploymentsHandler,
   getDeploymentDetails,
   getDeploymentDetailsById,
   getDeploymentTaskLogsByTaskId,
+  getDeploymentTaskStatusSSE,
 };

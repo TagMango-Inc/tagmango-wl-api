@@ -29,8 +29,8 @@ export type JobProgressType = {
   task: {
     id: string;
     name: string;
+    type: "initialised" | "processing" | "success" | "failed";
   };
-  type: "initialized" | "success" | "failed" | "warning";
   message: string;
   timestamp: number;
 };

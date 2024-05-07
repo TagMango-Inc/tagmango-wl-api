@@ -207,9 +207,9 @@ const deployCustomHostHandler = factory.createHandlers(async (c) => {
               stage === "initial"
                 ? "Initialising execution"
                 : "completed execution",
+            type: stage === "initial" ? "processing" : "success",
           },
           message: data,
-          type: stage === "initial" ? "initialized" : "success",
           timestamp: Date.now(),
         } as JobProgressType)}`,
       };

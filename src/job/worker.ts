@@ -175,8 +175,8 @@ const executeTask = async ({
     task: {
       id: taskId,
       name: taskName,
+      type: "initialised",
     },
-    type: "initialized",
     message: `Initialized task [ ${taskName} ]`,
     timestamp: Date.now(),
   } as JobProgressType);
@@ -201,9 +201,9 @@ const executeTask = async ({
         task: {
           id: taskId,
           name: taskName,
+          type: "processing",
         },
         message: data,
-        type: "success",
         timestamp: Date.now(),
       } as JobProgressType);
 
@@ -224,9 +224,9 @@ const executeTask = async ({
         task: {
           id: taskId,
           name: taskName,
+          type: "processing",
         },
         message: data,
-        type: "success",
         timestamp: Date.now(),
       } as JobProgressType);
 
@@ -253,9 +253,9 @@ const executeTask = async ({
       task: {
         id: taskId,
         name: taskName,
+        type: "success",
       },
       message: `Task [ ${taskName} ] executed successfully`,
-      type: "success",
       timestamp: Date.now(),
     } as JobProgressType);
 
@@ -279,9 +279,9 @@ const executeTask = async ({
       task: {
         id: taskId,
         name: taskName,
+        type: "failed",
       },
       message: `Failed to execute task [ ${taskName} ]`,
-      type: "failed",
       timestamp: Date.now(),
     } as JobProgressType);
 
