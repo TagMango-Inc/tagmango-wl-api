@@ -234,6 +234,7 @@ const executeTask = async ({
   }
   if (stderr) {
     stderr.on("data", (data) => {
+      const warningRegex = /\b(?:warn(?:ing)?|deprecated)\b/i;
       console.error(data);
       // updating the progress of the job so i can listen to the progress of the job through queue events
       // can be listen using queue events on progress listener
@@ -244,7 +245,7 @@ const executeTask = async ({
           type: "processing",
           duration: Date.now() - startTime,
         },
-        type: "failed",
+        type: warningRegex.test(data) ? "warning" : "failed",
         message: data,
         timestamp: new Date(),
       } as JobProgressType);
