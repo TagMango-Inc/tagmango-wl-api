@@ -120,49 +120,52 @@ const worker = new Worker<BuildJobPayloadType>(
       ],
       //TODO
       // step: 4: Running the pre deployment and bundle script for the deployment/{bundleId} folder
+      [taskNames[3].id]: [
+        `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
+        `npm install`,
+        `node ./scripts/app-build.js ${JSON.stringify({ name, bundle, domain, color, bgColor, onesignal_id })}`,
+      ],
+
+      // // Step 4: Rename the app and bundle
       // [taskNames[3].id]: [
-      //   `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
-      //   `npm install`,
-      //   `node ./scripts/app-build.js ${JSON.stringify({ name, bundle, domain, color, bgColor, onesignal_id })}`,
+      //   `cd ${customHostDir}`,
+      //   `npx react-native-rename ${name} -b ${bundle}`,
       // ],
 
-      // Step 4: Rename the app and bundle
-      [taskNames[3].id]: [
-        `cd ${customHostDir}`,
-        `npx react-native-rename ${name} -b ${bundle}`,
-      ],
+      // // Step 5: Fix custom Java files package name issue
 
-      // Step 5: Fix custom Java files package name issue
+      // // Step 6: Clear node_modules and reinstall dependencies
+      // [taskNames[5].id]: [
+      //   `cd ${customHostDir}`,
+      //   `rm -rf node_modules`,
+      //   `npm install --reset-cache`,
+      // ],
 
-      // Step 6: Clear node_modules and reinstall dependencies
-      [taskNames[5].id]: [
-        `cd ${customHostDir}`,
-        `rm -rf node_modules`,
-        `npm install --reset-cache`,
-      ],
+      // //Step 7: Create a production JavaScript bundle for android
+      // [taskNames[6].id]: [`cd ${customHostDir}`, `npm run bundle`],
 
-      //Step 7: Create a production JavaScript bundle for android
-      [taskNames[6].id]: [`cd ${customHostDir}`, `npm run bundle`],
+      // // Step 8: Remove old drawable directories
+      // [taskNames[7].id]: [`cd ${customHostDir}`, ...removeDrawableFolders],
 
-      // Step 8: Remove old drawable directories
-      [taskNames[7].id]: [`cd ${customHostDir}`, ...removeDrawableFolders],
+      // // Step 9: Create a production JavaScript bundle for iOS
+      // [taskNames[8].id]: [`cd ${customHostDir}`, `npm run bundle-ios`],
 
-      // Step 9: Create a production JavaScript bundle for iOS
-      [taskNames[8].id]: [`cd ${customHostDir}`, `npm run bundle-ios`],
-
-      // Step 10: Copy the main.jsbundle file to the iOS project
-      [taskNames[9].id]: [
-        `cd ${customHostDir}`,
-        `cp ./main.jsbundle ./ios/main.jsbundle`,
-      ],
+      // // Step 10: Copy the main.jsbundle file to the iOS project
+      // [taskNames[9].id]: [
+      //   `cd ${customHostDir}`,
+      //   `cp ./main.jsbundle ./ios/main.jsbundle`,
+      // ],
       //TODO
       // step 11: Running the fastlane build for specific targer platform
-      [taskNames[10].id]: [`cd ${customHostDir}`, `fastlane ${platform} build`],
+      [taskNames[4].id]: [
+        `cd ${customHostDir}`,
+        `fastlane ${platform} build_apk`,
+      ],
       // step 12: Running the fastlane upload for specific targer platform
       // TODO
-      [taskNames[11].id]: [`cd ${customHostDir}`],
+      [taskNames[5].id]: [`cd ${customHostDir}`],
       // step 13: Removing the deployment/{bundleId} folder after successful deployment
-      [taskNames[12].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
+      [taskNames[6].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
     };
 
     console.log(
