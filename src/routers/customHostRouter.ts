@@ -1,14 +1,17 @@
 import { Hono } from "hono";
 import {
-  createNewDeploymentHandler,
-  deployCustomHostHandler,
   getAllCustomHostsHandler,
-  getAllDeploymentsHandler,
   getCustomHostByIdHandler,
-  getDeploymentDetails,
   patchCustomHostByIdHandler,
   uploadAssetHandler,
 } from "src/controllers/customhost";
+import {
+  createNewDeploymentHandler,
+  getAllDeploymentsHandler,
+  getDeploymentDetails,
+  getDeploymentDetailsById,
+  getDeploymentTaskLogsByTaskId,
+} from "src/controllers/deployment";
 
 const router = new Hono();
 
@@ -24,10 +27,14 @@ const router = new Hono();
 router.get("/", ...getAllCustomHostsHandler);
 router.get("/:id", ...getCustomHostByIdHandler);
 router.patch("/:id", ...patchCustomHostByIdHandler);
-router.get("/:id/deploy/:target", ...deployCustomHostHandler);
 router.post("/:id/upload/asset", ...uploadAssetHandler);
 router.get("/:id/deployment-details/:target", ...getDeploymentDetails);
 router.get("/:id/deployments", ...getAllDeploymentsHandler);
+router.get("/:id/deployments/:deploymentId", ...getDeploymentDetailsById);
 router.post("/:id/deployments", ...createNewDeploymentHandler);
+router.get(
+  "/:id/deployments/:deploymentId/logs/:taskId",
+  ...getDeploymentTaskLogsByTaskId,
+);
 
 export default router;

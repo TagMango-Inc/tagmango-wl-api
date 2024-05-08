@@ -1,23 +1,25 @@
 import { model, Schema, Types } from "mongoose";
 
-export interface IDeploymentTaskType {
+export interface IDeploymentTask {
   id: string;
   name: string;
-  status: "processing" | "failed" | "success";
+  status: "pending" | "processing" | "failed" | "success";
   logs: {
     message: string;
-    type: "initialized" | "success" | "failed" | "warning";
+    type: "success" | "failed" | "warning";
     timestamp: Date;
   }[];
+  duration: number;
 }
 export interface IDeployment {
   host: Types.ObjectId;
   user: Types.ObjectId;
   platform: "android" | "ios";
   versionName: string;
-  buildNumber: string;
-  tasks: IDeploymentTaskType[];
-  status: "processing" | "failed" | "success";
+  buildNumber: number;
+  tasks: IDeploymentTask[];
+  status: "pending" | "processing" | "failed" | "success" | "cancelled";
+  cancelledBy: Types.ObjectId;
 }
 
 const deploymentSchema = new Schema<IDeployment>(
@@ -34,7 +36,7 @@ const deploymentSchema = new Schema<IDeployment>(
       required: true,
     },
     buildNumber: {
-      type: String,
+      type: Number,
       required: true,
     },
     tasks: [
@@ -50,7 +52,11 @@ const deploymentSchema = new Schema<IDeployment>(
         status: {
           type: String,
           required: true,
-          enum: ["processing", "failed", "success"],
+          enum: ["pending", "processing", "failed", "success"],
+        },
+        duration: {
+          type: Number,
+          default: 0,
         },
         logs: [
           {
@@ -61,7 +67,7 @@ const deploymentSchema = new Schema<IDeployment>(
             type: {
               type: String,
               required: true,
-              enum: ["initialized", "success", "error", "warning"],
+              enum: ["success", "failed", "warning"],
             },
             timestamp: {
               type: Date,
@@ -71,10 +77,15 @@ const deploymentSchema = new Schema<IDeployment>(
         ],
       },
     ],
+
     status: {
       type: String,
-      required: true,
-      enum: ["processing", "failed", "success", "cancelled"],
+      default: "pending",
+      enum: ["pending", "processing", "failed", "success", "cancelled"],
+    },
+    cancelledBy: {
+      type: Schema.Types.ObjectId,
+      ref: "adminusers",
     },
   },
   {

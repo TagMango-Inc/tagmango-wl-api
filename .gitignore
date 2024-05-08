@@ -4,3 +4,4 @@ deployments/
 root/
 uploads/
 WLApps/
+.DS_Store
