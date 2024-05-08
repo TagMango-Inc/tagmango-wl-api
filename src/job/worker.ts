@@ -9,6 +9,17 @@ import { customhostDeploymentDir, githubrepo, rootBranch } from "../constants";
 import { BuildJobPayloadType, JobProgressType } from "../types";
 import { queueRedisOptions } from "./config";
 
+// import {
+// copyAppAssets,
+// fixJavaFilesPackageName,
+// modifiyFastlaneConfigs,
+// modifyPlist,
+// modifyXmlFile,
+// replaceInFile,
+// updateLaunchScreenColor,
+// updatePbxproj
+// } from './utils';
+
 const worker = new Worker<BuildJobPayloadType>(
   "buildQueue",
   async (job) => {
@@ -60,9 +71,34 @@ const worker = new Worker<BuildJobPayloadType>(
     };
 
     /**
+      // Define various paths and constants used across multiple steps
+    */
+
+    const onesignalExtension = "OneSignalNotificationServiceExtension";
+    const domains = ["tagmango.app", domain];
+    const androidManifestPath = "./android/app/src/main/AndroidManifest.xml";
+    const stringsPath = "./android/app/src/main/res/values/strings.xml";
+    const infoPlistPath = `./ios/${formatedAppName}/Info.plist`;
+    const entitlementsPath = `./ios/${formatedAppName}/${formatedAppName}.entitlements`;
+    const oneSignalEntitlementsPath = `./ios/${onesignalExtension}/${onesignalExtension}.entitlements`;
+    const launchScreenPath = `./ios/${formatedAppName}/LaunchScreen.storyboard`;
+    const mainActivityPath = `./android/app/src/main/java/${bundle.replace(
+      /\./g,
+      "/",
+    )}/MainActivity.java`;
+    const appDelegatePath = `./ios/${formatedAppName}/AppDelegate.mm`;
+    const javaFilesPath = `./android/app/src/main/java/${bundle
+      .split(".")
+      .join("/")}`;
+    const drawableFolders = ["hdpi", "mdpi", "xhdpi", "xxhdpi", "xxxhdpi"];
+    const removeDrawableFolders = drawableFolders.map(
+      (folder) => `rm -rf android/app/src/main/res/drawable-${folder}`,
+    );
+    const customHostDir = `${customhostDeploymentDir}/${bundle}/${githubrepo}`;
+
+    /**
      * Combining commands with their respective task names and is
      */
-
     const commands = {
       // step: 1: Fetching lastest changes to root TagMango project ( for testing fetching lastest changes from test-build-m1)
       [taskNames[0].id]: [
@@ -77,27 +113,56 @@ const worker = new Worker<BuildJobPayloadType>(
       ],
       // step: 3: Copying the WL assets from WLApps/{formatedName} to deployment/{bundleId}/WLApps/{formatedName}
       [taskNames[2].id]: [
-        `mkdir -p ${customhostDeploymentDir}/${bundle}/${githubrepo}/WLApps`,
-        `cp -r WLApps/${formatedAppName} ${customhostDeploymentDir}/${bundle}/${githubrepo}/WLApps/${formatedAppName}`,
+        `cd ${customHostDir}`,
+        `mkdir -p icons`,
+        `cd icons`,
+        `npx icon-set-creator create ../../../assets/${formatedAppName}/icon.png`,
       ],
+      //TODO
       // step: 4: Running the pre deployment and bundle script for the deployment/{bundleId} folder
+      // [taskNames[3].id]: [
+      //   `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
+      //   `npm install`,
+      //   `node ./scripts/app-build.js ${JSON.stringify({ name, bundle, domain, color, bgColor, onesignal_id })}`,
+      // ],
+
+      // Step 4: Rename the app and bundle
       [taskNames[3].id]: [
-        `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
-        `npm install`,
-        `node ./scripts/app-build.js ${JSON.stringify({ name, bundle, domain, color, bgColor, onesignal_id })}`,
+        `cd ${customHostDir}`,
+        `npx react-native-rename ${name} -b ${bundle}`,
       ],
-      // step 5: Running the fastlane build for specific targer platform
-      [taskNames[4].id]: [
-        `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
-        `fastlane ${platform} build`,
-      ],
-      // step 6: Running the fastlane upload for specific targer platform
+
+      // Step 5: Fix custom Java files package name issue
+
+      // Step 6: Clear node_modules and reinstall dependencies
       [taskNames[5].id]: [
-        `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
-        `fastlane ${platform} upload`,
+        `cd ${customHostDir}`,
+        `rm -rf node_modules`,
+        `npm install --reset-cache`,
       ],
-      // step 7: Removing the deployment/{bundleId} folder after successful deployment
-      [taskNames[6].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
+
+      //Step 7: Create a production JavaScript bundle for android
+      [taskNames[6].id]: [`cd ${customHostDir}`, `npm run bundle`],
+
+      // Step 8: Remove old drawable directories
+      [taskNames[7].id]: [`cd ${customHostDir}`, ...removeDrawableFolders],
+
+      // Step 9: Create a production JavaScript bundle for iOS
+      [taskNames[8].id]: [`cd ${customHostDir}`, `npm run bundle-ios`],
+
+      // Step 10: Copy the main.jsbundle file to the iOS project
+      [taskNames[9].id]: [
+        `cd ${customHostDir}`,
+        `cp ./main.jsbundle ./ios/main.jsbundle`,
+      ],
+      //TODO
+      // step 11: Running the fastlane build for specific targer platform
+      [taskNames[10].id]: [`cd ${customHostDir}`, `fastlane ${platform} build`],
+      // step 12: Running the fastlane upload for specific targer platform
+      // TODO
+      [taskNames[11].id]: [`cd ${customHostDir}`],
+      // step 13: Removing the deployment/{bundleId} folder after successful deployment
+      [taskNames[12].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
     };
 
     console.log(

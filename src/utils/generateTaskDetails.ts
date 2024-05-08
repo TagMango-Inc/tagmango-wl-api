@@ -14,7 +14,8 @@ export function generateTaskNames({
   const tasks = [
     `Fetching latest changes from origin ${rootBranch}`,
     `Copying root project to ${customhostDeploymentDir}/${bundle} directory`,
-    `Copying WLApps/${formatedAppName} to ${customhostDeploymentDir}/${bundle}/WLApps/${formatedAppName}`,
+    // `Copying WLApps/${formatedAppName} to ${customhostDeploymentDir}/${bundle}/WLApps/${formatedAppName}`,
+    `Generating assets for android and ios and Copying to ${customhostDeploymentDir}/${bundle}/assets`,
     `Running pre deployment and bundle script`,
     `Running fastlane bundle for ${platform} platform`,
     `Running fastlane deploy for ${platform} platform`,
