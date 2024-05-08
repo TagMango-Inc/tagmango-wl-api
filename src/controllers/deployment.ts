@@ -77,7 +77,7 @@ const getDeploymentDetails = factory.createHandlers(async (c) => {
       {
         message: "Fetched Deployment Details",
         result: {
-          bundle: deploymentDetail.bundleId,
+          bundleId: deploymentDetail.bundleId,
           versionName: currentVersionName,
           buildNumber: currentBuildNumber,
         },
