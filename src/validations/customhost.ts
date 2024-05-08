@@ -1,3 +1,4 @@
+import { RoutingConfig } from "src/models/customHost.model";
 import { z } from "zod";
 
 export const createNewDeploymentSchema = z.object({
@@ -69,5 +70,33 @@ export const patchCustomHostByIdSchema = z.object({
         value: z.string(),
       }),
     )
+    .optional(),
+  routingConfig: z.custom<RoutingConfig>().optional(),
+  androidDeploymentDetails: z
+    .object({
+      bundleId: z.string().optional(),
+      versionName: z.string().optional(),
+      buildNumber: z.number().optional(),
+      lastDeploymentDetails: z
+        .object({
+          versionName: z.string().optional(),
+          buildNumber: z.number().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+  iosDeploymentDetails: z
+    .object({
+      bundleId: z.string().optional(),
+      versionName: z.string().optional(),
+      buildNumber: z.number().optional(),
+      isUnderReview: z.boolean().optional(),
+      lastDeploymentDetails: z
+        .object({
+          versionName: z.string().optional(),
+          buildNumber: z.number().optional(),
+        })
+        .optional(),
+    })
     .optional(),
 });
