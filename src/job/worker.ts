@@ -103,7 +103,7 @@ const worker = new Worker<BuildJobPayloadType>(
       // step: 1: Fetching lastest changes to root TagMango project ( for testing fetching lastest changes from test-build-m1)
       [taskNames[0].id]: [
         `cd root/${githubrepo}`,
-        `git checkout -b ${ROOT_BRANCH}`,
+        `git checkout origin/${ROOT_BRANCH}`,
         `git pull origin ${ROOT_BRANCH}`,
       ],
       // step: 2: Copying the lastest root project to deployment/{bundleId} folder
