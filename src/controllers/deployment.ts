@@ -423,7 +423,56 @@ const getDeploymentTaskLogsByTaskId = factory.createHandlers(async (c) => {
   }
 });
 
+const cancelDeploymentJobByDeploymentId = factory.createHandlers(async (c) => {
+  try {
+    const { deploymentId, target, version } = c.req.param();
+
+    const jobNameTobeDeleted = `${deploymentId}-${target}-${version}`;
+
+    const allJobs = await buildQueue.getJobs(["waiting", "active"]);
+
+    const job = allJobs.find((job) => job.name === jobNameTobeDeleted);
+
+    const payload: JWTPayloadType = c.get("jwtPayload");
+
+    if (!job) {
+      return c.json(
+        { message: "Job not found" },
+        { status: 404, statusText: "Not Found" },
+      );
+    }
+
+    await job.remove();
+
+    const deployment = await DeploymentModel.findByIdAndUpdate(deploymentId, {
+      status: "cancelled",
+      cancelledBy: new mongoose.Types.ObjectId(payload.id),
+    });
+
+    if (!deployment) {
+      return c.json(
+        { message: "Deployment not found" },
+        { status: 404, statusText: "Not Found" },
+      );
+    }
+
+    return c.json(
+      { message: "Job removed successfully" },
+      { status: 200, statusText: "OK" },
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      {
+        status: 500,
+        statusText: "Internal Server Error",
+      },
+    );
+  }
+});
+
 export {
+  cancelDeploymentJobByDeploymentId,
   createNewDeploymentHandler,
   getAllDeploymentsHandler,
   getDeploymentDetails,

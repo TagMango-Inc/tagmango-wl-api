@@ -6,6 +6,7 @@ import {
   uploadAssetHandler,
 } from "src/controllers/customhost";
 import {
+  cancelDeploymentJobByDeploymentId,
   createNewDeploymentHandler,
   getAllDeploymentsHandler,
   getDeploymentDetails,
@@ -35,6 +36,10 @@ router.post("/:id/deployments", ...createNewDeploymentHandler);
 router.get(
   "/:id/deployments/:deploymentId/logs/:taskId",
   ...getDeploymentTaskLogsByTaskId,
+);
+router.delete(
+  "/deployment/cancel-job/:deploymentId/:target/:version",
+  ...cancelDeploymentJobByDeploymentId,
 );
 
 export default router;
