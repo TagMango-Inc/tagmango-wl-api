@@ -11,6 +11,7 @@ import authenticationMiddleware from "./middleware/authentication";
 import authenticationRouter from "./routers/authenticationRouter";
 import customHostRouter from "./routers/customHostRouter";
 import iapRouter from "./routers/iapRouter";
+import sseRouter from "./routers/sse";
 import userManagementRouter from "./routers/userManagementRouter";
 import databaseConntect from "./utils/database";
 
@@ -51,6 +52,7 @@ app.route("/apps", customHostRouter);
 app.route("/auth", authenticationRouter);
 app.route("/user-management", userManagementRouter);
 app.route("/iap", iapRouter);
+app.route("/sse", sseRouter);
 
 app.use(prettyJSON());
 
