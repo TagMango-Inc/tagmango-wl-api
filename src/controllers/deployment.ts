@@ -1,13 +1,14 @@
-import { createFactory } from 'hono/factory';
-import mongoose from 'mongoose';
-import { buildQueue } from 'src/job/config';
-import CustomHostModel from 'src/models/customHost.model';
-import DeploymentModel from 'src/models/deployment.model';
-import { JWTPayloadType } from 'src/types';
-import { generateDeploymentTasks } from 'src/utils/generateTaskDetails';
-import { createNewDeploymentSchema } from 'src/validations/customhost';
+import { createFactory } from "hono/factory";
+import mongoose from "mongoose";
+import { CURRENT_VERSION_NAME, CURRENT_VERSION_NUMBER } from "src/constants";
+import { buildQueue } from "src/job/config";
+import CustomHostModel from "src/models/customHost.model";
+import DeploymentModel from "src/models/deployment.model";
+import { JWTPayloadType } from "src/types";
+import { generateDeploymentTasks } from "src/utils/generateTaskDetails";
+import { createNewDeploymentSchema } from "src/validations/customhost";
 
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from "@hono/zod-validator";
 
 const factory = createFactory();
 
@@ -36,8 +37,8 @@ const getDeploymentDetails = factory.createHandlers(async (c) => {
               if: {
                 $eq: [target, "android"],
               },
-              then: "$androidDeploymentDetails.versionName",
-              else: "$iosDeploymentDetails.versionName",
+              then: "$androidDeploymentDetails.lastDeploymentDetails.versionName",
+              else: "$iosDeploymentDetails.lastDeploymentDetails.versionName",
             },
           },
           buildNumber: {
@@ -45,8 +46,8 @@ const getDeploymentDetails = factory.createHandlers(async (c) => {
               if: {
                 $eq: [target, "android"],
               },
-              then: "$androidDeploymentDetails.buildNumber",
-              else: "$iosDeploymentDetails.buildNumber",
+              then: "$androidDeploymentDetails.lastDeploymentDetails.buildNumber",
+              else: "$iosDeploymentDetails.lastDeploymentDetails.buildNumber",
             },
           },
         },
@@ -61,9 +62,26 @@ const getDeploymentDetails = factory.createHandlers(async (c) => {
     }
 
     const deploymentDetail = deploymentDetails[0];
+    let currentVersionName = CURRENT_VERSION_NAME;
+    let currentBuildNumber = CURRENT_VERSION_NUMBER;
+
+    if (
+      deploymentDetail.versionName &&
+      deploymentDetail.buildNumber &&
+      deploymentDetail.versionName === currentVersionName
+    ) {
+      currentBuildNumber = deploymentDetail.buildNumber + 1;
+    }
 
     return c.json(
-      { message: "Fetched Deployment Details", result: deploymentDetail },
+      {
+        message: "Fetched Deployment Details",
+        result: {
+          bundle: deploymentDetail.bundleId,
+          versionName: currentVersionName,
+          buildNumber: currentBuildNumber,
+        },
+      },
       { status: 200, statusText: "OK" },
     );
   } catch (error) {
@@ -203,26 +221,41 @@ const createNewDeploymentHandler = factory.createHandlers(
         buildNumber: lastDeploymentBuildNumber,
       } = lastDeploymentDetails;
 
-      let updatedBuildNumber = lastDeploymentBuildNumber;
+      // let updatedBuildNumber = lastDeploymentBuildNumber;
+      let currentVersionName = CURRENT_VERSION_NAME;
+      let currentBuildNumber = CURRENT_VERSION_NUMBER;
 
-      if (productionVersionName === lastDeploymentVersionName) {
-        // increment the build number
-        await CustomHostModel.findOneAndUpdate(
-          {
-            _id: new mongoose.Types.ObjectId(customHostId),
-          },
-          {
-            $inc: {
-              "androidDeploymentDetails.lastDeploymentDetails.buildNumber":
-                target === "android" ? 1 : 0,
-              "iosDeploymentDetails.lastDeploymentDetails.buildNumber":
-                target === "ios" ? 1 : 0,
-            },
-          },
-        );
-
-        updatedBuildNumber = lastDeploymentBuildNumber + 1;
+      if (
+        lastDeploymentVersionName &&
+        lastDeploymentBuildNumber &&
+        lastDeploymentVersionName === currentVersionName
+      ) {
+        currentBuildNumber = lastDeploymentBuildNumber + 1;
       }
+      const updateQuery =
+        target === "android"
+          ? {
+              "androidDeploymentDetails.lastDeploymentDetails.buildNumber":
+                currentBuildNumber,
+              "androidDeploymentDetails.lastDeploymentDetails.versionName":
+                currentVersionName,
+            }
+          : {
+              "iosDeploymentDetails.lastDeploymentDetails.buildNumber":
+                currentBuildNumber,
+              "iosDeploymentDetails.lastDeploymentDetails.versionName":
+                currentVersionName,
+            };
+      await CustomHostModel.findOneAndUpdate(
+        {
+          _id: new mongoose.Types.ObjectId(customHostId),
+        },
+        {
+          $set: {
+            ...updateQuery,
+          },
+        },
+      );
 
       // populating the tasks with name and id
       const tasks = generateDeploymentTasks({
@@ -238,8 +271,8 @@ const createNewDeploymentHandler = factory.createHandlers(
         host: new mongoose.Types.ObjectId(customHostId),
         user: new mongoose.Types.ObjectId(payload.id),
         platform: target,
-        versionName: lastDeploymentVersionName,
-        buildNumber: updatedBuildNumber,
+        versionName: currentVersionName,
+        buildNumber: currentBuildNumber,
         tasks,
       });
 
@@ -248,9 +281,12 @@ const createNewDeploymentHandler = factory.createHandlers(
         path: "user",
         select: "name",
       });
+
+      // TODO: can't create another job if the job already exists and processing
+
       // creating a new job for deployment
       await buildQueue.add(
-        `${createdDeployment._id}-${target}-${lastDeploymentVersionName}`,
+        `${createdDeployment._id}-${target}-${currentVersionName}`,
         {
           deploymentId: createdDeployment._id.toString(),
           hostId: customHostId,

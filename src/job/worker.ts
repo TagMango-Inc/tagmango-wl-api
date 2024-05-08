@@ -1,23 +1,13 @@
-import {
-  Job,
-  Worker,
-} from 'bullmq';
-import { exec } from 'child_process';
-import mongoose from 'mongoose';
-import CustomHostModel from 'src/models/customHost.model';
-import DeploymentModel, { IDeploymentTask } from 'src/models/deployment.model';
-import databaseConntect from 'src/utils/database';
+import { Job, Worker } from "bullmq";
+import { exec } from "child_process";
+import mongoose from "mongoose";
+import CustomHostModel from "src/models/customHost.model";
+import DeploymentModel, { IDeploymentTask } from "src/models/deployment.model";
+import databaseConntect from "src/utils/database";
 
-import {
-  customhostDeploymentDir,
-  githubrepo,
-  rootBranch,
-} from '../constants';
-import {
-  BuildJobPayloadType,
-  JobProgressType,
-} from '../types';
-import { queueRedisOptions } from './config';
+import { customhostDeploymentDir, githubrepo, ROOT_BRANCH } from "../constants";
+import { BuildJobPayloadType, JobProgressType } from "../types";
+import { queueRedisOptions } from "./config";
 
 // import {
 // copyAppAssets,
@@ -113,8 +103,8 @@ const worker = new Worker<BuildJobPayloadType>(
       // step: 1: Fetching lastest changes to root TagMango project ( for testing fetching lastest changes from test-build-m1)
       [taskNames[0].id]: [
         `cd root/${githubrepo}`,
-        `git checkout ${rootBranch}`,
-        `git pull origin ${rootBranch}`,
+        `git checkout ${ROOT_BRANCH}`,
+        `git pull origin ${ROOT_BRANCH}`,
       ],
       // step: 2: Copying the lastest root project to deployment/{bundleId} folder
       [taskNames[1].id]: [
@@ -169,10 +159,7 @@ const worker = new Worker<BuildJobPayloadType>(
       // ],
       //TODO
       // step 11: Running the fastlane build for specific targer platform
-      [taskNames[4].id]: [
-        `cd ${customHostDir}`,
-        `fastlane ${platform} build`,
-      ],
+      [taskNames[4].id]: [`cd ${customHostDir}`, `fastlane ${platform} build`],
       // step 12: Running the fastlane upload for specific targer platform
       // TODO
       [taskNames[5].id]: [`cd ${customHostDir}`, `fastlane ${platform} upload`],
@@ -450,18 +437,14 @@ const updateVersionDetails = async ({
         platform === "android"
           ? {
               $set: {
-                "androidDeploymentDetails.buildNumber":
-                  "$androidDeploymentDetails.lastDeploymentDetails.buildNumber",
-                "androidDeploymentDetails.versionName":
-                  "$androidDeploymentDetails.lastDeploymentDetails.versionName",
+                "androidDeploymentDetails.buildNumber": deployment.buildNumber,
+                "androidDeploymentDetails.versionName": deployment.versionName,
               },
             }
           : {
               $set: {
-                "iosDeploymentDetails.buildNumber":
-                  "$iosDeploymentDetails.lastDeploymentDetails.buildNumber",
-                "iosDeploymentDetails.versionName":
-                  "$iosDeploymentDetails.lastDeploymentDetails.versionName",
+                "iosDeploymentDetails.buildNumber": deployment.buildNumber,
+                "iosDeploymentDetails.versionName": deployment.versionName,
               },
             },
       ],
