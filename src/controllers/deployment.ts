@@ -1,13 +1,13 @@
-import { createFactory } from "hono/factory";
-import mongoose from "mongoose";
-import { buildQueue } from "src/job/config";
-import CustomHostModel from "src/models/customHost.model";
-import DeploymentModel from "src/models/deployment.model";
-import { JWTPayloadType } from "src/types";
-import { generateDeploymentTasks } from "src/utils/generateTaskDetails";
-import { createNewDeploymentSchema } from "src/validations/customhost";
+import { createFactory } from 'hono/factory';
+import mongoose from 'mongoose';
+import { buildQueue } from 'src/job/config';
+import CustomHostModel from 'src/models/customHost.model';
+import DeploymentModel from 'src/models/deployment.model';
+import { JWTPayloadType } from 'src/types';
+import { generateDeploymentTasks } from 'src/utils/generateTaskDetails';
+import { createNewDeploymentSchema } from 'src/validations/customhost';
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from '@hono/zod-validator';
 
 const factory = createFactory();
 
@@ -248,14 +248,13 @@ const createNewDeploymentHandler = factory.createHandlers(
         path: "user",
         select: "name",
       });
-
       // creating a new job for deployment
       await buildQueue.add(
         `${createdDeployment._id}-${target}-${lastDeploymentVersionName}`,
         {
           deploymentId: createdDeployment._id.toString(),
           hostId: customHostId,
-          name: customhost.deploymentAppName ?? customhost.appName,
+          name: customhost.deploymentDetails.appName ?? customhost.appName,
           bundle:
             target === "android"
               ? customhost.androidDeploymentDetails.bundleId

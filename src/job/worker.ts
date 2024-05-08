@@ -1,13 +1,23 @@
-import { Job, Worker } from "bullmq";
-import { exec } from "child_process";
-import mongoose from "mongoose";
-import CustomHostModel from "src/models/customHost.model";
-import DeploymentModel, { IDeploymentTask } from "src/models/deployment.model";
-import databaseConntect from "src/utils/database";
+import {
+  Job,
+  Worker,
+} from 'bullmq';
+import { exec } from 'child_process';
+import mongoose from 'mongoose';
+import CustomHostModel from 'src/models/customHost.model';
+import DeploymentModel, { IDeploymentTask } from 'src/models/deployment.model';
+import databaseConntect from 'src/utils/database';
 
-import { customhostDeploymentDir, githubrepo, rootBranch } from "../constants";
-import { BuildJobPayloadType, JobProgressType } from "../types";
-import { queueRedisOptions } from "./config";
+import {
+  customhostDeploymentDir,
+  githubrepo,
+  rootBranch,
+} from '../constants';
+import {
+  BuildJobPayloadType,
+  JobProgressType,
+} from '../types';
+import { queueRedisOptions } from './config';
 
 // import {
 // copyAppAssets,
@@ -116,7 +126,9 @@ const worker = new Worker<BuildJobPayloadType>(
         `cd ${customHostDir}`,
         `mkdir -p icons`,
         `cd icons`,
-        `npx icon-set-creator create ../../../assets/${formatedAppName}/icon.png`,
+        `cp ../../../../assets/${formatedAppName}/icon.png .`,
+        `mkdir -p android ios`,
+        `npx icon-set-creator create ./icon.png`,
       ],
       //TODO
       // step: 4: Running the pre deployment and bundle script for the deployment/{bundleId} folder
