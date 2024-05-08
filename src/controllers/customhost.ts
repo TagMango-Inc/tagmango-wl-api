@@ -44,6 +44,7 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
           deploymentDetails: 1,
           androidVersionName: "$androidDeploymentDetails.versionName",
           iosVersionName: "$iosDeploymentDetails.versionName",
+          iosUnderReview: "$iosDeploymentDetails.isUnderReview",
         },
       },
       {
