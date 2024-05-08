@@ -171,11 +171,11 @@ const worker = new Worker<BuildJobPayloadType>(
       // step 11: Running the fastlane build for specific targer platform
       [taskNames[4].id]: [
         `cd ${customHostDir}`,
-        `fastlane ${platform} build_apk`,
+        `fastlane ${platform} build`,
       ],
       // step 12: Running the fastlane upload for specific targer platform
       // TODO
-      [taskNames[5].id]: [`cd ${customHostDir}`],
+      [taskNames[5].id]: [`cd ${customHostDir}`, `fastlane ${platform} upload`],
       // step 13: Removing the deployment/{bundleId} folder after successful deployment
       [taskNames[6].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
     };
