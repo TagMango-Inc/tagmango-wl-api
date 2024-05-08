@@ -255,7 +255,7 @@ const createNewDeploymentHandler = factory.createHandlers(
         {
           deploymentId: createdDeployment._id.toString(),
           hostId: customHostId,
-          name: customhost.appName,
+          name: customhost.deploymentAppName ?? customhost.appName,
           bundle:
             target === "android"
               ? customhost.androidDeploymentDetails.bundleId
