@@ -91,8 +91,13 @@ const worker = new Worker<BuildJobPayloadType>(
         `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
         `fastlane ${platform} build`,
       ],
-      // step 6: Removing the deployment/{bundleId} folder after successful deployment
-      [taskNames[5].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
+      // step 6: Running the fastlane upload for specific targer platform
+      [taskNames[5].id]: [
+        `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
+        `fastlane ${platform} upload`,
+      ],
+      // step 7: Removing the deployment/{bundleId} folder after successful deployment
+      [taskNames[6].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
     };
 
     console.log(
