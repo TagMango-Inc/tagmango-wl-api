@@ -72,4 +72,31 @@ export const patchCustomHostByIdSchema = z.object({
     )
     .optional(),
   routingConfig: z.custom<RoutingConfig>().optional(),
+  androidDeploymentDetails: z
+    .object({
+      bundleId: z.string().optional(),
+      versionName: z.string().optional(),
+      buildNumber: z.number().optional(),
+      lastDeploymentDetails: z
+        .object({
+          versionName: z.string().optional(),
+          buildNumber: z.number().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+  iosDeploymentDetails: z
+    .object({
+      bundleId: z.string().optional(),
+      versionName: z.string().optional(),
+      buildNumber: z.number().optional(),
+      isUnderReview: z.boolean().optional(),
+      lastDeploymentDetails: z
+        .object({
+          versionName: z.string().optional(),
+          buildNumber: z.number().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
 });
