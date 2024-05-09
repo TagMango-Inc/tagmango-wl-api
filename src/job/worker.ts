@@ -33,6 +33,7 @@ const worker = new Worker<BuildJobPayloadType>(
       color,
       bgColor,
       onesignal_id,
+      buildNumber,
     } = job.data;
 
     const formatedAppName = name.replace(/ /g, "");
@@ -127,7 +128,7 @@ const worker = new Worker<BuildJobPayloadType>(
       [taskNames[3].id]: [
         `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
         `npm install`,
-        `node ./scripts/app-build.js ${JSON.stringify({ name, bundle, domain, color, bgColor, onesignal_id })}`,
+        `node ./scripts/app-build.js ${JSON.stringify({ name, bundle, domain, color, bgColor, onesignal_id, buildNumber })}`,
       ],
 
       // // Step 4: Rename the app and bundle
