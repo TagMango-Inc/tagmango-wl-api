@@ -1,19 +1,16 @@
-import { createFactory } from 'hono/factory';
-import mongoose from 'mongoose';
-import {
-  CURRENT_VERSION_NAME,
-  CURRENT_VERSION_NUMBER,
-} from 'src/constants';
-import { buildQueue } from 'src/job/config';
-import CustomHostModel from 'src/models/customHost.model';
-import DeploymentModel from 'src/models/deployment.model';
-import MetadataModel from 'src/models/metadata.model';
-import { JWTPayloadType } from 'src/types';
-import { generateDeploymentTasks } from 'src/utils/generateTaskDetails';
-import { Response } from 'src/utils/statuscode';
-import { createNewDeploymentSchema } from 'src/validations/customhost';
+import { createFactory } from "hono/factory";
+import mongoose from "mongoose";
+import { CURRENT_VERSION_NAME, CURRENT_VERSION_NUMBER } from "src/constants";
+import { buildQueue } from "src/job/config";
+import CustomHostModel from "src/models/customHost.model";
+import DeploymentModel from "src/models/deployment.model";
+import MetadataModel from "src/models/metadata.model";
+import { JWTPayloadType } from "src/types";
+import { generateDeploymentTasks } from "src/utils/generateTaskDetails";
+import { Response } from "src/utils/statuscode";
+import { createNewDeploymentSchema } from "src/validations/customhost";
 
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from "@hono/zod-validator";
 
 const factory = createFactory();
 
@@ -295,7 +292,7 @@ const createNewDeploymentHandler = factory.createHandlers(
               : metadata.iosDeploymentDetails.bundleId,
           domain: customhost.host,
           color: customhost.colors.PRIMARY,
-          bgColor: customhost.colors.LAUNCH_BG,
+          bgColor: metadata.backgroundStartColor,
           onesignal_id: customhost.onesignalAppId || "",
           platform: target,
         },
