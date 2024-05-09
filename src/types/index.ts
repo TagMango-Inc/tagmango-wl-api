@@ -17,6 +17,7 @@ export type BuildConfigType = {
   color: string;
   bgColor: string;
   onesignal_id: string;
+  buildNumber: number;
 };
 
 export type BuildJobPayloadType = {
