@@ -170,7 +170,7 @@ const patchCustomHostByIdHandler = factory.createHandlers(
 );
 
 /**
-    /wl/apps/{:id}/upload/asset
+    /wl/apps//upload/asset
     POST
     Protected Route
 */
@@ -181,7 +181,10 @@ const uploadAssetHandler = factory.createHandlers(async (c) => {
       all: true,
     });
     const file = body["file"];
-    const uploadPath = "./uploads";
+    const deploymentAppName = body["appName"].toString();
+    const formatedDeploymentAppName = deploymentAppName.replace(/ /g, "");
+
+    const uploadPath = `./assets/${formatedDeploymentAppName}`;
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, {
         recursive: true,
@@ -189,7 +192,7 @@ const uploadAssetHandler = factory.createHandlers(async (c) => {
     }
 
     if (file instanceof File) {
-      const filePath = `${uploadPath}/${file.name}`;
+      const filePath = `${uploadPath}/icon.png`;
       const buffer = await file.arrayBuffer();
       fs.writeFileSync(filePath, Buffer.from(buffer));
       return c.json(
@@ -217,6 +220,7 @@ const uploadAssetHandler = factory.createHandlers(async (c) => {
       );
     }
   } catch (error) {
+    console.log(error);
     return c.json(
       { message: "Internal Server Error" },
       {
