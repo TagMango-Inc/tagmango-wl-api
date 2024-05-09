@@ -1,24 +1,28 @@
-import { createFactory } from "hono/factory";
-import mongoose from "mongoose";
-import { CURRENT_VERSION_NAME, CURRENT_VERSION_NUMBER } from "src/constants";
-import { buildQueue } from "src/job/config";
-import CustomHostModel from "src/models/customHost.model";
-import DeploymentModel from "src/models/deployment.model";
-import { JWTPayloadType } from "src/types";
-import { generateDeploymentTasks } from "src/utils/generateTaskDetails";
-import { createNewDeploymentSchema } from "src/validations/customhost";
+import { createFactory } from 'hono/factory';
+import mongoose from 'mongoose';
+import {
+  CURRENT_VERSION_NAME,
+  CURRENT_VERSION_NUMBER,
+} from 'src/constants';
+import { buildQueue } from 'src/job/config';
+import CustomHostModel from 'src/models/customHost.model';
+import DeploymentModel from 'src/models/deployment.model';
+import MetadataModel from 'src/models/metadata.model';
+import { JWTPayloadType } from 'src/types';
+import { generateDeploymentTasks } from 'src/utils/generateTaskDetails';
+import { createNewDeploymentSchema } from 'src/validations/customhost';
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from '@hono/zod-validator';
 
 const factory = createFactory();
 
 const getDeploymentDetails = factory.createHandlers(async (c) => {
   try {
     const { id, target } = c.req.param();
-    const deploymentDetails = await CustomHostModel.aggregate([
+    const deploymentDetails = await MetadataModel.aggregate([
       {
         $match: {
-          _id: new mongoose.Types.ObjectId(id),
+          host: new mongoose.Types.ObjectId(id),
         },
       },
       {
@@ -512,5 +516,6 @@ export {
   getAllDeploymentsHandler,
   getDeploymentDetails,
   getDeploymentDetailsById,
-  getDeploymentTaskLogsByTaskId,
+  getDeploymentTaskLogsByTaskId
 };
+

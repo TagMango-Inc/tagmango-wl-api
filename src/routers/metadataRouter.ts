@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import {
   createMetadata,
+  getAppMetadata,
   updateMetadataAndroidSettings,
   updateMetadataIosSettings,
   uploadMetadataLogo,
@@ -8,6 +9,7 @@ import {
 
 const router = new Hono();
 
+router.get("/:appId", ...getAppMetadata);
 router.post("/:appId", ...createMetadata);
 router.patch("/settings/logo/upload/:appId", ...uploadMetadataLogo);
 router.patch("/settings/android/:appId", ...updateMetadataAndroidSettings);

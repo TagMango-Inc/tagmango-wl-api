@@ -50,6 +50,30 @@ const createMetadata = factory.createHandlers(
   },
 );
 
+const getAppMetadata = factory.createHandlers(async (c) => {
+  try {
+    const { appId } = c.req.param();
+
+    const metadata = await MetadataModel.findOne({
+      host: new mongoose.Types.ObjectId(appId),
+    });
+
+    if (!metadata) {
+      return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+    }
+
+    return c.json(
+      { message: "Metadata fetched successfully", result: metadata },
+      Response.OK,
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
 const uploadMetadataLogo = factory.createHandlers(
   zValidator("form", updateMetadataLogoSchema),
   async (c) => {
@@ -235,6 +259,7 @@ const updateMetadataIosSettings = factory.createHandlers(
 
 export {
   createMetadata,
+  getAppMetadata,
   updateMetadataAndroidSettings,
   updateMetadataIosSettings,
   uploadMetadataLogo,
