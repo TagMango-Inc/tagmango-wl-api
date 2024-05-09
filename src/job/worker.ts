@@ -117,8 +117,10 @@ const worker = new Worker<BuildJobPayloadType>(
         `mkdir -p icons`,
         `cd icons`,
         `cp ../../../../assets/${formatedAppName}/icon.png .`,
+        `cp ../../../../assets/${formatedAppName}/foreground.png .`,
+        `cp ../../../../assets/${formatedAppName}/background.png .`,
         `mkdir -p android ios`,
-        `npx icon-set-creator create ./icon.png`,
+        `npx icon-set-creator create`,
       ],
       //TODO
       // step: 4: Running the pre deployment and bundle script for the deployment/{bundleId} folder

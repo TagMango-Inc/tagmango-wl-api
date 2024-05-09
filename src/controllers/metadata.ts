@@ -1,20 +1,34 @@
-import fs from 'fs';
-import { createFactory } from 'hono/factory';
-import mongoose from 'mongoose';
-import CustomHostModel from 'src/models/customHost.model';
-import MetadataModel from 'src/models/metadata.model';
-import { Response } from 'src/utils/statuscode';
+import fs from "fs";
+import { createFactory } from "hono/factory";
+import mongoose from "mongoose";
+import CustomHostModel from "src/models/customHost.model";
+import MetadataModel from "src/models/metadata.model";
+import { Response } from "src/utils/statuscode";
 import {
   createMetadataSchema,
   updateAndroidDeploymentDetailsSchema,
   updateIosDeploymentDetailsSchema,
   updateMetadataLogoSchema,
   updateMetadataSettingsSchema,
-} from 'src/validations/metadata';
+} from "src/validations/metadata";
 
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from "@hono/zod-validator";
 
 const factory = createFactory();
+
+function base64ToImage(base64Str: string, path: string) {
+  // Remove header
+  const base64Data = base64Str.replace(/^data:image\/png;base64,/, "");
+
+  // Write file
+  fs.writeFile(path, base64Data, "base64", (err) => {
+    if (err) {
+      console.error(err);
+      return;
+    }
+    console.log("File created successfully.");
+  });
+}
 
 const createMetadata = factory.createHandlers(
   zValidator("json", createMetadataSchema),
@@ -81,11 +95,11 @@ const getAppMetadata = factory.createHandlers(async (c) => {
 });
 
 const uploadMetadataLogo = factory.createHandlers(
-  zValidator("form", updateMetadataLogoSchema),
+  zValidator("json", updateMetadataLogoSchema),
   async (c) => {
     try {
       const { appId } = c.req.param();
-      const body = c.req.valid("form");
+      const body = c.req.valid("json");
 
       const metadata = await MetadataModel.findOne({
         host: new mongoose.Types.ObjectId(appId),
@@ -112,27 +126,42 @@ const uploadMetadataLogo = factory.createHandlers(
         });
       }
       // uploading files to assets
-      if (
-        logo instanceof File &&
-        icon instanceof File &&
-        background instanceof File &&
-        foreground instanceof File
-      ) {
-        const logoFileName = `${logoPath}/logo.png`;
-        const iconFileName = `${logoPath}/icon.png`;
-        const backgroundFileName = `${logoPath}/background.png`;
-        const foregroundFileName = `${logoPath}/foreground.png`;
+      // if (
+      //   logo instanceof File &&
+      //   icon instanceof File &&
+      //   background instanceof File &&
+      //   foreground instanceof File
+      // ) {
+      //   const logoFileName = `${logoPath}/logo.png`;
+      //   const iconFileName = `${logoPath}/icon.png`;
+      //   const backgroundFileName = `${logoPath}/background.png`;
+      //   const foregroundFileName = `${logoPath}/foreground.png`;
 
-        const logoBuffer = await logo.arrayBuffer();
-        const iconBuffer = await icon.arrayBuffer();
-        const backgroundBuffer = await background.arrayBuffer();
-        const foregroundBuffer = await foreground.arrayBuffer();
+      //   const logoBuffer = await logo.arrayBuffer();
+      //   const iconBuffer = await icon.arrayBuffer();
+      //   const backgroundBuffer = await background.arrayBuffer();
+      //   const foregroundBuffer = await foreground.arrayBuffer();
 
-        fs.writeFileSync(logoFileName, Buffer.from(logoBuffer));
-        fs.writeFileSync(iconFileName, Buffer.from(iconBuffer));
-        fs.writeFileSync(backgroundFileName, Buffer.from(backgroundBuffer));
-        fs.writeFileSync(foregroundFileName, Buffer.from(foregroundBuffer));
-      }
+      //   fs.writeFileSync(logoFileName, Buffer.from(logoBuffer));
+      //   fs.writeFileSync(iconFileName, Buffer.from(iconBuffer));
+      //   fs.writeFileSync(backgroundFileName, Buffer.from(backgroundBuffer));
+      //   fs.writeFileSync(foregroundFileName, Buffer.from(foregroundBuffer));
+      // }
+
+      // const logoBuffer = Buffer.from(logo, "base64");
+      // const iconBuffer = Buffer.from(icon, "base64");
+      // const backgroundBuffer = Buffer.from(background, "base64");
+      // const foregroundBuffer = Buffer.from(foreground, "base64");
+
+      // fs.writeFileSync(`${logoPath}/logo.png`, logoBuffer);
+      // fs.writeFileSync(`${logoPath}/icon.png`, iconBuffer);
+      // fs.writeFileSync(`${logoPath}/background.png`, backgroundBuffer);
+      // fs.writeFileSync(`${logoPath}/foreground.png`, foregroundBuffer);
+
+      base64ToImage(logo, `${logoPath}/logo.png`);
+      base64ToImage(icon, `${logoPath}/icon.png`);
+      base64ToImage(background, `${logoPath}/background.png`);
+      base64ToImage(foreground, `${logoPath}/foreground.png`);
 
       const updatedMetadata = await MetadataModel.findOneAndUpdate(
         {

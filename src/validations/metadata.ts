@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 const FileSchema = z.instanceof(File);
 
@@ -7,15 +7,15 @@ const createMetadataSchema = z.object({
 });
 
 const updateMetadataLogoSchema = z.object({
-  logo: FileSchema,
-  icon: FileSchema,
-  background: FileSchema,
-  foreground: FileSchema,
+  logo: z.string(),
+  icon: z.string(),
+  background: z.string(),
+  foreground: z.string(),
   backgroundType: z.enum(["color", "gradient"]).optional(),
   backgroundStartColor: z.string().optional(),
   backgroundEndColor: z.string().optional(),
-  backgroundGradientAngle: z.string().optional(),
-  logoPadding: z.string().optional(),
+  backgroundGradientAngle: z.number().optional(),
+  logoPadding: z.number().optional(),
 });
 
 const updateIosDeploymentDetailsSchema = z.object({
