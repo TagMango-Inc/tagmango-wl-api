@@ -3,6 +3,7 @@ import { exec } from "child_process";
 import mongoose from "mongoose";
 import CustomHostModel from "src/models/customHost.model";
 import DeploymentModel, { IDeploymentTask } from "src/models/deployment.model";
+import MetadataModel from "src/models/metadata.model";
 import databaseConntect from "src/utils/database";
 
 import { customhostDeploymentDir, githubrepo, ROOT_BRANCH } from "../constants";
@@ -434,8 +435,8 @@ const updateVersionDetails = async ({
     // and updating last deployment details for custom host
 
     deployment.status = "success";
-    await CustomHostModel.updateOne(
-      { _id: new mongoose.Types.ObjectId(hostId) },
+    await MetadataModel.updateOne(
+      { host: new mongoose.Types.ObjectId(hostId) },
       [
         platform === "android"
           ? {
