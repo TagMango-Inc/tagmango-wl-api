@@ -12,6 +12,7 @@ import authenticationMiddleware from "./middleware/authentication";
 import authenticationRouter from "./routers/authenticationRouter";
 import customHostRouter from "./routers/customHostRouter";
 import iapRouter from "./routers/iapRouter";
+import metadataRouter from "./routers/metadataRouter";
 import sseRouter from "./routers/sse";
 import userManagementRouter from "./routers/userManagementRouter";
 import databaseConntect from "./utils/database";
@@ -24,6 +25,7 @@ app.use("/*", cors());
 app.use("/user-management/*", authenticationMiddleware);
 app.use("/apps/*", authenticationMiddleware);
 app.use("/iap/*", authenticationMiddleware);
+app.use("/metadata/*", authenticationMiddleware);
 // // server static files
 // app.use(
 //   "/static/assets/*",
@@ -75,6 +77,7 @@ app.route("/apps", customHostRouter);
 app.route("/auth", authenticationRouter);
 app.route("/user-management", userManagementRouter);
 app.route("/iap", iapRouter);
+app.route("/metadata", metadataRouter);
 app.route("/sse", sseRouter);
 
 app.use(prettyJSON());
