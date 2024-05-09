@@ -101,7 +101,7 @@ const customhostMetadataSchema = new Schema<IMetaData>(
 );
 
 const MetadataModel = model<IMetaData>(
-  "customhostmemtadata",
+  "customhostmetadata",
   customhostMetadataSchema,
 );
 export default MetadataModel;

@@ -10,6 +10,7 @@ import DeploymentModel from 'src/models/deployment.model';
 import MetadataModel from 'src/models/metadata.model';
 import { JWTPayloadType } from 'src/types';
 import { generateDeploymentTasks } from 'src/utils/generateTaskDetails';
+import { Response } from 'src/utils/statuscode';
 import { createNewDeploymentSchema } from 'src/validations/customhost';
 
 import { zValidator } from '@hono/zod-validator';
@@ -205,30 +206,27 @@ const createNewDeploymentHandler = factory.createHandlers(
       const { id: customHostId } = c.req.param();
       const { target } = c.req.valid("json");
       const payload: JWTPayloadType = c.get("jwtPayload");
-
       const customhost = await CustomHostModel.findById(customHostId);
-
+      const metadata = await MetadataModel.findOne({
+        host: new mongoose.Types.ObjectId(customHostId),
+      });
       if (!customhost) {
-        return c.json(
-          { message: "Custom Host not found" },
-          { status: 404, statusText: "Not Found" },
-        );
+        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
       }
-
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
       const { versionName: productionVersionName, lastDeploymentDetails } =
         target === "android"
-          ? customhost.androidDeploymentDetails
-          : customhost.iosDeploymentDetails;
-
+          ? metadata.androidDeploymentDetails
+          : metadata.iosDeploymentDetails;
       const {
         versionName: lastDeploymentVersionName,
         buildNumber: lastDeploymentBuildNumber,
       } = lastDeploymentDetails;
-
       // let updatedBuildNumber = lastDeploymentBuildNumber;
       let currentVersionName = CURRENT_VERSION_NAME;
       let currentBuildNumber = CURRENT_VERSION_NUMBER;
-
       if (
         lastDeploymentVersionName &&
         lastDeploymentBuildNumber &&
@@ -250,9 +248,9 @@ const createNewDeploymentHandler = factory.createHandlers(
               "iosDeploymentDetails.lastDeploymentDetails.versionName":
                 currentVersionName,
             };
-      await CustomHostModel.findOneAndUpdate(
+      await MetadataModel.findOneAndUpdate(
         {
-          _id: new mongoose.Types.ObjectId(customHostId),
+          host: new mongoose.Types.ObjectId(customHostId),
         },
         {
           $set: {
@@ -260,14 +258,13 @@ const createNewDeploymentHandler = factory.createHandlers(
           },
         },
       );
-
       // populating the tasks with name and id
       const tasks = generateDeploymentTasks({
         bundle:
           target === "android"
-            ? customhost.androidDeploymentDetails.bundleId
-            : customhost.iosDeploymentDetails.bundleId,
-        formatedAppName: customhost.appName.replace(/ /g, ""),
+            ? metadata.androidDeploymentDetails.bundleId
+            : metadata.iosDeploymentDetails.bundleId,
+        formatedAppName: metadata.appName.replace(/ /g, ""),
         platform: target,
       });
       // creating a new deployment
@@ -279,26 +276,23 @@ const createNewDeploymentHandler = factory.createHandlers(
         buildNumber: currentBuildNumber,
         tasks,
       });
-
       // populating the user details
       await createdDeployment.populate({
         path: "user",
         select: "name",
       });
-
       // TODO: can't create another job if the job already exists and processing
-
       // creating a new job for deployment
       await buildQueue.add(
         `${createdDeployment._id}-${target}-${currentVersionName}`,
         {
           deploymentId: createdDeployment._id.toString(),
           hostId: customHostId,
-          name: customhost.deploymentDetails.appName ?? customhost.appName,
+          name: metadata.appName ?? customhost.appName,
           bundle:
             target === "android"
-              ? customhost.androidDeploymentDetails.bundleId
-              : customhost.iosDeploymentDetails.bundleId,
+              ? metadata.androidDeploymentDetails.bundleId
+              : metadata.iosDeploymentDetails.bundleId,
           domain: customhost.host,
           color: customhost.colors.PRIMARY,
           bgColor: customhost.colors.LAUNCH_BG,
@@ -309,7 +303,6 @@ const createNewDeploymentHandler = factory.createHandlers(
           attempts: 0,
         },
       );
-
       return c.json(
         {
           message: "Created New Deployment and added new job",
@@ -516,6 +509,5 @@ export {
   getAllDeploymentsHandler,
   getDeploymentDetails,
   getDeploymentDetailsById,
-  getDeploymentTaskLogsByTaskId
+  getDeploymentTaskLogsByTaskId,
 };
-

@@ -1,12 +1,11 @@
-import fs from "fs";
-import { createFactory } from "hono/factory";
-import CustomHostModel from "src/models/customHost.model";
-import { patchCustomHostByIdSchema } from "src/validations/customhost";
+import fs from 'fs';
+import { createFactory } from 'hono/factory';
+import CustomHostModel from 'src/models/customHost.model';
+import { patchCustomHostByIdSchema } from 'src/validations/customhost';
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from '@hono/zod-validator';
 
 const factory = createFactory();
-
 /**
     /wl/apps/
     GET
@@ -21,7 +20,6 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
     let PAGE = page ? parseInt(page as string) : 1;
     let LIMIT = limit ? parseInt(limit as string) : 10;
     let SEARCH = search ? (search as string) : "";
-
     const totalCustomHosts = await CustomHostModel.countDocuments();
     const customHosts = await CustomHostModel.aggregate([
       {
@@ -35,16 +33,30 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
         },
       },
       {
+        $lookup: {
+          from: "customhostmetadatas",
+          localField: "deploymentMetadata",
+          foreignField: "_id",
+          as: "deploymentDetails",
+        },
+      },
+      {
+        $unwind: {
+          path: "$deploymentDetails",
+        },
+      },
+      {
         $project: {
           appName: 1,
           host: 1,
           logo: 1,
           createdAt: 1,
           updatedAt: 1,
-          deploymentDetails: 1,
-          androidVersionName: "$androidDeploymentDetails.versionName",
-          iosVersionName: "$iosDeploymentDetails.versionName",
-          iosUnderReview: "$iosDeploymentDetails.isUnderReview",
+          androidVersionName:
+            "$deploymentDetails.androidDeploymentDetails.versionName",
+          iosVersionName: "$deploymentDetails.iosDeploymentDetails.versionName",
+          iosUnderReview:
+            "$deploymentDetails.iosDeploymentDetails.isUnderReview",
         },
       },
       {
@@ -57,7 +69,6 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
         $limit: LIMIT,
       },
     ]);
-
     const totalSearchResults = await CustomHostModel.find({
       $or: [
         { appName: { $regex: new RegExp(SEARCH, "i") } },
@@ -65,9 +76,7 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
         { brandname: { $regex: new RegExp(SEARCH, "i") } },
       ],
     }).countDocuments();
-
     const hasNextPage = totalSearchResults > PAGE * LIMIT;
-
     return c.json(
       {
         message: "All Custom Hosts",
@@ -96,7 +105,6 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
     );
   }
 });
-
 /**
     /wl/apps/{:id
     GET
@@ -124,7 +132,6 @@ const getCustomHostByIdHandler = factory.createHandlers(async (c) => {
     );
   }
 });
-
 /**
  * /wl/apps/{:id}
  * PATCH
@@ -139,7 +146,6 @@ const patchCustomHostByIdHandler = factory.createHandlers(
     try {
       const { id } = c.req.param();
       const { domain, ...update } = c.req.valid("json");
-
       const customHost = await CustomHostModel.findById(id);
       if (!customHost) {
         return c.json(
@@ -147,7 +153,6 @@ const patchCustomHostByIdHandler = factory.createHandlers(
           { status: 404, statusText: "Not Found" },
         );
       }
-
       const updatedCustomHost = await CustomHostModel.findByIdAndUpdate(
         id,
         update,
@@ -155,7 +160,6 @@ const patchCustomHostByIdHandler = factory.createHandlers(
           new: true,
         },
       );
-
       return c.json(
         { message: "Custom Host Updated", result: updatedCustomHost },
         { status: 200, statusText: "OK" },
@@ -168,13 +172,11 @@ const patchCustomHostByIdHandler = factory.createHandlers(
     }
   },
 );
-
 /**
     /wl/apps//upload/asset
     POST
     Protected Route
 */
-
 const uploadAssetHandler = factory.createHandlers(async (c) => {
   try {
     const body = await c.req.parseBody({
@@ -183,14 +185,12 @@ const uploadAssetHandler = factory.createHandlers(async (c) => {
     const file = body["file"];
     const deploymentAppName = body["appName"].toString();
     const formatedDeploymentAppName = deploymentAppName.replace(/ /g, "");
-
     const uploadPath = `./assets/${formatedDeploymentAppName}`;
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, {
         recursive: true,
       });
     }
-
     if (file instanceof File) {
       const filePath = `${uploadPath}/icon.png`;
       const buffer = await file.arrayBuffer();
@@ -230,7 +230,6 @@ const uploadAssetHandler = factory.createHandlers(async (c) => {
     );
   }
 });
-
 export {
   getAllCustomHostsHandler,
   getCustomHostByIdHandler,

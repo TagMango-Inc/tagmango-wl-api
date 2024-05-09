@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { createFactory } from 'hono/factory';
 import mongoose from 'mongoose';
+import CustomHostModel from 'src/models/customHost.model';
 import MetadataModel from 'src/models/metadata.model';
 import { Response } from 'src/utils/statuscode';
 import {
@@ -36,6 +37,10 @@ const createMetadata = factory.createHandlers(
       const newMetadata = await MetadataModel.create({
         host: new mongoose.Types.ObjectId(appId),
         appName,
+      });
+
+      await CustomHostModel.findByIdAndUpdate(appId, {
+        deploymentMetadata: newMetadata._id,
       });
 
       return c.json(

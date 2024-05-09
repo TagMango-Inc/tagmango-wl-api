@@ -1,4 +1,7 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose, {
+  Schema,
+  Types,
+} from 'mongoose';
 
 // import { UserDocument } from './user';
 // import { MangoDocument } from './mango';
@@ -38,31 +41,7 @@ export type CustomHostDocument = mongoose.Document & {
   landingPageHost: string;
   androidDeepLinkConfig: object;
   iosDeepLinkConfig: object;
-  // **
-  iosDeploymentDetails: {
-    bundleId: string;
-    versionName: string;
-    buildNumber: number;
-    isUnderReview: boolean;
-    lastDeploymentDetails: {
-      versionName: string;
-      buildNumber: number;
-    };
-  };
-  androidDeploymentDetails: {
-    bundleId: string;
-    versionName: string;
-    buildNumber: number;
-    lastDeploymentDetails: {
-      versionName: string;
-      buildNumber: number;
-    };
-  };
-  deploymentDetails: {
-    appLogo: string;
-    appName: string;
-  };
-  //** */
+
   versionDetails: object;
   colors: any;
   theme: "light" | "dark";
@@ -125,6 +104,8 @@ export type CustomHostDocument = mongoose.Document & {
   emailDomainVerificationRecords?: any;
 
   routingConfig?: RoutingConfig;
+
+  deploymentMetadata: Types.ObjectId;
 };
 
 export interface RoutingConfig {
@@ -250,31 +231,6 @@ export const CustomHostSchema = new mongoose.Schema(
         },
       },
     },
-    // **
-    iosDeploymentDetails: {
-      bundleId: String,
-      versionName: String,
-      buildNumber: Number,
-      isUnderReview: Boolean,
-      lastDeploymentDetails: {
-        versionName: String,
-        buildNumber: Number,
-      },
-    },
-    androidDeploymentDetails: {
-      bundleId: String,
-      versionName: String,
-      buildNumber: Number,
-      lastDeploymentDetails: {
-        versionName: String,
-        buildNumber: Number,
-      },
-    },
-    deploymentDetails: {
-      appLogo: String,
-      appName: String,
-    },
-    //** */
     versionDetails: {
       type: Object,
       default: {
@@ -401,6 +357,11 @@ export const CustomHostSchema = new mongoose.Schema(
     emailDomainVerificationRecords: { type: Object },
     routingConfig: {
       type: Object,
+    },
+
+    deploymentMetadata: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "customhostmetadata",
     },
   },
   { timestamps: true },
