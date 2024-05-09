@@ -1,4 +1,9 @@
-import { Document, model, Schema, Types } from "mongoose";
+import {
+  Document,
+  model,
+  Schema,
+  Types,
+} from 'mongoose';
 
 export interface IMetaData extends Document {
   host: Types.ObjectId;
@@ -10,7 +15,7 @@ export interface IMetaData extends Document {
   backgroundType: "color" | "gradient";
   backgroundStartColor: string;
   backgroundEndColor: string;
-  backgroundAngle: number;
+  backgroundGradientAngle: number;
   //   backgroundColor: string; // for type color
   //   gradientStartColor: string; // for type gradient
   //   gradientEndColor: string; // for type gradient
@@ -63,7 +68,7 @@ const customhostMetadataSchema = new Schema<IMetaData>(
     backgroundEndColor: {
       type: String,
     },
-    backgroundAngle: {
+    backgroundGradientAngle: {
       type: Number,
       default: 0,
     },
