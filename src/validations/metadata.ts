@@ -30,9 +30,14 @@ const updateAndroidDeploymentDetailsSchema = z.object({
   buildNumber: z.number(),
 });
 
+const updateMetadataSettingsSchema = z.object({
+  appName: z.string().optional(),
+});
+
 export {
   createMetadataSchema,
   updateAndroidDeploymentDetailsSchema,
   updateIosDeploymentDetailsSchema,
   updateMetadataLogoSchema,
+  updateMetadataSettingsSchema,
 };

@@ -8,6 +8,7 @@ import {
   updateAndroidDeploymentDetailsSchema,
   updateIosDeploymentDetailsSchema,
   updateMetadataLogoSchema,
+  updateMetadataSettingsSchema,
 } from 'src/validations/metadata';
 
 import { zValidator } from '@hono/zod-validator';
@@ -257,10 +258,51 @@ const updateMetadataIosSettings = factory.createHandlers(
   },
 );
 
+const updateMetadataSettings = factory.createHandlers(
+  zValidator("json", updateMetadataSettingsSchema),
+  async (c) => {
+    try {
+      const { appId } = c.req.param();
+      const body = c.req.valid("json");
+
+      const metadata = await MetadataModel.findOne({
+        host: new mongoose.Types.ObjectId(appId),
+      });
+
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      const updatedMetadata = await MetadataModel.findOneAndUpdate(
+        {
+          host: new mongoose.Types.ObjectId(appId),
+        },
+        {
+          $set: body,
+        },
+      );
+
+      return c.json(
+        {
+          message: "Metadata updated successfully",
+          result: updatedMetadata?._id,
+        },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
 export {
   createMetadata,
   getAppMetadata,
   updateMetadataAndroidSettings,
   updateMetadataIosSettings,
+  updateMetadataSettings,
   uploadMetadataLogo,
 };
