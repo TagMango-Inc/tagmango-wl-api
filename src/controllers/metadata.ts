@@ -1,16 +1,16 @@
-import fs from "fs";
-import { createFactory } from "hono/factory";
-import mongoose from "mongoose";
-import MetadataModel from "src/models/metadata.model";
-import { Response } from "src/utils/statuscode";
+import fs from 'fs';
+import { createFactory } from 'hono/factory';
+import mongoose from 'mongoose';
+import MetadataModel from 'src/models/metadata.model';
+import { Response } from 'src/utils/statuscode';
 import {
   createMetadataSchema,
   updateAndroidDeploymentDetailsSchema,
   updateIosDeploymentDetailsSchema,
   updateMetadataLogoSchema,
-} from "src/validations/metadata";
+} from 'src/validations/metadata';
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from '@hono/zod-validator';
 
 const factory = createFactory();
 
@@ -138,7 +138,7 @@ const uploadMetadataLogo = factory.createHandlers(
             backgroundType: body.backgroundType,
             backgroundStartColor: body.backgroundStartColor,
             backgroundEndColor: body.backgroundEndColor,
-            backgroundAngle: body.backgroundAngle,
+            backgroundGradientAngle: body.backgroundGradientAngle,
             logoPadding: body.logoPadding,
           },
         },
