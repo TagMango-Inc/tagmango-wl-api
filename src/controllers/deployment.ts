@@ -503,7 +503,14 @@ const cancelDeploymentJobByDeploymentId = factory.createHandlers(async (c) => {
 
 const getRecentDeploymentsHandler = factory.createHandlers(async (c) => {
   try {
+    const { target, status } = c.req.query();
     const deployments = await DeploymentModel.aggregate([
+      {
+        $match: {
+          platform: target ?? { $in: ["android", "ios"] },
+          status: status ?? { $ne: "cancelled" },
+        },
+      },
       {
         $sort: { updatedAt: -1 },
       },
