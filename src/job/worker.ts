@@ -166,7 +166,7 @@ const worker = new Worker<BuildJobPayloadType>(
       [taskNames[4].id]: [
         `cd ${customHostDir}`,
         `fastlane ${platform} build`,
-        `cp -r android/app/build/outputs/bundle/release/app-release.aab ../../../../outputs/android/${hostId}.aab`,
+        `cp -r android/app/build/outputs/bundle/release/app-release.aab ../../../outputs/android/${hostId}.aab`,
       ],
       // step 12: Running the fastlane upload for specific targer platform
       // TODO
