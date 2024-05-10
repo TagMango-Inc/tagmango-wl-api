@@ -532,6 +532,7 @@ const getRecentDeploymentsHandler = factory.createHandlers(async (c) => {
         $project: {
           platform: 1,
           appName: "$host.appName",
+          appId: "$host._id",
           logo: "$host.logo",
           versionName: 1,
           buildNumber: 1,
