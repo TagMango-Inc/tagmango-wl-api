@@ -501,6 +501,54 @@ const cancelDeploymentJobByDeploymentId = factory.createHandlers(async (c) => {
   }
 });
 
+const getRecentDeploymentsHandler = factory.createHandlers(async (c) => {
+  try {
+    const deployments = await DeploymentModel.aggregate([
+      {
+        $sort: { updatedAt: -1 },
+      },
+      {
+        $limit: 20,
+      },
+      {
+        $lookup: {
+          from: "customhosts",
+          localField: "host",
+          foreignField: "_id",
+          as: "host",
+        },
+      },
+      {
+        $unwind: "$host",
+      },
+      {
+        $project: {
+          platform: 1,
+          appName: "$host.appName",
+          logo: "$host.logo",
+          versionName: 1,
+          buildNumber: 1,
+          status: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      },
+    ]);
+    return c.json(
+      {
+        message: "Recent Deployments",
+        result: deployments,
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
 export {
   cancelDeploymentJobByDeploymentId,
   createNewDeploymentHandler,
@@ -508,4 +556,5 @@ export {
   getDeploymentDetails,
   getDeploymentDetailsById,
   getDeploymentTaskLogsByTaskId,
+  getRecentDeploymentsHandler,
 };

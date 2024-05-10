@@ -11,6 +11,7 @@ import {
   getDeploymentDetails,
   getDeploymentDetailsById,
   getDeploymentTaskLogsByTaskId,
+  getRecentDeploymentsHandler,
 } from "src/controllers/deployment";
 
 const router = new Hono();
@@ -25,6 +26,7 @@ const router = new Hono();
 */
 
 router.get("/", ...getAllCustomHostsHandler);
+router.get("/recent-deployments", ...getRecentDeploymentsHandler);
 router.get("/:id", ...getCustomHostByIdHandler);
 router.patch("/:id", ...patchCustomHostByIdHandler);
 router.get("/:id/deployment-details/:target", ...getDeploymentDetails);
