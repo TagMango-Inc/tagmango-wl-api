@@ -515,7 +515,7 @@ const getRecentDeploymentsHandler = factory.createHandlers(async (c) => {
         $sort: { updatedAt: -1 },
       },
       {
-        $limit: 20,
+        $limit: 10,
       },
       {
         $lookup: {
