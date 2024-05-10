@@ -110,14 +110,12 @@ const uploadMetadataLogo = factory.createHandlers(
       }
 
       // saving assets
-      const buildAppName = metadata.appName;
-      const formatedBuildAppName = buildAppName.replace(/ /g, "");
       const logo = body.logo;
       const icon = body.icon;
       const background = body.background;
       const foreground = body.foreground;
 
-      const logoPath = `./assets/${formatedBuildAppName}`;
+      const logoPath = `./assets/${appId}`;
 
       // creating directory if not exists
       if (!fs.existsSync(logoPath)) {
@@ -125,40 +123,10 @@ const uploadMetadataLogo = factory.createHandlers(
           recursive: true,
         });
       }
-      // uploading files to assets
-      // if (
-      //   logo instanceof File &&
-      //   icon instanceof File &&
-      //   background instanceof File &&
-      //   foreground instanceof File
-      // ) {
-      //   const logoFileName = `${logoPath}/logo.png`;
-      //   const iconFileName = `${logoPath}/icon.png`;
-      //   const backgroundFileName = `${logoPath}/background.png`;
-      //   const foregroundFileName = `${logoPath}/foreground.png`;
 
-      //   const logoBuffer = await logo.arrayBuffer();
-      //   const iconBuffer = await icon.arrayBuffer();
-      //   const backgroundBuffer = await background.arrayBuffer();
-      //   const foregroundBuffer = await foreground.arrayBuffer();
-
-      //   fs.writeFileSync(logoFileName, Buffer.from(logoBuffer));
-      //   fs.writeFileSync(iconFileName, Buffer.from(iconBuffer));
-      //   fs.writeFileSync(backgroundFileName, Buffer.from(backgroundBuffer));
-      //   fs.writeFileSync(foregroundFileName, Buffer.from(foregroundBuffer));
-      // }
-
-      // const logoBuffer = Buffer.from(logo, "base64");
-      // const iconBuffer = Buffer.from(icon, "base64");
-      // const backgroundBuffer = Buffer.from(background, "base64");
-      // const foregroundBuffer = Buffer.from(foreground, "base64");
-
-      // fs.writeFileSync(`${logoPath}/logo.png`, logoBuffer);
-      // fs.writeFileSync(`${logoPath}/icon.png`, iconBuffer);
-      // fs.writeFileSync(`${logoPath}/background.png`, backgroundBuffer);
-      // fs.writeFileSync(`${logoPath}/foreground.png`, foregroundBuffer);
-
-      base64ToImage(logo, `${logoPath}/logo.png`);
+      if (logo) {
+        base64ToImage(logo, `${logoPath}/logo.png`);
+      }
       base64ToImage(icon, `${logoPath}/icon.png`);
       base64ToImage(background, `${logoPath}/background.png`);
       base64ToImage(foreground, `${logoPath}/foreground.png`);

@@ -7,7 +7,7 @@ const createMetadataSchema = z.object({
 });
 
 const updateMetadataLogoSchema = z.object({
-  logo: z.string(),
+  logo: z.string().optional(),
   icon: z.string(),
   background: z.string(),
   foreground: z.string(),

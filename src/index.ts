@@ -67,8 +67,7 @@ app.get(
     root: "./",
     rewriteRequestPath: (path) => {
       const paths = path.split("/");
-      const appName = paths[paths.length - 2];
-      return `/assets/${appName}/icon.png`;
+      return `./assets/${paths.slice(3).join("/")}`;
     },
   }),
 );

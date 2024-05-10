@@ -1,9 +1,8 @@
-import fs from 'fs';
-import { createFactory } from 'hono/factory';
-import CustomHostModel from 'src/models/customHost.model';
-import { patchCustomHostByIdSchema } from 'src/validations/customhost';
+import { createFactory } from "hono/factory";
+import CustomHostModel from "src/models/customHost.model";
+import { patchCustomHostByIdSchema } from "src/validations/customhost";
 
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from "@hono/zod-validator";
 
 const factory = createFactory();
 /**
@@ -172,67 +171,9 @@ const patchCustomHostByIdHandler = factory.createHandlers(
     }
   },
 );
-/**
-    /wl/apps//upload/asset
-    POST
-    Protected Route
-*/
-const uploadAssetHandler = factory.createHandlers(async (c) => {
-  try {
-    const body = await c.req.parseBody({
-      all: true,
-    });
-    const file = body["file"];
-    const deploymentAppName = body["appName"].toString();
-    const formatedDeploymentAppName = deploymentAppName.replace(/ /g, "");
-    const uploadPath = `./assets/${formatedDeploymentAppName}`;
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, {
-        recursive: true,
-      });
-    }
-    if (file instanceof File) {
-      const filePath = `${uploadPath}/icon.png`;
-      const buffer = await file.arrayBuffer();
-      fs.writeFileSync(filePath, Buffer.from(buffer));
-      return c.json(
-        {
-          message: "File uploaded successfully",
-          result: {
-            path: filePath,
-          },
-        },
-        {
-          status: 200,
-          statusText: "OK",
-        },
-      );
-    } else {
-      return c.json(
-        {
-          message: "Invalid file",
-          result: null,
-        },
-        {
-          status: 400,
-          statusText: "Bad Request",
-        },
-      );
-    }
-  } catch (error) {
-    console.log(error);
-    return c.json(
-      { message: "Internal Server Error" },
-      {
-        status: 500,
-        statusText: "Internal Server Error",
-      },
-    );
-  }
-});
+
 export {
   getAllCustomHostsHandler,
   getCustomHostByIdHandler,
   patchCustomHostByIdHandler,
-  uploadAssetHandler,
 };
