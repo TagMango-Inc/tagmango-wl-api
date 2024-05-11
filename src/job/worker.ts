@@ -171,8 +171,10 @@ const worker = new Worker<BuildJobPayloadType>(
       // step 12: Running the fastlane upload for specific targer platform
       // TODO
       [taskNames[5].id]: [`cd ${customHostDir}`, `fastlane ${platform} upload`],
+      // [taskNames[5].id]: [`cd ${customHostDir}`],
       // step 13: Removing the deployment/{bundleId} folder after successful deployment
       [taskNames[6].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
+      // [taskNames[6].id]: [],
     };
 
     console.log(
@@ -381,7 +383,7 @@ const executeTask = async ({
     );
 
     // removing aab file from the root project
-    exec(`rm -rf outputs/android/${hostId}.aab`);
+    // exec(`rm -rf outputs/android/${hostId}.aab`);
   } else {
     // add logs to the task and update the status to failed
     job.updateProgress({
