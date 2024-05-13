@@ -1,8 +1,7 @@
 import fs from "fs";
 import { createFactory } from "hono/factory";
-import mongoose from "mongoose";
-import CustomHostModel from "src/models/customHost.model";
-import MetadataModel from "src/models/metadata.model";
+import { ObjectId } from "mongodb";
+import Mongo from "src/database";
 import { Response } from "src/utils/statuscode";
 import {
   createMetadataSchema,
@@ -37,8 +36,8 @@ const createMetadata = factory.createHandlers(
       const { appName } = c.req.valid("json");
       const { appId } = c.req.param();
 
-      const metadata = await MetadataModel.findOne({
-        host: new mongoose.Types.ObjectId(appId),
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(appId),
       });
 
       if (metadata) {
@@ -48,17 +47,46 @@ const createMetadata = factory.createHandlers(
         );
       }
 
-      const newMetadata = await MetadataModel.create({
-        host: new mongoose.Types.ObjectId(appId),
+      const initialDeploymentDetails = {
+        bundleId: "com.tagmango.app",
+        versionName: "1.0.0",
+        buildNumber: 0,
+        lastDeploymentDetails: {
+          versionName: "1.0.0",
+          buildNumber: 0,
+        },
+      };
+
+      const newMetadata = await Mongo.metadata.insertOne({
+        host: new ObjectId(appId),
         appName,
+        logo: "",
+        backgroundType: "color",
+        backgroundStartColor: "#ffffff",
+        backgroundEndColor: "#ffffff",
+        backgroundGradientAngle: 0,
+        logoPadding: 0,
+        androidDeploymentDetails: initialDeploymentDetails,
+        iosDeploymentDetails: {
+          ...initialDeploymentDetails,
+          isUnderReview: false,
+        },
       });
 
-      await CustomHostModel.findByIdAndUpdate(appId, {
-        deploymentMetadata: newMetadata._id,
-      });
+      await Mongo.customhost.findOneAndUpdate(
+        {
+          _id: new ObjectId(appId),
+        },
+        {
+          deploymentMetadata: newMetadata.insertedId,
+        },
+      );
 
       return c.json(
-        { message: "Metadata created successfully", result: newMetadata._id },
+        {
+          message: "Metadata created successfully",
+          result: newMetadata.insertedId._id.toString(),
+        },
         Response.CREATED,
       );
     } catch (error) {
@@ -74,8 +102,8 @@ const getAppMetadata = factory.createHandlers(async (c) => {
   try {
     const { appId } = c.req.param();
 
-    const metadata = await MetadataModel.findOne({
-      host: new mongoose.Types.ObjectId(appId),
+    const metadata = await Mongo.metadata.findOne({
+      host: new ObjectId(appId),
     });
 
     if (!metadata) {
@@ -101,8 +129,8 @@ const uploadMetadataLogo = factory.createHandlers(
       const { appId } = c.req.param();
       const body = c.req.valid("json");
 
-      const metadata = await MetadataModel.findOne({
-        host: new mongoose.Types.ObjectId(appId),
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(appId),
       });
 
       if (!metadata) {
@@ -131,9 +159,9 @@ const uploadMetadataLogo = factory.createHandlers(
       base64ToImage(background, `${logoPath}/background.png`);
       base64ToImage(foreground, `${logoPath}/foreground.png`);
 
-      const updatedMetadata = await MetadataModel.findOneAndUpdate(
+      const updatedMetadata = await Mongo.metadata.findOneAndUpdate(
         {
-          host: new mongoose.Types.ObjectId(appId),
+          host: new ObjectId(appId),
         },
         {
           $set: {
@@ -144,9 +172,6 @@ const uploadMetadataLogo = factory.createHandlers(
             backgroundGradientAngle: body.backgroundGradientAngle,
             logoPadding: body.logoPadding,
           },
-        },
-        {
-          new: true,
         },
       );
 
@@ -173,17 +198,17 @@ const updateMetadataAndroidSettings = factory.createHandlers(
       const { appId } = c.req.param();
       const body = c.req.valid("json");
 
-      const metadata = await MetadataModel.findOne({
-        host: new mongoose.Types.ObjectId(appId),
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(appId),
       });
 
       if (!metadata) {
         return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
       }
 
-      const updatedMetadata = await MetadataModel.findOneAndUpdate(
+      const updatedMetadata = await Mongo.metadata.findOneAndUpdate(
         {
-          host: new mongoose.Types.ObjectId(appId),
+          host: new ObjectId(appId),
         },
         {
           $set: {
@@ -219,17 +244,17 @@ const updateMetadataIosSettings = factory.createHandlers(
       const { appId } = c.req.param();
       const body = c.req.valid("json");
 
-      const metadata = await MetadataModel.findOne({
-        host: new mongoose.Types.ObjectId(appId),
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(appId),
       });
 
       if (!metadata) {
         return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
       }
 
-      const updatedMetadata = await MetadataModel.findOneAndUpdate(
+      const updatedMetadata = await Mongo.metadata.findOneAndUpdate(
         {
-          host: new mongoose.Types.ObjectId(appId),
+          host: new ObjectId(appId),
         },
         {
           $set: {
@@ -267,17 +292,17 @@ const updateMetadataSettings = factory.createHandlers(
       const { appId } = c.req.param();
       const body = c.req.valid("json");
 
-      const metadata = await MetadataModel.findOne({
-        host: new mongoose.Types.ObjectId(appId),
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(appId),
       });
 
       if (!metadata) {
         return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
       }
 
-      const updatedMetadata = await MetadataModel.findOneAndUpdate(
+      const updatedMetadata = await Mongo.metadata.findOneAndUpdate(
         {
-          host: new mongoose.Types.ObjectId(appId),
+          host: new ObjectId(appId),
         },
         {
           $set: body,

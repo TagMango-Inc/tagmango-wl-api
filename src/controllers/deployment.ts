@@ -1,11 +1,10 @@
 import { createFactory } from "hono/factory";
-import mongoose from "mongoose";
+import { ObjectId } from "mongodb";
 import { CURRENT_VERSION_NAME, CURRENT_VERSION_NUMBER } from "src/constants";
+import Mongo from "src/database";
 import { buildQueue } from "src/job/config";
-import CustomHostModel from "src/models/customHost.model";
-import DeploymentModel from "src/models/deployment.model";
-import MetadataModel from "src/models/metadata.model";
 import { JWTPayloadType } from "src/types";
+import { Status } from "src/types/database";
 import { generateDeploymentTasks } from "src/utils/generateTaskDetails";
 import { Response } from "src/utils/statuscode";
 import { createNewDeploymentSchema } from "src/validations/customhost";
@@ -17,44 +16,46 @@ const factory = createFactory();
 const getDeploymentDetails = factory.createHandlers(async (c) => {
   try {
     const { id, target } = c.req.param();
-    const deploymentDetails = await MetadataModel.aggregate([
-      {
-        $match: {
-          host: new mongoose.Types.ObjectId(id),
-        },
-      },
-      {
-        $project: {
-          bundleId: {
-            $cond: {
-              if: {
-                $eq: [target, "android"],
-              },
-              then: "$androidDeploymentDetails.bundleId",
-              else: "$iosDeploymentDetails.bundleId",
-            },
-          },
-          versionName: {
-            $cond: {
-              if: {
-                $eq: [target, "android"],
-              },
-              then: "$androidDeploymentDetails.lastDeploymentDetails.versionName",
-              else: "$iosDeploymentDetails.lastDeploymentDetails.versionName",
-            },
-          },
-          buildNumber: {
-            $cond: {
-              if: {
-                $eq: [target, "android"],
-              },
-              then: "$androidDeploymentDetails.lastDeploymentDetails.buildNumber",
-              else: "$iosDeploymentDetails.lastDeploymentDetails.buildNumber",
-            },
+    const deploymentDetails = await Mongo.metadata
+      .aggregate([
+        {
+          $match: {
+            host: new ObjectId(id),
           },
         },
-      },
-    ]);
+        {
+          $project: {
+            bundleId: {
+              $cond: {
+                if: {
+                  $eq: [target, "android"],
+                },
+                then: "$androidDeploymentDetails.bundleId",
+                else: "$iosDeploymentDetails.bundleId",
+              },
+            },
+            versionName: {
+              $cond: {
+                if: {
+                  $eq: [target, "android"],
+                },
+                then: "$androidDeploymentDetails.lastDeploymentDetails.versionName",
+                else: "$iosDeploymentDetails.lastDeploymentDetails.versionName",
+              },
+            },
+            buildNumber: {
+              $cond: {
+                if: {
+                  $eq: [target, "android"],
+                },
+                then: "$androidDeploymentDetails.lastDeploymentDetails.buildNumber",
+                else: "$iosDeploymentDetails.lastDeploymentDetails.buildNumber",
+              },
+            },
+          },
+        },
+      ])
+      .toArray();
 
     if (deploymentDetails.length === 0) {
       return c.json(
@@ -103,77 +104,82 @@ const getDeploymentDetails = factory.createHandlers(async (c) => {
 
 const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
   try {
-    const { id } = c.req.param();
+    const { id: appId } = c.req.param();
     const { page, limit, search } = c.req.query();
 
     let PAGE = page ? parseInt(page as string) : 1;
     let LIMIT = limit ? parseInt(limit as string) : 10;
     let SEARCH = search ? (search as string) : "";
 
-    const totalDeployments =
-      await DeploymentModel.findById(id).countDocuments();
+    const totalDeployments = await Mongo.deployment
+      .find({ host: new ObjectId(appId) })
+      .toArray();
 
-    const deployments = await DeploymentModel.aggregate([
-      {
-        $match: {
-          host: new mongoose.Types.ObjectId(id),
+    const deployments = await Mongo.deployment
+      .aggregate([
+        {
+          $match: {
+            host: new ObjectId(appId),
+          },
         },
-      },
-      {
-        $match: {
-          $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
+        {
+          $match: {
+            $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
+          },
         },
-      },
-      {
-        $lookup: {
-          from: "adminusers",
-          localField: "user",
-          foreignField: "_id",
-          as: "user",
+        {
+          $lookup: {
+            from: "adminusers",
+            localField: "user",
+            foreignField: "_id",
+            as: "user",
+          },
         },
-      },
-      {
-        $unwind: "$user",
-      },
-      {
-        $project: {
-          "user._id": 1,
-          "user.name": 1,
-          // "user.customhostDashboardAccess": 1,
-          // host: 1,
-          platform: 1,
-          versionName: 1,
-          buildNumber: 1,
-          status: 1,
-          updatedAt: 1,
-          createdAt: 1,
+        {
+          $unwind: "$user",
         },
-      },
-      {
-        $sort: { updatedAt: -1 },
-      },
-      {
-        $skip: (PAGE - 1) * LIMIT,
-      },
-      {
-        $limit: LIMIT,
-      },
-    ]);
+        {
+          $project: {
+            "user._id": 1,
+            "user.name": 1,
+            // "user.customhostDashboardAccess": 1,
+            // host: 1,
+            platform: 1,
+            versionName: 1,
+            buildNumber: 1,
+            status: 1,
+            updatedAt: 1,
+            createdAt: 1,
+          },
+        },
+        {
+          $sort: { updatedAt: -1 },
+        },
+        {
+          $skip: (PAGE - 1) * LIMIT,
+        },
+        {
+          $limit: LIMIT,
+        },
+      ])
+      .toArray();
 
-    const totalSearchResults = await DeploymentModel.find({
-      _id: new mongoose.Types.ObjectId(id),
-      $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
-    }).countDocuments();
+    const totalSearchResults = await Mongo.deployment
+      .find({
+        _id: new ObjectId(appId),
+        $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
+      })
+      .toArray();
 
-    const hasNextPage = totalSearchResults > PAGE * LIMIT;
+    const hasNextPage = totalSearchResults.length > PAGE * LIMIT;
 
     return c.json(
       {
         message: "All Deployments for Custom Host",
         result: {
           deployments,
-          totalDeployments,
-          totalSearchResults,
+          totalDeployments: totalDeployments.length,
+          totalSearchResults: totalSearchResults.length,
           currentPage: PAGE,
           nextPage: hasNextPage ? PAGE + 1 : -1,
           limit: LIMIT,
@@ -203,16 +209,32 @@ const createNewDeploymentHandler = factory.createHandlers(
       const { id: customHostId } = c.req.param();
       const { target } = c.req.valid("json");
       const payload: JWTPayloadType = c.get("jwtPayload");
-      const customhost = await CustomHostModel.findById(customHostId);
-      const metadata = await MetadataModel.findOne({
-        host: new mongoose.Types.ObjectId(customHostId),
+
+      const user = await Mongo.user.findOne(
+        {
+          _id: new ObjectId(payload.id),
+        },
+        { projection: { name: 1 } },
+      );
+
+      const customhost = await Mongo.customhost.findOne({
+        _id: new ObjectId(customHostId),
       });
+
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(customHostId),
+      });
+
+      if (!user) {
+        return c.json({ message: "User not found" }, Response.NOT_FOUND);
+      }
       if (!customhost) {
         return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
       }
       if (!metadata) {
         return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
       }
+
       const { versionName: productionVersionName, lastDeploymentDetails } =
         target === "android"
           ? metadata.androidDeploymentDetails
@@ -245,9 +267,9 @@ const createNewDeploymentHandler = factory.createHandlers(
               "iosDeploymentDetails.lastDeploymentDetails.versionName":
                 currentVersionName,
             };
-      await MetadataModel.findOneAndUpdate(
+      await Mongo.metadata.findOneAndUpdate(
         {
-          host: new mongoose.Types.ObjectId(customHostId),
+          host: new ObjectId(customHostId),
         },
         {
           $set: {
@@ -265,25 +287,24 @@ const createNewDeploymentHandler = factory.createHandlers(
         platform: target,
       });
       // creating a new deployment
-      const createdDeployment = await DeploymentModel.create({
-        host: new mongoose.Types.ObjectId(customHostId),
-        user: new mongoose.Types.ObjectId(payload.id),
+      const createdDeployment = await Mongo.deployment.insertOne({
+        host: new ObjectId(customHostId),
+        user: new ObjectId(payload.id),
         platform: target,
         versionName: currentVersionName,
         buildNumber: currentBuildNumber,
         tasks,
+        status: Status.PENDING,
+        cancelledBy: null,
       });
-      // populating the user details
-      await createdDeployment.populate({
-        path: "user",
-        select: "name",
-      });
+
       // TODO: can't create another job if the job already exists and processing
       // creating a new job for deployment
+
       await buildQueue.add(
-        `${createdDeployment._id}-${target}-${currentVersionName}`,
+        `${createdDeployment.insertedId._id.toString()}-${target}-${currentVersionName}`,
         {
-          deploymentId: createdDeployment._id.toString(),
+          deploymentId: createdDeployment.insertedId._id.toString(),
           hostId: customHostId,
           name: metadata.appName ?? customhost.appName,
           bundle:
@@ -305,28 +326,22 @@ const createNewDeploymentHandler = factory.createHandlers(
         {
           message: "Created New Deployment and added new job",
           result: {
-            _id: createdDeployment._id,
-            user: createdDeployment.user,
+            _id: createdDeployment.insertedId._id.toString(),
+            user,
             platform: target,
-            versionName: createdDeployment.versionName,
-            buildNumber: createdDeployment.buildNumber,
-            status: createdDeployment.status,
-            createdAt: (createdDeployment as any).createdAt,
-            updatedAt: (createdDeployment as any).updatedAt,
+            versionName: currentVersionName,
+            buildNumber: currentBuildNumber,
+            status: Status.PENDING,
+            createdAt: new Date(),
+            updatedAt: new Date(),
           },
         },
-        {
-          status: 201,
-          statusText: "Created",
-        },
+        Response.CREATED,
       );
     } catch (error) {
       return c.json(
         { message: "Internal Server Error" },
-        {
-          status: 500,
-          statusText: "Internal Server Error",
-        },
+        Response.INTERNAL_SERVER_ERROR,
       );
     }
   },
@@ -335,69 +350,65 @@ const createNewDeploymentHandler = factory.createHandlers(
 const getDeploymentDetailsById = factory.createHandlers(async (c) => {
   try {
     const { id, deploymentId } = c.req.param();
-    const deployments = await DeploymentModel.aggregate([
-      {
-        $match: {
-          _id: new mongoose.Types.ObjectId(deploymentId),
-          host: new mongoose.Types.ObjectId(id),
+    const deployments = await Mongo.deployment
+      .aggregate([
+        {
+          $match: {
+            _id: new ObjectId(deploymentId),
+            host: new ObjectId(id),
+          },
         },
-      },
-      {
-        $lookup: {
-          from: "adminusers",
-          localField: "user",
-          foreignField: "_id",
-          as: "user",
+        {
+          $lookup: {
+            from: "adminusers",
+            localField: "user",
+            foreignField: "_id",
+            as: "user",
+          },
         },
-      },
-      {
-        $unwind: "$user",
-      },
-      {
-        $project: {
-          "user.name": 1,
-          platform: 1,
-          status: 1,
-          createdAt: 1,
-          updatedAt: 1,
-          versionName: 1,
-          buildNumber: 1,
-          tasks: {
-            $map: {
-              input: "$tasks",
-              as: "task",
-              in: {
-                id: "$$task.id",
-                name: "$$task.name",
-                status: "$$task.status",
-                duration: "$$task.duration",
+        {
+          $unwind: "$user",
+        },
+        {
+          $project: {
+            "user.name": 1,
+            platform: 1,
+            status: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            versionName: 1,
+            buildNumber: 1,
+            tasks: {
+              $map: {
+                input: "$tasks",
+                as: "task",
+                in: {
+                  id: "$$task.id",
+                  name: "$$task.name",
+                  status: "$$task.status",
+                  duration: "$$task.duration",
+                },
               },
             },
           },
         },
-      },
-    ]);
+      ])
+      .toArray();
 
     const deployment = deployments[0];
 
     if (!deployment) {
-      return c.json(
-        { message: "Deployment not found" },
-        { status: 404, statusText: "Not Found" },
-      );
+      return c.json({ message: "Deployment not found" }, Response.NOT_FOUND);
     }
 
     return c.json(
       { message: "Fetched Deployment Details", result: deployment },
-      { status: 200, statusText: "OK" },
+      Response.OK,
     );
   } catch (error) {
     return c.json(
       { message: "Internal Server Error" },
-      {
-        status: 500,
-        statusText: "Internal Server Error",
-      },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });
@@ -405,50 +416,49 @@ const getDeploymentDetailsById = factory.createHandlers(async (c) => {
 const getDeploymentTaskLogsByTaskId = factory.createHandlers(async (c) => {
   try {
     const { deploymentId, taskId } = c.req.param();
-    const deploymentLogs = await DeploymentModel.aggregate([
-      {
-        $match: {
-          _id: new mongoose.Types.ObjectId(deploymentId),
+    const deploymentLogs = await Mongo.deployment
+      .aggregate([
+        {
+          $match: {
+            _id: new ObjectId(deploymentId),
+          },
         },
-      },
-      {
-        $unwind: {
-          path: "$tasks",
+        {
+          $unwind: {
+            path: "$tasks",
+          },
         },
-      },
-      {
-        $match: {
-          "tasks.id": taskId,
+        {
+          $match: {
+            "tasks.id": taskId,
+          },
         },
-      },
-      {
-        $project: {
-          _id: 0,
-          logs: "$tasks.logs",
+        {
+          $project: {
+            _id: 0,
+            logs: "$tasks.logs",
+          },
         },
-      },
-    ]);
+      ])
+      .toArray();
 
     const logs = deploymentLogs[0];
 
     if (!logs) {
       return c.json(
         { message: "Deployment logs not found" },
-        { status: 404, statusText: "Not Found" },
+        Response.NOT_FOUND,
       );
     }
 
     return c.json(
       { message: "Fetched Deployment logs", result: logs },
-      { status: 200, statusText: "OK" },
+      Response.OK,
     );
   } catch (error) {
     return c.json(
       { message: "Internal Server Error" },
-      {
-        status: 500,
-        statusText: "Internal Server Error",
-      },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });
@@ -466,37 +476,30 @@ const cancelDeploymentJobByDeploymentId = factory.createHandlers(async (c) => {
     const payload: JWTPayloadType = c.get("jwtPayload");
 
     if (!job) {
-      return c.json(
-        { message: "Job not found" },
-        { status: 404, statusText: "Not Found" },
-      );
+      return c.json({ message: "Job not found" }, Response.NOT_FOUND);
     }
 
     await job.remove();
 
-    const deployment = await DeploymentModel.findByIdAndUpdate(deploymentId, {
-      status: "cancelled",
-      cancelledBy: new mongoose.Types.ObjectId(payload.id),
-    });
+    const deployment = await Mongo.deployment.findOneAndUpdate(
+      {
+        _id: new ObjectId(deploymentId),
+      },
+      {
+        status: "cancelled",
+        cancelledBy: new ObjectId(payload.id),
+      },
+    );
 
     if (!deployment) {
-      return c.json(
-        { message: "Deployment not found" },
-        { status: 404, statusText: "Not Found" },
-      );
+      return c.json({ message: "Deployment not found" }, Response.NOT_FOUND);
     }
 
-    return c.json(
-      { message: "Job removed successfully" },
-      { status: 200, statusText: "OK" },
-    );
+    return c.json({ message: "Job removed successfully" }, Response.OK);
   } catch (error) {
     return c.json(
       { message: "Internal Server Error" },
-      {
-        status: 500,
-        statusText: "Internal Server Error",
-      },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });
@@ -504,44 +507,46 @@ const cancelDeploymentJobByDeploymentId = factory.createHandlers(async (c) => {
 const getRecentDeploymentsHandler = factory.createHandlers(async (c) => {
   try {
     const { target, status } = c.req.query();
-    const deployments = await DeploymentModel.aggregate([
-      {
-        $match: {
-          platform: target ?? { $in: ["android", "ios"] },
-          status: status ?? { $ne: "cancelled" },
+    const deployments = await Mongo.deployment
+      .aggregate([
+        {
+          $match: {
+            platform: target ?? { $in: ["android", "ios"] },
+            status: status ?? { $ne: "cancelled" },
+          },
         },
-      },
-      {
-        $sort: { updatedAt: -1 },
-      },
-      {
-        $limit: 10,
-      },
-      {
-        $lookup: {
-          from: "customhosts",
-          localField: "host",
-          foreignField: "_id",
-          as: "host",
+        {
+          $sort: { updatedAt: -1 },
         },
-      },
-      {
-        $unwind: "$host",
-      },
-      {
-        $project: {
-          platform: 1,
-          appName: "$host.appName",
-          appId: "$host._id",
-          logo: "$host.logo",
-          versionName: 1,
-          buildNumber: 1,
-          status: 1,
-          createdAt: 1,
-          updatedAt: 1,
+        {
+          $limit: 10,
         },
-      },
-    ]);
+        {
+          $lookup: {
+            from: "customhosts",
+            localField: "host",
+            foreignField: "_id",
+            as: "host",
+          },
+        },
+        {
+          $unwind: "$host",
+        },
+        {
+          $project: {
+            platform: 1,
+            appName: "$host.appName",
+            appId: "$host._id",
+            logo: "$host.logo",
+            versionName: 1,
+            buildNumber: 1,
+            status: 1,
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        },
+      ])
+      .toArray();
     return c.json(
       {
         message: "Recent Deployments",

@@ -3,11 +3,11 @@ import "dotenv/config";
 import bcrypt from "bcrypt";
 import { Hono } from "hono";
 import { sign } from "hono/jwt";
+import Mongo from "src/database";
 import { JWTPayloadType } from "src/types";
 
 import { zValidator } from "@hono/zod-validator";
 
-import AdminUserModel from "../models/adminUser.model";
 import { loginDataSchema } from "../validations/authentication";
 
 const router = new Hono();
@@ -15,7 +15,7 @@ const router = new Hono();
 router.post("/login", zValidator("json", loginDataSchema), async (c) => {
   try {
     const { email, password } = c.req.valid("json");
-    const user = await AdminUserModel.findOne({
+    const user = await Mongo.user.findOne({
       email,
       customhostDashboardAccess: { $exists: true },
       "customhostDashboardAccess.isRestricted": { $ne: true },
@@ -47,7 +47,7 @@ router.post("/login", zValidator("json", loginDataSchema), async (c) => {
     }
 
     const payload: JWTPayloadType = {
-      id: user._id,
+      id: user._id.toString(),
       email: user.email,
       exp: Math.floor(Date.now() / 1000) + 60 * (60 * 24 * 15), // 15 days
     };

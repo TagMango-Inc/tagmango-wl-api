@@ -1,3 +1,4 @@
+import { IDeploymentTask } from "src/types/database";
 import { v4 as uuid } from "uuid";
 
 import { customhostDeploymentDir, ROOT_BRANCH } from "../constants";
@@ -44,7 +45,7 @@ export function generateDeploymentTasks({
       status: "pending",
       logs: [],
       duration: 0,
-    };
+    } as IDeploymentTask;
   });
   return generatedTasks;
 }

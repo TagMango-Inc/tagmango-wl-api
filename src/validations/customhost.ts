@@ -1,5 +1,5 @@
-import { RoutingConfig } from 'src/models/customHost.model';
-import { z } from 'zod';
+import { RoutingConfig } from "src/types/database";
+import { z } from "zod";
 
 export const createNewDeploymentSchema = z.object({
   target: z.enum(["android", "ios"]),

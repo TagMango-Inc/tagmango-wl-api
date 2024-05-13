@@ -1,10 +1,8 @@
 import { Job, Worker } from "bullmq";
 import { exec } from "child_process";
-import mongoose from "mongoose";
-import CustomHostModel from "src/models/customHost.model";
-import DeploymentModel, { IDeploymentTask } from "src/models/deployment.model";
-import MetadataModel from "src/models/metadata.model";
-import databaseConntect from "src/utils/database";
+import { ObjectId } from "mongodb";
+import Mongo from "src/database";
+import { IDeploymentTask } from "src/types/database";
 
 import { customhostDeploymentDir, githubrepo, ROOT_BRANCH } from "../constants";
 import { BuildJobPayloadType, JobProgressType } from "../types";
@@ -42,28 +40,30 @@ const worker = new Worker<BuildJobPayloadType>(
     /**
      * Fetching the task names for the deployment
      */
-    const results = await DeploymentModel.aggregate([
-      {
-        $match: {
-          _id: new mongoose.Types.ObjectId(deploymentId),
+    const results = await Mongo.deployment
+      .aggregate([
+        {
+          $match: {
+            _id: new ObjectId(deploymentId),
+          },
         },
-      },
-      {
-        $project: {
-          _id: 0,
-          taskNames: {
-            $map: {
-              input: "$tasks",
-              as: "task",
-              in: {
-                id: "$$task.id",
-                name: "$$task.name",
+        {
+          $project: {
+            _id: 0,
+            taskNames: {
+              $map: {
+                input: "$tasks",
+                as: "task",
+                in: {
+                  id: "$$task.id",
+                  name: "$$task.name",
+                },
               },
             },
           },
         },
-      },
-    ]);
+      ])
+      .toArray();
 
     const { taskNames } = results[0] as {
       taskNames: {
@@ -183,9 +183,14 @@ const worker = new Worker<BuildJobPayloadType>(
 
     try {
       // Changing deployment status to processing from pending
-      await DeploymentModel.findByIdAndUpdate(deploymentId, {
-        status: "processing",
-      });
+      await Mongo.deployment.findOneAndUpdate(
+        {
+          _id: new ObjectId(deploymentId),
+        },
+        {
+          status: "processing",
+        },
+      );
 
       // executing the tasks
       for (const task of taskNames) {
@@ -213,9 +218,14 @@ const worker = new Worker<BuildJobPayloadType>(
         hostId,
       });
       // updating the deployment status to failed
-      await DeploymentModel.findByIdAndUpdate(deploymentId, {
-        status: "failed",
-      });
+      await Mongo.deployment.findOneAndUpdate(
+        {
+          _id: new ObjectId(deploymentId),
+        },
+        {
+          status: "failed",
+        },
+      );
     }
     console.log(
       ` ---------------------------------------- Completed Deployment Process ---------------------------------------- `,
@@ -234,7 +244,7 @@ worker.on("stalled", (job) => {
 console.log("Worker started!");
 
 (async () => {
-  await databaseConntect();
+  await Mongo.connect();
 })();
 
 const executeTask = async ({
@@ -270,9 +280,9 @@ const executeTask = async ({
   } as JobProgressType);
 
   // updating task status to processing
-  await DeploymentModel.updateOne(
+  await Mongo.deployment.findOneAndUpdate(
     {
-      _id: new mongoose.Types.ObjectId(deploymentId),
+      _id: new ObjectId(deploymentId),
       "tasks.id": taskId,
     },
     {
@@ -368,9 +378,9 @@ const executeTask = async ({
     } as JobProgressType);
 
     // update the task status to success and add logs to the task
-    await DeploymentModel.updateOne(
+    await Mongo.deployment.updateOne(
       {
-        _id: new mongoose.Types.ObjectId(deploymentId),
+        _id: new ObjectId(deploymentId),
         "tasks.id": taskId,
       },
       {
@@ -399,9 +409,9 @@ const executeTask = async ({
     } as JobProgressType);
 
     // update the task status to failed and add logs to the task
-    await DeploymentModel.updateOne(
+    await Mongo.deployment.updateOne(
       {
-        _id: new mongoose.Types.ObjectId(deploymentId),
+        _id: new ObjectId(deploymentId),
         "tasks.id": taskId,
       },
       {
@@ -434,41 +444,45 @@ const updateVersionDetails = async ({
   platform: "android" | "ios";
 }) => {
   try {
-    const deployment = await DeploymentModel.findById(deploymentId);
-    const customhost = await CustomHostModel.findById(hostId);
+    const deployment = await Mongo.deployment.findOne({
+      _id: new ObjectId(deploymentId),
+    });
+
     if (!deployment) {
       console.log(`Deployment with ID ${deploymentId} not found`);
       return;
     }
-    if (!customhost) {
-      console.log(`Custom host with ID ${hostId} not found`);
-      return;
-    }
+
     // for deployment success then update the status to success
     // and updating last deployment details for custom host
 
-    deployment.status = "success";
-    await MetadataModel.updateOne(
-      { host: new mongoose.Types.ObjectId(hostId) },
-      [
-        platform === "android"
-          ? {
-              $set: {
-                "androidDeploymentDetails.buildNumber": deployment.buildNumber,
-                "androidDeploymentDetails.versionName": deployment.versionName,
-              },
-            }
-          : {
-              $set: {
-                "iosDeploymentDetails.buildNumber": deployment.buildNumber,
-                "iosDeploymentDetails.versionName": deployment.versionName,
-              },
-            },
-      ],
+    await Mongo.deployment.findOneAndUpdate(
+      {
+        _id: new ObjectId(deploymentId),
+      },
+      {
+        $set: {
+          status: "success",
+        },
+      },
     );
 
-    await deployment.save();
-    await customhost.save();
+    await Mongo.metadata.findOneAndUpdate({ host: new ObjectId(hostId) }, [
+      platform === "android"
+        ? {
+            $set: {
+              "androidDeploymentDetails.buildNumber": deployment.buildNumber,
+              "androidDeploymentDetails.versionName": deployment.versionName,
+            },
+          }
+        : {
+            $set: {
+              "iosDeploymentDetails.buildNumber": deployment.buildNumber,
+              "iosDeploymentDetails.versionName": deployment.versionName,
+            },
+          },
+    ]);
+
     console.log(
       `Deployment ${deploymentId} status updated to ${deployment.status}`,
     );

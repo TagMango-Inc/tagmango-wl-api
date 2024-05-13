@@ -1,9 +1,11 @@
 import bcrypt from "bcrypt";
 import { createFactory } from "hono/factory";
 import { sign } from "hono/jwt";
-import AdminUserModel from "src/models/adminUser.model";
+import { ObjectId } from "mongodb";
+import Mongo from "src/database";
 import { JWTPayloadType } from "src/types";
 import sendMail from "src/utils/sendMail";
+import { Response } from "src/utils/statuscode";
 import {
   createUserSchema,
   roleActionSchema,
@@ -26,9 +28,11 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
     let SEARCH = search ? (search as string) : "";
     let ROLE = role ? (role as string) : "";
 
-    const totalUsers = await AdminUserModel.find({
-      isRestricted: { $ne: true },
-    }).countDocuments();
+    const totalUsers = await Mongo.user
+      .find({
+        isRestricted: { $ne: true },
+      })
+      .toArray();
 
     const query = {
       isRestricted: { $ne: true },
@@ -39,65 +43,66 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
       ],
     };
 
-    const users = await AdminUserModel.aggregate([
-      {
-        $match: query,
-      },
-      {
-        $project: {
-          _id: 1,
-          name: 1,
-          email: 1,
-          role: "$customhostDashboardAccess.role",
-          isRestricted: "$customhostDashboardAccess.isRestricted",
-          isEmailVerified: {
-            $cond: {
-              if: { $eq: [{ $type: "$password" }, "string"] },
-              then: true,
-              else: false,
+    const users = await Mongo.user
+      .aggregate([
+        {
+          $match: query,
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            email: 1,
+            role: "$customhostDashboardAccess.role",
+            isRestricted: "$customhostDashboardAccess.isRestricted",
+            isEmailVerified: {
+              $cond: {
+                if: { $eq: [{ $type: "$password" }, "string"] },
+                then: true,
+                else: false,
+              },
             },
+            createdAt: 1,
+            updatedAt: 1,
           },
-          createdAt: 1,
-          updatedAt: 1,
+        },
+        {
+          $sort: { updatedAt: -1 },
+        },
+        {
+          $skip: (PAGE - 1) * LIMIT,
+        },
+        {
+          $limit: LIMIT,
+        },
+      ])
+      .toArray();
+
+    const totalSearchResults = await Mongo.user.find(query).toArray();
+
+    const hasNextPage = totalSearchResults.length > PAGE * LIMIT;
+
+    return c.json(
+      {
+        message: "All Users",
+        result: {
+          users,
+          totalSearchResults: totalSearchResults.length,
+          totalUsers: totalUsers.length,
+          currentPage: PAGE,
+          nextPage: hasNextPage ? PAGE + 1 : -1,
+          limit: LIMIT,
+          hasNext: hasNextPage,
         },
       },
-      {
-        $sort: { updatedAt: -1 },
-      },
-      {
-        $skip: (PAGE - 1) * LIMIT,
-      },
-      {
-        $limit: LIMIT,
-      },
-    ]);
-
-    const totalSearchResults =
-      await AdminUserModel.find(query).countDocuments();
-
-    const hasNextPage = totalSearchResults > PAGE * LIMIT;
-
-    return c.json({
-      message: "All Users",
-      result: {
-        users,
-        totalSearchResults,
-        totalUsers,
-        currentPage: PAGE,
-        nextPage: hasNextPage ? PAGE + 1 : -1,
-        limit: LIMIT,
-        hasNext: hasNextPage,
-      },
-    });
+      Response.OK,
+    );
   } catch (error) {
     return c.json(
       {
         message: "Internal Server Error",
       },
-      {
-        status: 500,
-        statusText: "Internal Server Error",
-      },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });
@@ -110,27 +115,30 @@ const createNewDashboardUser = factory.createHandlers(
   zValidator("json", createUserSchema),
   async (c) => {
     try {
-      const user = c.req.valid("json");
+      const body = c.req.valid("json");
 
-      const userExists = await AdminUserModel.findOne({ email: user.email });
+      const userExists = await Mongo.user.findOne({ email: body.email });
       if (userExists) {
         return c.json({
           message: "User already exists",
           status: 400,
         });
       }
-      const createdUser = await AdminUserModel.create({
-        name: user.name,
-        email: user.email,
+      const createdUser = await Mongo.user.insertOne({
+        name: body.name,
+        email: body.email,
+        approved: true,
+        isRestricted: false,
+        password: "not_a_password",
         customhostDashboardAccess: {
-          role: user.role,
+          role: body.role,
           isRestricted: false,
         },
       });
 
       const payload: JWTPayloadType = {
-        id: createdUser._id,
-        email: createdUser.email,
+        id: createdUser.insertedId._id.toString(),
+        email: body.email,
         exp: Math.floor(Date.now() / 1000) + 60 * (60 * 24 * 15), // 15 days
       };
 
@@ -140,7 +148,7 @@ const createNewDashboardUser = factory.createHandlers(
 
       // Send an email with the authToken to the user
       sendMail({
-        recipient: createdUser.email,
+        recipient: body.email,
         subject: "Welcome to WL Dashboard",
         text: `Here is your authToken: http://localhost:5173/update-password?token=${authToken}`,
       });
@@ -150,29 +158,23 @@ const createNewDashboardUser = factory.createHandlers(
           message: "User created successfully",
           result: {
             user: {
-              _id: createdUser._id,
-              email: createdUser.email,
-              name: createdUser.name,
-              role: createdUser.customhostDashboardAccess.role,
-              isRestricted: createdUser.customhostDashboardAccess.isRestricted,
+              _id: createdUser.insertedId._id,
+              email: body.email,
+              name: body.name,
+              role: body.role,
+              isRestricted: false,
               isEmailVerified: false,
             },
           },
         },
-        {
-          status: 201,
-          statusText: "Created",
-        },
+        Response.CREATED,
       );
     } catch (error) {
       return c.json(
         {
           message: "Internal Server Error",
         },
-        {
-          status: 500,
-          statusText: "Internal Server Error",
-        },
+        Response.INTERNAL_SERVER_ERROR,
       );
     }
   },
@@ -188,61 +190,38 @@ const updateDashboardUser = factory.createHandlers(
     try {
       const { action, userId, role } = c.req.valid("json");
 
-      const user = await AdminUserModel.findById(userId);
-
-      if (!user) {
-        return c.json(
-          {
-            message: "User not found",
+      const updatedUser = await Mongo.user.findOneAndUpdate(
+        {
+          _id: new ObjectId(userId),
+          isRestricted: { $ne: true },
+        },
+        {
+          $set: {
+            "customhostDashboardAccess.isRestricted":
+              action === "assign" ? false : true,
+            "customhostDashboardAccess.role": role ?? "read",
           },
-          {
-            status: 404,
-            statusText: "Not Found",
-          },
-        );
-      }
+        },
+      );
 
-      if (action && action === "assign") {
-        user.customhostDashboardAccess.isRestricted = false;
-      } else {
-        user.customhostDashboardAccess.isRestricted = true;
-      }
-
-      if (role) {
-        user.customhostDashboardAccess.role = role ?? "read";
-      }
-
-      const updatedUser = await user.save();
-
-      return c.json({
-        message: `${action}ed access for user successfully`,
-        result: {
-          user: {
-            _id: updatedUser._id,
-            email: updatedUser.email,
-            name: updatedUser.name,
-            role: updatedUser.customhostDashboardAccess.role,
-            isRestricted: updatedUser.customhostDashboardAccess.isRestricted,
-            isEmailVerified: {
-              $cond: {
-                if: { $eq: [{ $type: "$password" }, "string"] },
-                then: true,
-                else: false,
-              },
+      return c.json(
+        {
+          message: `${action}ed access for user successfully`,
+          result: {
+            user: {
+              _id: updatedUser?._id,
+              role,
             },
           },
         },
-      });
+        Response.OK,
+      );
     } catch (error) {
-      console.log(error);
       return c.json(
         {
           message: "Internal Server Error",
         },
-        {
-          status: 500,
-          statusText: "Internal Server Error",
-        },
+        Response.INTERNAL_SERVER_ERROR,
       );
     }
   },
@@ -262,17 +241,17 @@ const updateDashboardUserPassword = factory.createHandlers(
 
       const { password } = c.req.valid("json");
 
-      const user = await AdminUserModel.findById(userId);
+      const user = await Mongo.user.findOne({
+        _id: new ObjectId(userId),
+        isRestricted: { $ne: true },
+      });
 
       if (!user) {
         return c.json(
           {
             message: "User not found",
           },
-          {
-            status: 404,
-            statusText: "Not Found",
-          },
+          Response.NOT_FOUND,
         );
       }
 
@@ -284,10 +263,20 @@ const updateDashboardUserPassword = factory.createHandlers(
 
       user.password = hashedPassword;
 
-      const updatedUser = await user.save();
+      const updatedUser = await Mongo.user.findOneAndUpdate(
+        {
+          _id: new ObjectId(userId),
+          isRestricted: { $ne: true },
+        },
+        {
+          $set: {
+            password: hashedPassword,
+          },
+        },
+      );
 
       const payload: JWTPayloadType = {
-        id: user._id,
+        id: user._id.toString(),
         email: user.email,
         exp: Math.floor(Date.now() / 1000) + 60 * (60 * 24 * 15), // 15 days
       };
@@ -301,29 +290,19 @@ const updateDashboardUserPassword = factory.createHandlers(
           message: "Password updated successfully",
           result: {
             user: {
-              _id: updatedUser._id,
-              email: updatedUser.email,
-              name: updatedUser.name,
-              role: updatedUser.customhostDashboardAccess.role,
-              isRestricted: updatedUser.customhostDashboardAccess.isRestricted,
+              _id: updatedUser?._id,
             },
             token,
           },
         },
-        {
-          status: 200,
-          statusText: "OK",
-        },
+        Response.OK,
       );
     } catch (error) {
       return c.json(
         {
           message: "Internal Server Error",
         },
-        {
-          status: 500,
-          statusText: "Internal Server Error",
-        },
+        Response.INTERNAL_SERVER_ERROR,
       );
     }
   },
@@ -336,33 +315,33 @@ const updateDashboardUserPassword = factory.createHandlers(
 const deleteDashboardUser = factory.createHandlers(async (c) => {
   try {
     const { id } = c.req.param();
-    const deletedUser = await AdminUserModel.findByIdAndDelete(id);
+    const deletedUser = await Mongo.user.findOneAndDelete({
+      _id: new ObjectId(id),
+      isRestricted: { $ne: true },
+    });
     if (!deletedUser) {
       return c.json(
         {
           message: "User not found",
         },
-        {
-          status: 404,
-          statusText: "Not Found",
-        },
+        Response.NOT_FOUND,
       );
     }
-    return c.json({
-      message: "User deleted successfully",
-      result: {
-        userId: deletedUser._id,
+    return c.json(
+      {
+        message: "User deleted successfully",
+        result: {
+          userId: deletedUser._id,
+        },
       },
-    });
+      Response.OK,
+    );
   } catch (error) {
     return c.json(
       {
         message: "Internal Server Error",
       },
-      {
-        status: 500,
-        statusText: "Internal Server Error",
-      },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });
@@ -374,21 +353,21 @@ const deleteDashboardUser = factory.createHandlers(async (c) => {
 const resendEmailVerification = factory.createHandlers(async (c) => {
   try {
     const { id } = c.req.param();
-    const user = await AdminUserModel.findById(id);
+    const user = await Mongo.user.findOne({
+      _id: new ObjectId(id),
+      isRestricted: { $ne: true },
+    });
     if (!user) {
       return c.json(
         {
           message: "User not found",
         },
-        {
-          status: 404,
-          statusText: "Not Found",
-        },
+        Response.NOT_FOUND,
       );
     }
 
     const payload: JWTPayloadType = {
-      id: user._id,
+      id: user._id.toString(),
       email: user.email,
       exp: Math.floor(Date.now() / 1000) + 60 * (60 * 24 * 15), // 15 days
     };
@@ -428,7 +407,7 @@ const resendEmailVerification = factory.createHandlers(async (c) => {
 const getCurrentUser = factory.createHandlers(async (c) => {
   try {
     const { id } = c.get("jwtPayload");
-    const user = await AdminUserModel.findOne({
+    const user = await Mongo.user.findOne({
       _id: id,
       isRestricted: { $ne: true },
     });
@@ -437,33 +416,30 @@ const getCurrentUser = factory.createHandlers(async (c) => {
         {
           message: "User not found",
         },
-        {
-          status: 404,
-          statusText: "Not Found",
-        },
+        Response.NOT_FOUND,
       );
     }
-    return c.json({
-      message: "Current User",
-      result: {
-        user: {
-          _id: user._id,
-          email: user.email,
-          name: user.name,
-          role: user.customhostDashboardAccess.role,
-          isRestricted: user.customhostDashboardAccess.isRestricted,
+    return c.json(
+      {
+        message: "Current User",
+        result: {
+          user: {
+            _id: user._id,
+            email: user.email,
+            name: user.name,
+            role: user.customhostDashboardAccess.role,
+            isRestricted: user.customhostDashboardAccess.isRestricted,
+          },
         },
       },
-    });
+      Response.OK,
+    );
   } catch (error) {
     return c.json(
       {
         message: "Internal Server Error",
       },
-      {
-        status: 500,
-        statusText: "Internal Server Error",
-      },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });
