@@ -1,6 +1,6 @@
-import { IDeploymentTask } from "src/types/database";
 import { v4 as uuid } from "uuid";
 
+import { IDeploymentTask } from "../../src/types/database";
 import { customhostDeploymentDir, ROOT_BRANCH } from "../constants";
 
 export function generateTaskNames({

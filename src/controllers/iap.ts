@@ -1,12 +1,13 @@
 import { createFactory } from "hono/factory";
 import mongoose from "mongoose";
-import MangoModel from "src/models/mango.model";
+
+import { zValidator } from "@hono/zod-validator";
+
+import MangoModel from "../../src/models/mango.model";
 import {
   patchIapProductIdsSchema,
   patchMangoIapDetailsSchema,
-} from "src/validations/iap";
-
-import { zValidator } from "@hono/zod-validator";
+} from "../../src/validations/iap";
 
 const factory = createFactory();
 
@@ -76,16 +77,18 @@ const updateIapProductIds = factory.createHandlers(
         await MangoModel.updateMany(
           {
             _id: {
-              $in: mangoIds.map((mng) => new mongoose.Types.ObjectId(mng)),
+              $in: mangoIds.map((mng: any) => new mongoose.Types.ObjectId(mng)),
             },
           },
           { $unset: { iapProductId: 1, iapDescription: 1, iapPrice: 1 } },
         );
       } else {
         const mangoes = await MangoModel.find({
-          _id: { $in: mangoIds.map((mng) => new mongoose.Types.ObjectId(mng)) },
+          _id: {
+            $in: mangoIds.map((mng: any) => new mongoose.Types.ObjectId(mng)),
+          },
         });
-        const promises = mangoes.map((mng) => {
+        const promises = mangoes.map((mng: any) => {
           const newObjectId = new mongoose.Types.ObjectId().toString();
           mng.iapProductId = newObjectId;
           result[mng.id] = newObjectId;

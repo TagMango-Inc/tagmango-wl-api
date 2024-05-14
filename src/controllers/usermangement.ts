@@ -2,17 +2,18 @@ import bcrypt from "bcrypt";
 import { createFactory } from "hono/factory";
 import { sign } from "hono/jwt";
 import { ObjectId } from "mongodb";
-import Mongo from "src/database";
-import { JWTPayloadType } from "src/types";
-import sendMail from "src/utils/sendMail";
-import { Response } from "src/utils/statuscode";
+
+import { zValidator } from "@hono/zod-validator";
+
+import Mongo from "../../src/database";
+import { JWTPayloadType } from "../../src/types";
+import sendMail from "../../src/utils/sendMail";
+import { Response } from "../../src/utils/statuscode";
 import {
   createUserSchema,
   roleActionSchema,
   updatePasswordSchema,
-} from "src/validations/userManagement";
-
-import { zValidator } from "@hono/zod-validator";
+} from "../../src/validations/userManagement";
 
 const factory = createFactory();
 

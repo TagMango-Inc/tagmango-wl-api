@@ -1,13 +1,14 @@
 import "dotenv/config";
 
 import { Collection, Db, MongoClient } from "mongodb";
+
 import {
   Collections,
   IAdminUser,
   ICustomHost,
   IDeployment,
   IMetaData,
-} from "src/types/database";
+} from "../../src/types/database";
 
 abstract class Mongo {
   private static client: MongoClient;

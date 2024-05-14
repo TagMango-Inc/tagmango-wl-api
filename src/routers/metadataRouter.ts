@@ -1,4 +1,5 @@
-import { Hono } from 'hono';
+import { Hono } from "hono";
+
 import {
   createMetadata,
   getAppMetadata,
@@ -6,7 +7,7 @@ import {
   updateMetadataIosSettings,
   updateMetadataSettings,
   uploadMetadataLogo,
-} from 'src/controllers/metadata';
+} from "../../src/controllers/metadata";
 
 const router = new Hono();
 

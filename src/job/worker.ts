@@ -1,9 +1,9 @@
 import { Job, Worker } from "bullmq";
 import { exec } from "child_process";
 import { ObjectId } from "mongodb";
-import Mongo from "src/database";
-import { IDeploymentTask } from "src/types/database";
 
+import Mongo from "../../src/database";
+import { IDeploymentTask } from "../../src/types/database";
 import { customhostDeploymentDir, githubrepo, ROOT_BRANCH } from "../constants";
 import { BuildJobPayloadType, JobProgressType } from "../types";
 import { queueRedisOptions } from "./config";

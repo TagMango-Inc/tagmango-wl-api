@@ -7,3 +7,4 @@ WLApps/
 .DS_Store
 assets/
 outputs/
+dist/

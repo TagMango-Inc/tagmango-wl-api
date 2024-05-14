@@ -3,11 +3,11 @@ import "dotenv/config";
 import bcrypt from "bcrypt";
 import { Hono } from "hono";
 import { sign } from "hono/jwt";
-import Mongo from "src/database";
-import { JWTPayloadType } from "src/types";
 
 import { zValidator } from "@hono/zod-validator";
 
+import Mongo from "../../src/database";
+import { JWTPayloadType } from "../../src/types";
 import { loginDataSchema } from "../validations/authentication";
 
 const router = new Hono();

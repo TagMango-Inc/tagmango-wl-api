@@ -1,17 +1,18 @@
 import fs from "fs";
 import { createFactory } from "hono/factory";
 import { ObjectId } from "mongodb";
-import Mongo from "src/database";
-import { Response } from "src/utils/statuscode";
+
+import { zValidator } from "@hono/zod-validator";
+
+import Mongo from "../../src/database";
+import { Response } from "../../src/utils/statuscode";
 import {
   createMetadataSchema,
   updateAndroidDeploymentDetailsSchema,
   updateIosDeploymentDetailsSchema,
   updateMetadataLogoSchema,
   updateMetadataSettingsSchema,
-} from "src/validations/metadata";
-
-import { zValidator } from "@hono/zod-validator";
+} from "../../src/validations/metadata";
 
 const factory = createFactory();
 

@@ -1,9 +1,10 @@
 import { Hono } from "hono";
+
 import {
   getAllCustomHostsHandler,
   getCustomHostByIdHandler,
   patchCustomHostByIdHandler,
-} from "src/controllers/customhost";
+} from "../../src/controllers/customhost";
 import {
   cancelDeploymentJobByDeploymentId,
   createNewDeploymentHandler,
@@ -12,7 +13,7 @@ import {
   getDeploymentDetailsById,
   getDeploymentTaskLogsByTaskId,
   getRecentDeploymentsHandler,
-} from "src/controllers/deployment";
+} from "../../src/controllers/deployment";
 
 const router = new Hono();
 

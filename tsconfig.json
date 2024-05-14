@@ -1,14 +1,17 @@
 {
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "module": "CommonJS",
     "strict": true,
-    "types": ["node"],
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx",
-    "baseUrl": ".",
-    "outDir": "dist"
+    "outDir": "./dist/src",
+    "rootDir": "./src"
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "deployments", "assets", "root"]
 }

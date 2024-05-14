@@ -1,9 +1,10 @@
 import { Hono } from "hono";
+
 import {
   getAllMangoesByCreator,
   updateIapProductIds,
   updateMangoIapDetails,
-} from "src/controllers/iap";
+} from "../../src/controllers/iap";
 
 const router = new Hono();
 

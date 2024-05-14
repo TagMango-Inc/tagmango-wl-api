@@ -1,8 +1,9 @@
 import { Job } from "bullmq";
 import { createFactory } from "hono/factory";
 import { SSEStreamingApi, streamSSE } from "hono/streaming";
-import { buildQueue, buildQueueEvents } from "src/job/config";
-import { JobProgressType } from "src/types";
+
+import { buildQueue, buildQueueEvents } from "../../src/job/config";
+import { JobProgressType } from "../../src/types";
 
 const factory = createFactory();
 

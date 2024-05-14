@@ -1,15 +1,19 @@
 import { createFactory } from "hono/factory";
 import { ObjectId } from "mongodb";
-import { CURRENT_VERSION_NAME, CURRENT_VERSION_NUMBER } from "src/constants";
-import Mongo from "src/database";
-import { buildQueue } from "src/job/config";
-import { JWTPayloadType } from "src/types";
-import { Status } from "src/types/database";
-import { generateDeploymentTasks } from "src/utils/generateTaskDetails";
-import { Response } from "src/utils/statuscode";
-import { createNewDeploymentSchema } from "src/validations/customhost";
 
 import { zValidator } from "@hono/zod-validator";
+
+import {
+  CURRENT_VERSION_NAME,
+  CURRENT_VERSION_NUMBER,
+} from "../../src/constants";
+import Mongo from "../../src/database";
+import { buildQueue } from "../../src/job/config";
+import { JWTPayloadType } from "../../src/types";
+import { Status } from "../../src/types/database";
+import { generateDeploymentTasks } from "../../src/utils/generateTaskDetails";
+import { Response } from "../../src/utils/statuscode";
+import { createNewDeploymentSchema } from "../../src/validations/customhost";
 
 const factory = createFactory();
 

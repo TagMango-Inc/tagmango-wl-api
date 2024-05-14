@@ -1,9 +1,9 @@
 import { createFactory } from "hono/factory";
 import { verify } from "hono/jwt";
 import { ObjectId } from "mongodb";
-import Mongo from "src/database";
-import { Response } from "src/utils/statuscode";
 
+import Mongo from "../../src/database";
+import { Response } from "../../src/utils/statuscode";
 import { JWTPayloadType } from "../types";
 
 const factory = createFactory();

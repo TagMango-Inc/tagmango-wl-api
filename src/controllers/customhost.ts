@@ -1,9 +1,10 @@
 import { createFactory } from "hono/factory";
 import { ObjectId } from "mongodb";
-import Mongo from "src/database";
-import { patchCustomHostByIdSchema } from "src/validations/customhost";
 
 import { zValidator } from "@hono/zod-validator";
+
+import Mongo from "../../src/database";
+import { patchCustomHostByIdSchema } from "../../src/validations/customhost";
 
 const factory = createFactory();
 /**
