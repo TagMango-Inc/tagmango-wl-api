@@ -28,7 +28,7 @@ Mongo.connect().then(() => {
   app.use("/apps/*", authenticationMiddleware);
   app.use("/iap/*", authenticationMiddleware);
   app.use("/metadata/*", authenticationMiddleware);
-  app.use("/outputs/*", authenticationMiddleware);
+  app.use("/output/*", authenticationMiddleware);
 
   app.get("/", async (c) => {
     return c.json({
@@ -66,7 +66,7 @@ Mongo.connect().then(() => {
   app.route("/user-management", userManagementRouter);
   app.route("/iap", iapRouter);
   app.route("/metadata", metadataRouter);
-  app.route("/outputs", outputRouter);
+  app.route("/output", outputRouter);
   app.route("/sse", sseRouter);
 
   app.use(prettyJSON());
