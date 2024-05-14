@@ -320,6 +320,7 @@ const createNewDeploymentHandler = factory.createHandlers(
           bgColor: metadata.backgroundStartColor,
           onesignal_id: customhost.onesignalAppId || "",
           platform: target,
+          versionName: currentVersionName,
           buildNumber: currentBuildNumber,
         },
         {

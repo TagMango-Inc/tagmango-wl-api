@@ -18,6 +18,7 @@ export type BuildConfigType = {
   bgColor: string;
   onesignal_id: string;
   buildNumber: number;
+  versionName: string;
 };
 
 export type BuildJobPayloadType = {
@@ -37,3 +38,12 @@ export type JobProgressType = {
   message: string;
   timestamp: Date;
 };
+
+export type AABDetailsType = Record<
+  string,
+  {
+    versionName: string;
+    buildNumber: number;
+    createdAt: Date;
+  }
+>;

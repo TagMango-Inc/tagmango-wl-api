@@ -1,5 +1,6 @@
 import { Job, Worker } from "bullmq";
 import { exec } from "child_process";
+import fs from "fs-extra";
 import { ObjectId } from "mongodb";
 
 import Mongo from "../../src/database";
@@ -19,6 +20,8 @@ import { queueRedisOptions } from "./config";
 // updatePbxproj
 // } from './utils';
 
+const { readFile, writeFile } = fs.promises;
+
 const worker = new Worker<BuildJobPayloadType>(
   "buildQueue",
   async (job) => {
@@ -33,6 +36,7 @@ const worker = new Worker<BuildJobPayloadType>(
       bgColor,
       onesignal_id,
       buildNumber,
+      versionName,
     } = job.data;
 
     const formatedAppName = name.replace(/ /g, "");
@@ -194,14 +198,44 @@ const worker = new Worker<BuildJobPayloadType>(
 
       // executing the tasks
       for (const task of taskNames) {
-        await executeTask({
-          commands: commands[task.id],
-          taskId: task.id,
-          taskName: task.name,
-          job,
-          deploymentId,
-          hostId,
-        });
+        // if `fastlane android upload` task then we need to write the version details to android-aab.json file
+        if (task.id === taskNames[5].id && platform === "android") {
+          await executeTask({
+            commands: commands[task.id],
+            taskId: task.id,
+            taskName: task.name,
+            job,
+            deploymentId,
+            hostId,
+            onError: async () => {
+              const aabDetailPath = "./output/android-aab.json";
+              // if the fastlane deployment failed, then write to android-aab.json file
+              const rawAABDetails = await readFile(aabDetailPath, "utf-8");
+              const parsedAABDetails = JSON.parse(rawAABDetails);
+
+              await writeFile(
+                aabDetailPath,
+                JSON.stringify({
+                  ...parsedAABDetails,
+                  [hostId]: {
+                    versionName,
+                    buildNumber,
+                    createdAt: new Date(),
+                  },
+                }),
+              );
+            },
+          });
+        } else {
+          await executeTask({
+            commands: commands[task.id],
+            taskId: task.id,
+            taskName: task.name,
+            job,
+            deploymentId,
+            hostId,
+          });
+        }
       }
 
       // updating the version details for the target platform after successful deployment
@@ -254,6 +288,7 @@ const executeTask = async ({
   job,
   deploymentId,
   hostId,
+  onError,
 }: {
   commands: string[];
   taskId: string;
@@ -261,6 +296,8 @@ const executeTask = async ({
   job: Job<BuildJobPayloadType, any, string>;
   deploymentId: string;
   hostId: string;
+  // will be a async function that will be called if the task is failed
+  onError?: () => Promise<void>;
 }) => {
   console.log(
     ` ************** Executing task  [ ${taskName} ] ************** `,
@@ -395,6 +432,11 @@ const executeTask = async ({
     // removing aab file from the root project
     // exec(`rm -rf outputs/android/${hostId}.aab`);
   } else {
+    // running async callback if provided
+    if (onError) {
+      await onError();
+    }
+
     // add logs to the task and update the status to failed
     job.updateProgress({
       task: {

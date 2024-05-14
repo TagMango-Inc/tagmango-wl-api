@@ -14,6 +14,7 @@ import authenticationRouter from "./routers/authenticationRouter";
 import customHostRouter from "./routers/customHostRouter";
 import iapRouter from "./routers/iapRouter";
 import metadataRouter from "./routers/metadataRouter";
+import outputRouter from "./routers/outputRouter";
 import sseRouter from "./routers/sse";
 import userManagementRouter from "./routers/userManagementRouter";
 
@@ -27,6 +28,7 @@ Mongo.connect().then(() => {
   app.use("/apps/*", authenticationMiddleware);
   app.use("/iap/*", authenticationMiddleware);
   app.use("/metadata/*", authenticationMiddleware);
+  app.use("/outputs/*", authenticationMiddleware);
 
   app.get("/", async (c) => {
     return c.json({
@@ -47,11 +49,24 @@ Mongo.connect().then(() => {
     }),
   );
 
+  // serving static files from the outputs folder
+  app.get(
+    "/outputs/*",
+    serveStatic({
+      root: "./",
+      rewriteRequestPath: (path) => {
+        const paths = path.split("/");
+        return `./outputs/${paths.slice(3).join("/")}`;
+      },
+    }),
+  );
+
   app.route("/apps", customHostRouter);
   app.route("/auth", authenticationRouter);
   app.route("/user-management", userManagementRouter);
   app.route("/iap", iapRouter);
   app.route("/metadata", metadataRouter);
+  app.route("/outputs", outputRouter);
   app.route("/sse", sseRouter);
 
   app.use(prettyJSON());
