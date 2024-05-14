@@ -5,6 +5,12 @@ export const Collections = {
   CUSTOM_HOST: "customhosts",
   DEPLOYMENT: "wldeployments",
   METADATA: "customhostmetadatas",
+  MANGO: "mangos",
+  POST: "posts",
+  COURSE: "courses",
+  SUBSCRIPTION: "subscriptions",
+  USER: "users",
+  MANGO_ROOM: "rooms",
 } as const;
 
 export const Platform = {
@@ -236,4 +242,211 @@ export interface PointsConfig {
   pointsName?: string;
   pointsImage?: string;
   pointsMap: Record<SystemPointsType, number>;
+}
+
+enum CURRENCY {
+  USD = "USD",
+  INR = "INR",
+  EUR = "EUR",
+}
+export interface IMango {
+  creator: any;
+  title: string;
+  start: Date;
+  end: Date;
+  price: number;
+  currency: CURRENCY;
+  inr: number; // manual currency amount
+  usd: number; // manual currency amount
+  eur: number; // manual currency amount
+  inrAmount: number;
+  usdAmount: number;
+  eurAmount: number;
+  description: string;
+  styledDescription: string;
+  isStopTakingPayment: boolean;
+  isHidden: boolean;
+  isDeleted: boolean;
+  recurringType:
+    | "monthly"
+    | "onetime"
+    | "weekly"
+    | "daily"
+    | "yearly"
+    | "onetime"
+    | "quarterly"
+    | "halfyearly";
+  noOfDays: number;
+  isLifeTime: boolean;
+  content: boolean;
+  chat: boolean;
+  webinar: boolean;
+  videocall: number;
+  razorpayPlanId: string;
+  razorpayPlanIdUSD: string;
+  razorpayPlanIdEUR: string;
+  isPublic: boolean;
+  isFree: boolean;
+
+  whatsapp?: string;
+  imgUrl?: string;
+  videoUrl?: string;
+  videoThumbnail?: string;
+  additionalCoverContent?: string[];
+  gstEnabled: boolean;
+  excludegst: boolean;
+  includegst: boolean;
+  activeSubscribers: number;
+  // expiredSubscribers: number,
+  totalEarning: number;
+  playlistArr: any[];
+  shortUrl: string;
+  mangoSlug: string;
+  certificateSentOn: string;
+  disableMoe: boolean;
+  mangoPageId: string;
+  disableReciept: boolean;
+  mangoPageUploadedLink: string;
+  landingPagePublished: boolean;
+  oldMigratedMangoId: any;
+  thankYouContent: string;
+  maxSubscriber: string;
+  usdStripeProductPriceId: string;
+  eurStripeProductPriceId: string;
+  disableEngagement: boolean;
+  customFields: [any];
+  otpLess: boolean;
+  affiliateEnabled: boolean;
+  affiliatePercentage: number;
+  lifetimeLinkingEnabled: boolean;
+  aliasCreator: any;
+  customHeaderTags: any;
+  trialPeriod: number;
+  additionalMangoes: any[];
+  offers: [string];
+  emailToCreatorOnEveryPurchase: boolean;
+  emailToCreatorOnPurchaseFailure: boolean;
+  hideCouponCodeInput: boolean;
+  defaultPaymentGateway: "indian" | "international";
+  repurchaseOneTime: boolean;
+  zeroCostMango: boolean;
+  mangoFacebookPixelId: string;
+  accountSettingsMangoTier: "tier1" | "tier2" | "tier3";
+  accountSettingsMangoCommission: number;
+  affiliatedMangoes: any[];
+  allowMultipleQuantity?: boolean;
+  strikeThroughPrice: {
+    inr: number;
+    usd: number;
+    eur: number;
+  };
+  maxBillingCycle: number;
+  isLevelUpEnabled?: boolean;
+  upsellTitle: string;
+  upsellDetails: any[];
+  customAffiliateLink: string;
+  isPriceIncludedGst: boolean;
+  openEndedMango: boolean;
+  freebieMangoes: any;
+
+  // IAP
+  iapProductId?: string;
+  iapDescription?: string | null;
+  iapPrice?: number | null;
+}
+
+export interface IPost {
+  creator: ObjectId;
+  mango: ObjectId;
+  caption: string;
+  contentUrl: string;
+  contentType: string;
+  createdAt: Date;
+  updatedAt: Date;
+  carousal: string[];
+  isLiveNotificationPushed: boolean;
+  isWhatsappLive: boolean;
+  isAssetsMigrated: boolean;
+  commentCount: number;
+  replyCount: number;
+  mangoArr: ObjectId[];
+  shortUrl: string;
+  isEmailNotificationPushed: boolean;
+  isWhatsappNotificationPushed: boolean;
+}
+
+export interface ICourse {
+  _id: ObjectId;
+  title: string;
+  creator: ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+  mangoArr: ObjectId[];
+  isPublished: boolean;
+  firstChapter: ObjectId;
+  coverImage: string;
+  description: string;
+  expireIn: number;
+  publishDate: Date;
+}
+
+export interface ISubscription {
+  creator: ObjectId;
+  fan: ObjectId;
+  mango: ObjectId;
+  status: "active" | "cancelled" | "initiated" | "expired";
+  isPublic: boolean;
+  createdAt: Date;
+  expiredAt: Date;
+  orders: any[];
+}
+
+export interface IUser {
+  isEmailVerified: boolean;
+  mangoes: ObjectId[];
+  showtwitter: boolean;
+  showfacebook: boolean;
+  showinstagram: boolean;
+  showyoutube: boolean;
+  showlinkedin: boolean;
+  isDeactivated: boolean;
+  fanCompleted: boolean;
+  phone: number;
+  onboarding: string;
+  otp: string;
+  expireIn: string;
+  createdAt: Date;
+  updatedAt: Date;
+  email: string;
+  name: string;
+  profilePicUrl: string;
+  userSlug: string;
+  firebaseSync: number;
+  syncFirebase: boolean;
+  refreshTokens: any[];
+  country: string;
+  isHiddenFromDiscovery: boolean;
+  showSubscriberCount: boolean;
+  isAssetsMigrated: boolean;
+  currency: string;
+  videoUploadEnabled: boolean;
+  convenienceFee: number;
+  host: string;
+  mangoCreditsAvailable: number;
+  drmEnabled: boolean;
+}
+
+export interface IMangoRoom {
+  participants: ObjectId[];
+  lastMessage: ObjectId[];
+  blockedParticipants: ObjectId[];
+  enableSubscriberMessaging: boolean;
+  peerConversation: boolean;
+  mango: ObjectId;
+  creator: ObjectId;
+  roomType: string;
+  title: string;
+  createdAt: Date;
+  updatedAt: Date;
+  lastMessageTime: Date;
 }
