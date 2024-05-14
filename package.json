@@ -3,7 +3,9 @@
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "vercel-build": "echo hello"
+    "vercel-build": "echo hello",
+    "start:prod": "pm2 start ecosystem.config.js",
+    "stop:prod": "pm2 stop ecosystem.config.js"
   },
   "dependencies": {
     "@hono/node-server": "^1.11.1",
@@ -14,12 +16,13 @@
     "dotenv": "^16.4.5",
     "fs-extra": "^11.2.0",
     "hono": "^4.2.8",
+    "mongodb": "^6.6.1",
     "mongoose": "^8.3.2",
     "nodemailer": "^6.9.13",
+    "plist": "^3.1.0",
     "unzipper": "^0.11.4",
     "uuid": "^9.0.1",
-    "xml2js": "^0.6.2",
-    "plist": "^3.1.0"
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
@@ -34,6 +37,7 @@
     "@types/xml2js": "^0.4.14",
     "prettier": "^3.2.5",
     "tsx": "^4.7.1",
+    "typescript": "^5.4.5",
     "zod": "^3.23.4"
   }
 }

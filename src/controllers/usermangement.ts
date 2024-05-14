@@ -138,7 +138,7 @@ const createNewDashboardUser = factory.createHandlers(
       });
 
       const payload: JWTPayloadType = {
-        id: createdUser.insertedId._id.toString(),
+        id: createdUser.insertedId.toString(),
         email: body.email,
         exp: Math.floor(Date.now() / 1000) + 60 * (60 * 24 * 15), // 15 days
       };
@@ -159,7 +159,7 @@ const createNewDashboardUser = factory.createHandlers(
           message: "User created successfully",
           result: {
             user: {
-              _id: createdUser.insertedId._id,
+              _id: createdUser.insertedId,
               email: body.email,
               name: body.name,
               role: body.role,
@@ -409,7 +409,7 @@ const getCurrentUser = factory.createHandlers(async (c) => {
   try {
     const { id } = c.get("jwtPayload");
     const user = await Mongo.user.findOne({
-      _id: id,
+      _id: new ObjectId(id),
       isRestricted: { $ne: true },
     });
     if (!user) {

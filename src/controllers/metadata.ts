@@ -86,7 +86,7 @@ const createMetadata = factory.createHandlers(
       return c.json(
         {
           message: "Metadata created successfully",
-          result: newMetadata.insertedId._id.toString(),
+          result: newMetadata.insertedId.toString(),
         },
         Response.CREATED,
       );

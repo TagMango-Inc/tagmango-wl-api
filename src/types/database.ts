@@ -3,7 +3,7 @@ import { ObjectId } from "mongodb";
 export const Collections = {
   ADMIN_USER: "adminusers",
   CUSTOM_HOST: "customhosts",
-  DEPLOYMENT: "WLDeployments",
+  DEPLOYMENT: "wldeployments",
   METADATA: "customhostmetadatas",
 } as const;
 

@@ -306,9 +306,9 @@ const createNewDeploymentHandler = factory.createHandlers(
       // creating a new job for deployment
 
       await buildQueue.add(
-        `${createdDeployment.insertedId._id.toString()}-${target}-${currentVersionName}`,
+        `${createdDeployment.insertedId.toString()}-${target}-${currentVersionName}`,
         {
-          deploymentId: createdDeployment.insertedId._id.toString(),
+          deploymentId: createdDeployment.insertedId.toString(),
           hostId: customHostId,
           name: metadata.appName ?? customhost.appName,
           bundle:
@@ -330,7 +330,7 @@ const createNewDeploymentHandler = factory.createHandlers(
         {
           message: "Created New Deployment and added new job",
           result: {
-            _id: createdDeployment.insertedId._id.toString(),
+            _id: createdDeployment.insertedId.toString(),
             user,
             platform: target,
             versionName: currentVersionName,

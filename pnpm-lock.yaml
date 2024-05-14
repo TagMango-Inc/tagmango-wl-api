@@ -32,6 +32,9 @@ importers:
       hono:
         specifier: ^4.2.8
         version: 4.2.9
+      mongodb:
+        specifier: ^6.6.1
+        version: 6.6.1
       mongoose:
         specifier: ^8.3.2
         version: 8.3.3
@@ -87,6 +90,9 @@ importers:
       tsx:
         specifier: ^4.7.1
         version: 4.7.3
+      typescript:
+        specifier: ^5.4.5
+        version: 5.4.5
       zod:
         specifier: ^3.23.4
         version: 3.23.5
@@ -393,6 +399,10 @@ packages:
     resolution: {integrity: sha512-BVINv2SgcMjL4oYbBuCQTpE3/VKOSxrOA8Cj/wQP7izSzlBGVomdm+TcUd0Pzy0ytLSSDweCKQ6X3f5veM5LQA==}
     engines: {node: '>=16.20.1'}
 
+  bson@6.7.0:
+    resolution: {integrity: sha512-w2IquM5mYzYZv6rs3uN2DZTOBe2a0zXLj53TGDqwF4l6Sz/XsISrisXOJihArF9+BZ6Cq/GjVht7Sjfmri7ytQ==}
+    engines: {node: '>=16.20.1'}
+
   bullmq@5.7.8:
     resolution: {integrity: sha512-F/Haeu6AVHkFrfeaU/kLOjhfrH6x3CaKAZlQQ+76fa8l3kfI9oaUHeFMW+1mYVz0NtYPF7PNTWFq4ylAHYcCgA==}
 
@@ -606,6 +616,33 @@ packages:
       socks:
         optional: true
 
+  mongodb@6.6.1:
+    resolution: {integrity: sha512-FvA9ocQzRzzvhin1HHLrZDEm0gWvnksbiciYrU/0GmET/t/DdDiMJroA7rfDrHM3AInwGVYw2fwAU2oNYUyUEw==}
+    engines: {node: '>=16.20.1'}
+    peerDependencies:
+      '@aws-sdk/credential-providers': ^3.188.0
+      '@mongodb-js/zstd': ^1.1.0
+      gcp-metadata: ^5.2.0
+      kerberos: ^2.0.1
+      mongodb-client-encryption: '>=6.0.0 <7'
+      snappy: ^7.2.2
+      socks: ^2.7.1
+    peerDependenciesMeta:
+      '@aws-sdk/credential-providers':
+        optional: true
+      '@mongodb-js/zstd':
+        optional: true
+      gcp-metadata:
+        optional: true
+      kerberos:
+        optional: true
+      mongodb-client-encryption:
+        optional: true
+      snappy:
+        optional: true
+      socks:
+        optional: true
+
   mongoose@8.3.3:
     resolution: {integrity: sha512-3kSk0db9DM2tLttCdS6WNRqewPleamFEa4Vz/Qldc0dB4Zow/FiZxb9GExHTJjBZQ9T2xiGleQ3GzRrES3hhsA==}
     engines: {node: '>=16.20.1'}
@@ -779,6 +816,11 @@ packages:
   tsx@4.7.3:
     resolution: {integrity: sha512-+fQnMqIp/jxZEXLcj6WzYy9FhcS5/Dfk8y4AtzJ6ejKcKqmfTF8Gso/jtrzDggCF2zTU20gJa6n8XqPYwDAUYQ==}
     engines: {node: '>=18.0.0'}
+    hasBin: true
+
+  typescript@5.4.5:
+    resolution: {integrity: sha512-vcI4UpRgg81oIRUFwR0WSIHKt11nJ7SAVlYNIu+QpqeyXP+gpQJy/Z4+F0aGxSE4MqwjyXvW/TzgkLAx2AGHwQ==}
+    engines: {node: '>=14.17'}
     hasBin: true
 
   undici-types@5.26.5:
@@ -1081,6 +1123,8 @@ snapshots:
 
   bson@6.6.0: {}
 
+  bson@6.7.0: {}
+
   bullmq@5.7.8:
     dependencies:
       cron-parser: 4.9.0
@@ -1298,6 +1342,12 @@ snapshots:
       bson: 6.6.0
       mongodb-connection-string-url: 3.0.0
 
+  mongodb@6.6.1:
+    dependencies:
+      '@mongodb-js/saslprep': 1.1.5
+      bson: 6.7.0
+      mongodb-connection-string-url: 3.0.0
+
   mongoose@8.3.3:
     dependencies:
       bson: 6.6.0
@@ -1486,6 +1536,8 @@ snapshots:
       get-tsconfig: 4.7.3
     optionalDependencies:
       fsevents: 2.3.3
+
+  typescript@5.4.5: {}
 
   undici-types@5.26.5: {}
 
