@@ -8,3 +8,4 @@ WLApps/
 assets/
 outputs/
 dist/
+ecosystem.config.js
