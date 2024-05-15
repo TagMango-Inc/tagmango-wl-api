@@ -1,19 +1,23 @@
-import { createFactory } from "hono/factory";
-import { ObjectId } from "mongodb";
+import fs from 'fs-extra';
+import { createFactory } from 'hono/factory';
+import { ObjectId } from 'mongodb';
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from '@hono/zod-validator';
 
 import {
   CURRENT_VERSION_NAME,
   CURRENT_VERSION_NUMBER,
-} from "../../src/constants";
-import Mongo from "../../src/database";
-import { buildQueue } from "../../src/job/config";
-import { JWTPayloadType } from "../../src/types";
-import { Status } from "../../src/types/database";
-import { generateDeploymentTasks } from "../../src/utils/generateTaskDetails";
-import { Response } from "../../src/utils/statuscode";
-import { createNewDeploymentSchema } from "../../src/validations/customhost";
+} from '../../src/constants';
+import Mongo from '../../src/database';
+import { buildQueue } from '../../src/job/config';
+import { JWTPayloadType } from '../../src/types';
+import { Status } from '../../src/types/database';
+import { generateDeploymentTasks } from '../../src/utils/generateTaskDetails';
+import { Response } from '../../src/utils/statuscode';
+import { createNewDeploymentSchema } from '../../src/validations/customhost';
+import { updateFailedAndroidDeploymentSchema } from '../validations/deployment';
+
+const { readFile } = fs.promises;
 
 const factory = createFactory();
 
@@ -147,7 +151,7 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
             "user._id": 1,
             "user.name": 1,
             // "user.customhostDashboardAccess": 1,
-            // host: 1,
+            host: 1,
             platform: 1,
             versionName: 1,
             buildNumber: 1,
@@ -168,6 +172,26 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
       ])
       .toArray();
 
+    const androidAABDetails = await readFile(
+      "./outputs/android-aab.json",
+      "utf-8",
+    );
+    const parsedAndroidAABDetails = JSON.parse(androidAABDetails);
+
+    const modifiedResults = deployments.map((deployment) => {
+      const aabDetails = parsedAndroidAABDetails[deployment.host];
+      const isAndroidBundleAvailable =
+        aabDetails &&
+        aabDetails.versionName === deployment.versionName &&
+        aabDetails.buildNumber === deployment.buildNumber
+          ? true
+          : false;
+      return {
+        ...deployment,
+        isAndroidBundleAvailable,
+      };
+    });
+
     const totalSearchResults = await Mongo.deployment
       .find({
         _id: new ObjectId(appId),
@@ -181,7 +205,7 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
       {
         message: "All Deployments for Custom Host",
         result: {
-          deployments,
+          deployments: modifiedResults,
           totalDeployments: totalDeployments.length,
           totalSearchResults: totalSearchResults.length,
           currentPage: PAGE,
@@ -196,6 +220,7 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
       },
     );
   } catch (error) {
+    console.log(error);
     return c.json(
       { message: "Internal Server Error" },
       {
@@ -570,6 +595,72 @@ const getRecentDeploymentsHandler = factory.createHandlers(async (c) => {
   }
 });
 
+const updateFailedAndroidDeploymentStatus = factory.createHandlers(
+  zValidator("json", updateFailedAndroidDeploymentSchema),
+  async (c) => {
+    try {
+      const { deploymentId } = c.req.valid("json");
+
+      // updating the deployment status to success
+      await Mongo.deployment.findOneAndUpdate(
+        {
+          _id: new ObjectId(deploymentId),
+        },
+        {
+          $set: {
+            status: Status.SUCCESS,
+            updatedAt: new Date(),
+          },
+        },
+      );
+
+      // picking version name and bunild number from the deployment
+      const deploymentDetails = await Mongo.deployment.findOne(
+        {
+          _id: new ObjectId(deploymentId),
+        },
+        {
+          projection: {
+            versionName: 1,
+            buildNumber: 1,
+            host: 1,
+          },
+        },
+      );
+
+      if (!deploymentDetails) {
+        return c.json({ message: "Deployment not found" }, Response.NOT_FOUND);
+      }
+
+      // updating the metadata with the new version name and build number
+      await Mongo.metadata.updateOne(
+        {
+          host: new ObjectId(deploymentDetails.host),
+        },
+        {
+          $set: {
+            "androidDeploymentDetails.versionName":
+              deploymentDetails.versionName,
+            "androidDeploymentDetails.buildNumber":
+              deploymentDetails.buildNumber,
+          },
+        },
+      );
+
+      return c.json(
+        { message: "Updated Deployment Status to Success" },
+        Response.OK,
+      );
+    } catch (error) {
+      console.log(error);
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
 export {
   cancelDeploymentJobByDeploymentId,
   createNewDeploymentHandler,
@@ -578,4 +669,5 @@ export {
   getDeploymentDetailsById,
   getDeploymentTaskLogsByTaskId,
   getRecentDeploymentsHandler,
+  updateFailedAndroidDeploymentStatus,
 };

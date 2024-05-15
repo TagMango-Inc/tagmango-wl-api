@@ -1,10 +1,10 @@
-import { Hono } from "hono";
+import { Hono } from 'hono';
 
 import {
   getAllCustomHostsHandler,
   getCustomHostByIdHandler,
   patchCustomHostByIdHandler,
-} from "../../src/controllers/customhost";
+} from '../../src/controllers/customhost';
 import {
   cancelDeploymentJobByDeploymentId,
   createNewDeploymentHandler,
@@ -13,7 +13,8 @@ import {
   getDeploymentDetailsById,
   getDeploymentTaskLogsByTaskId,
   getRecentDeploymentsHandler,
-} from "../../src/controllers/deployment";
+  updateFailedAndroidDeploymentStatus,
+} from '../../src/controllers/deployment';
 
 const router = new Hono();
 
@@ -41,6 +42,10 @@ router.get(
 router.delete(
   "/deployment/cancel-job/:deploymentId/:target/:version",
   ...cancelDeploymentJobByDeploymentId,
+);
+router.post(
+  "/deployments/failed-android-status",
+  ...updateFailedAndroidDeploymentStatus,
 );
 
 export default router;
