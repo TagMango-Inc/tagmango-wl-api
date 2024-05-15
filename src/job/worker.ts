@@ -2,12 +2,24 @@ import { Job, Worker } from "bullmq";
 import { exec } from "child_process";
 import fs from "fs-extra";
 import { ObjectId } from "mongodb";
+import pino from "pino";
 
 import Mongo from "../../src/database";
 import { IDeploymentTask } from "../../src/types/database";
 import { customhostDeploymentDir, githubrepo, ROOT_BRANCH } from "../constants";
 import { BuildJobPayloadType, JobProgressType } from "../types";
 import { queueRedisOptions } from "./config";
+
+const logger = pino({
+  level: "debug",
+  msgPrefix: "[ WORKER ] ",
+  transport: {
+    target: "pino-pretty",
+    options: {
+      colorize: true,
+    },
+  },
+});
 
 // import {
 // copyAppAssets,
@@ -40,6 +52,8 @@ const worker = new Worker<BuildJobPayloadType>(
     } = job.data;
 
     const formatedAppName = name.replace(/ /g, "");
+
+    logger.info("Fetching Deployment Details");
 
     /**
      * Fetching the task names for the deployment
@@ -174,16 +188,14 @@ const worker = new Worker<BuildJobPayloadType>(
       ],
       // step 12: Running the fastlane upload for specific targer platform
       // TODO
-      [taskNames[5].id]: [`cd ${customHostDir}`, `fastlane ${platform} upload`],
-      // [taskNames[5].id]: [`cd ${customHostDir}`],
+      // [taskNames[5].id]: [`cd ${customHostDir}`, `fastlane ${platform} upload`],
+      [taskNames[5].id]: [`cd ${customHostDir}`],
       // step 13: Removing the deployment/{bundleId} folder after successful deployment
       [taskNames[6].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
       // [taskNames[6].id]: [],
     };
 
-    console.log(
-      ` ---------------------------------------- Initiated Deployment Process ---------------------------------------- `,
-    );
+    logger.info("Initiated Deployment Process");
 
     try {
       // Changing deployment status to processing from pending
@@ -192,9 +204,13 @@ const worker = new Worker<BuildJobPayloadType>(
           _id: new ObjectId(deploymentId),
         },
         {
-          status: "processing",
+          $set: {
+            status: "processing",
+          },
         },
       );
+
+      logger.info("Deployment Status Changed to Processing");
 
       // executing the tasks
       for (const task of taskNames) {
@@ -241,6 +257,8 @@ const worker = new Worker<BuildJobPayloadType>(
       // updating the version details for the target platform after successful deployment
       await updateVersionDetails({ deploymentId, hostId, platform });
     } catch (error) {
+      logger.error(error, "Failed to execute Deployment Process");
+
       // if we are getting any erro (throw error) then we need to remove the deployment/{bundleId} folder
       const task = taskNames.slice(-1)[0];
       await executeTask({
@@ -257,13 +275,16 @@ const worker = new Worker<BuildJobPayloadType>(
           _id: new ObjectId(deploymentId),
         },
         {
-          status: "failed",
+          $set: {
+            status: "failed",
+          },
         },
       );
+
+      logger.info("Deployment Status Changed to Failed");
     }
-    console.log(
-      ` ---------------------------------------- Completed Deployment Process ---------------------------------------- `,
-    );
+
+    logger.info("Deployment Process Completed");
   },
   {
     connection: queueRedisOptions,
@@ -272,10 +293,10 @@ const worker = new Worker<BuildJobPayloadType>(
 );
 
 worker.on("stalled", (job) => {
-  console.log("job is being stalled", job);
+  logger.error(`Job has been stalled ${job}`);
 });
 
-console.log("Worker started!");
+logger.info("Worker Started");
 
 (async () => {
   await Mongo.connect();
@@ -299,9 +320,7 @@ const executeTask = async ({
   // will be a async function that will be called if the task is failed
   onError?: () => Promise<void>;
 }) => {
-  console.log(
-    ` ************** Executing task  [ ${taskName} ] ************** `,
-  );
+  logger.info(`Executing Task [ ${taskName} ]`);
 
   // sending job progress to sse
   job.updateProgress({
@@ -329,6 +348,8 @@ const executeTask = async ({
     },
   );
 
+  logger.info(`Task [ ${taskName} ] started executing`);
+
   // started executing the task
   const e = exec(commands.join(" && "), {
     cwd: process.cwd(),
@@ -342,7 +363,8 @@ const executeTask = async ({
 
   if (stdout) {
     stdout.on("data", (data) => {
-      console.log(data);
+      logger.info(data);
+
       // updating the progress of the job so i can listen to the progress of the job through queue events
       // can be listen using queue events on progress listener
       job.updateProgress({
@@ -368,7 +390,7 @@ const executeTask = async ({
   if (stderr) {
     stderr.on("data", (data) => {
       const warningRegex = /\b(?:warn(?:ing)?|deprecated)\b/i;
-      console.error(data);
+      logger.error(data);
       // updating the progress of the job so i can listen to the progress of the job through queue events
       // can be listen using queue events on progress listener
       job.updateProgress({
@@ -429,6 +451,8 @@ const executeTask = async ({
       },
     );
 
+    logger.info(`Task [ ${taskName} ] executed successfully`);
+
     // removing aab file from the root project
     // exec(`rm -rf outputs/android/${hostId}.aab`);
   } else {
@@ -465,7 +489,7 @@ const executeTask = async ({
       },
     );
 
-    console.error(`Failed to execute task [ ${taskName} ]`);
+    logger.error(`Failed to execute task [ ${taskName} ]`);
   }
 
   // after all updates (success or failed) are done in the database then we can return error
@@ -485,13 +509,15 @@ const updateVersionDetails = async ({
   hostId: string;
   platform: "android" | "ios";
 }) => {
+  logger.info("Updating Deployment Status after successful deployment");
+
   try {
     const deployment = await Mongo.deployment.findOne({
       _id: new ObjectId(deploymentId),
     });
 
     if (!deployment) {
-      console.log(`Deployment with ID ${deploymentId} not found`);
+      logger.warn(`Deployment with ID ${deploymentId} not found`);
       return;
     }
 
@@ -525,10 +551,13 @@ const updateVersionDetails = async ({
           },
     ]);
 
-    console.log(
+    logger.info(
       `Deployment ${deploymentId} status updated to ${deployment.status}`,
     );
   } catch (error) {
-    console.error("Error updating deployment status:", error);
+    logger.error(
+      error,
+      "Failed to update Deployment Status after successful deployment",
+    );
   }
 };
