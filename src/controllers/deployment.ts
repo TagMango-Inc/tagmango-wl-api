@@ -300,6 +300,8 @@ const createNewDeploymentHandler = factory.createHandlers(
         tasks,
         status: Status.PENDING,
         cancelledBy: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       });
 
       // TODO: can't create another job if the job already exists and processing
@@ -493,6 +495,7 @@ const cancelDeploymentJobByDeploymentId = factory.createHandlers(async (c) => {
       {
         status: "cancelled",
         cancelledBy: new ObjectId(payload.id),
+        updatedAt: new Date(),
       },
     );
 

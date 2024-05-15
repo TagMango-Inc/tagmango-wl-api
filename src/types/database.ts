@@ -63,6 +63,9 @@ export interface IDeployment {
   tasks: IDeploymentTask[];
   status: Exclude<Status, "warning">;
   cancelledBy: ObjectId | null;
+
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface IMetaData {

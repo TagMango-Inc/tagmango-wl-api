@@ -211,6 +211,7 @@ const worker = new Worker<BuildJobPayloadType>(
         {
           $set: {
             status: "processing",
+            updatedAt: new Date(),
           },
         },
       );
@@ -282,6 +283,7 @@ const worker = new Worker<BuildJobPayloadType>(
         {
           $set: {
             status: "failed",
+            updatedAt: new Date(),
           },
         },
       );
@@ -349,6 +351,7 @@ const executeTask = async ({
     {
       $set: {
         "tasks.$.status": "processing",
+        updatedAt: new Date(),
       },
     },
   );
@@ -459,6 +462,7 @@ const executeTask = async ({
           "tasks.$.status": "success",
           "tasks.$.logs": outputLogs,
           "tasks.$.duration": Date.now() - startTime,
+          updatedAt: new Date(),
         },
       },
     );
@@ -497,6 +501,7 @@ const executeTask = async ({
           "tasks.$.status": "failed",
           "tasks.$.logs": errorLogs,
           "tasks.$.duration": Date.now() - startTime,
+          updatedAt: new Date(),
         },
       },
     );
@@ -543,6 +548,7 @@ const updateVersionDetails = async ({
       {
         $set: {
           status: "success",
+          updatedAt: new Date(),
         },
       },
     );
