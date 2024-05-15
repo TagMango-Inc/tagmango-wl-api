@@ -6,7 +6,8 @@ uploads/
 WLApps/
 .DS_Store
 assets/
-outputs/
+outputs/android/
+outputs/android-aab.json
 dist/
 ecosystem.config.js
 dump.rdb
