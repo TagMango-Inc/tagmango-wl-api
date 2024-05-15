@@ -20,8 +20,7 @@ abstract class Mongo {
   private static client: MongoClient;
   private static db: Db;
   private static uri: string = process.env.MONGO_URI || "";
-  private static dbName: string = "test";
-  // private static dbName: string = "tagmango-production";
+  private static dbName: string = this.uri.split("?")[0].split("/").pop() || "";
 
   // collections
   public static user: Collection<IAdminUser>;

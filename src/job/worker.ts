@@ -1,3 +1,5 @@
+import "dotenv/config";
+
 import { Job, Worker } from "bullmq";
 import { exec } from "child_process";
 import fs from "fs-extra";
@@ -181,15 +183,18 @@ const worker = new Worker<BuildJobPayloadType>(
       // ],
       //TODO
       // step 11: Running the fastlane build for specific targer platform
-      [taskNames[4].id]: [
-        `cd ${customHostDir}`,
-        `fastlane ${platform} build`,
-        `cp -r android/app/build/outputs/bundle/release/app-release.aab ../../../outputs/android/${hostId}.aab`,
-      ],
+      [taskNames[4].id]:
+        platform === "android"
+          ? [
+              `cd ${customHostDir}`,
+              `fastlane ${platform} build`,
+              `cp -r android/app/build/outputs/bundle/release/app-release.aab ../../../outputs/android/${hostId}.aab`,
+            ]
+          : [`cd ${customHostDir}`, `fastlane ${platform} build`],
       // step 12: Running the fastlane upload for specific targer platform
       // TODO
-      // [taskNames[5].id]: [`cd ${customHostDir}`, `fastlane ${platform} upload`],
-      [taskNames[5].id]: [`cd ${customHostDir}`],
+      [taskNames[5].id]: [`cd ${customHostDir}`, `fastlane ${platform} upload`],
+      // [taskNames[5].id]: [`cd ${customHostDir}`],
       // step 13: Removing the deployment/{bundleId} folder after successful deployment
       [taskNames[6].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
       // [taskNames[6].id]: [],
@@ -353,6 +358,13 @@ const executeTask = async ({
   // started executing the task
   const e = exec(commands.join(" && "), {
     cwd: process.cwd(),
+    maxBuffer: 1024 * 1024 * 5,
+    env: {
+      ...process.env,
+      LC_ALL: "en_US.UTF-8",
+      LANG: "en_US.UTF-8",
+    },
+    shell: "/bin/zsh",
   });
   const { stdout, stderr } = e;
   // start time of the task

@@ -9,3 +9,4 @@ assets/
 outputs/
 dist/
 ecosystem.config.js
+dump.rdb
