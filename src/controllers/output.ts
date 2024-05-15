@@ -7,13 +7,13 @@ import Mongo from "../database";
 import { AABDetailsType } from "../types";
 import { Response } from "../utils/statuscode";
 
-const { readFile, writeFile } = fs.promises;
+const { readFile } = fs.promises;
 
 const factory = createFactory();
 
 const getAllaabDetails = factory.createHandlers(async (c) => {
   try {
-    const rootDir = path.resolve(__dirname, "../../");
+    const rootDir = path.resolve(__dirname, "../../../");
     const rawAABDetails = await readFile(
       `${rootDir}/outputs/android-aab.json`,
       "utf-8",

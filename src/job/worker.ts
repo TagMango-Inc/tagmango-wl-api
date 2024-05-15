@@ -189,6 +189,7 @@ const worker = new Worker<BuildJobPayloadType>(
               `cd ${customHostDir}`,
               `fastlane ${platform} build`,
               `cp -r android/app/build/outputs/bundle/release/app-release.aab ../../../outputs/android/${hostId}.aab`,
+              `node ../../../outputs/android-aab.js ${JSON.stringify({ hostId, versionName, buildNumber })}`,
             ]
           : [`cd ${customHostDir}`, `fastlane ${platform} build`],
       // step 12: Running the fastlane upload for specific targer platform
@@ -220,44 +221,14 @@ const worker = new Worker<BuildJobPayloadType>(
 
       // executing the tasks
       for (const task of taskNames) {
-        // if `fastlane android upload` task then we need to write the version details to android-aab.json file
-        if (task.id === taskNames[5].id && platform === "android") {
-          await executeTask({
-            commands: commands[task.id],
-            taskId: task.id,
-            taskName: task.name,
-            job,
-            deploymentId,
-            hostId,
-            onError: async () => {
-              const aabDetailPath = "./output/android-aab.json";
-              // if the fastlane deployment failed, then write to android-aab.json file
-              const rawAABDetails = await readFile(aabDetailPath, "utf-8");
-              const parsedAABDetails = JSON.parse(rawAABDetails);
-
-              await writeFile(
-                aabDetailPath,
-                JSON.stringify({
-                  ...parsedAABDetails,
-                  [hostId]: {
-                    versionName,
-                    buildNumber,
-                    createdAt: new Date(),
-                  },
-                }),
-              );
-            },
-          });
-        } else {
-          await executeTask({
-            commands: commands[task.id],
-            taskId: task.id,
-            taskName: task.name,
-            job,
-            deploymentId,
-            hostId,
-          });
-        }
+        await executeTask({
+          commands: commands[task.id],
+          taskId: task.id,
+          taskName: task.name,
+          job,
+          deploymentId,
+          hostId,
+        });
       }
 
       // updating the version details for the target platform after successful deployment
