@@ -1,19 +1,19 @@
-import bcrypt from 'bcrypt';
-import { createFactory } from 'hono/factory';
-import { sign } from 'hono/jwt';
-import { ObjectId } from 'mongodb';
+import bcrypt from "bcrypt";
+import { createFactory } from "hono/factory";
+import { sign } from "hono/jwt";
+import { ObjectId } from "mongodb";
 
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from "@hono/zod-validator";
 
-import Mongo from '../../src/database';
-import { JWTPayloadType } from '../../src/types';
-import sendMail from '../../src/utils/sendMail';
-import { Response } from '../../src/utils/statuscode';
+import Mongo from "../../src/database";
+import { JWTPayloadType } from "../../src/types";
+import sendMail from "../../src/utils/sendMail";
+import { Response } from "../../src/utils/statuscode";
 import {
   createUserSchema,
   roleActionSchema,
   updatePasswordSchema,
-} from '../../src/validations/userManagement';
+} from "../../src/validations/userManagement";
 
 const factory = createFactory();
 
@@ -158,7 +158,7 @@ const createNewDashboardUser = factory.createHandlers(
       sendMail({
         recipient: body.email,
         subject: "Welcome to WL Dashboard",
-        text: `Here is your authToken: http://localhost:5173/update-password?token=${authToken}`,
+        text: `Here is your authToken: ${process.env.APP_DOMAIN}/update-password?token=${authToken}`,
       });
 
       return c.json(
@@ -388,7 +388,7 @@ const resendEmailVerification = factory.createHandlers(async (c) => {
     sendMail({
       recipient: user.email,
       subject: "Welcome to WL Dashboard",
-      text: `Here is your authToken: http://localhost:5173/update-password?token=${authToken}`,
+      text: `Here is your authToken: ${process.env.APP_DOMAIN}/update-password?token=${authToken}`,
     });
 
     return c.json(
