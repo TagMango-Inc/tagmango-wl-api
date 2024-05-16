@@ -7,6 +7,7 @@ import { zValidator } from '@hono/zod-validator';
 import {
   CURRENT_VERSION_NAME,
   CURRENT_VERSION_NUMBER,
+  DEPLOYMENT_REQUIREMENTS,
 } from '../../src/constants';
 import Mongo from '../../src/database';
 import { buildQueue } from '../../src/job/config';
@@ -652,12 +653,76 @@ const updateFailedAndroidDeploymentStatus = factory.createHandlers(
   },
 );
 
+const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
+  try {
+    const { id: appId, creatorId } = c.req.param();
+
+    const data = await Promise.all([
+      Mongo.metadata.findOne({
+        host: new ObjectId(appId),
+        appName: {
+          $exists: true,
+        },
+        logo: {
+          $exists: true,
+        },
+      }),
+      Mongo.customhost.findOne({
+        _id: new ObjectId(appId),
+        onesignalAppId: {
+          $exists: true,
+        },
+      }),
+      Mongo.mango.findOne({
+        creator: new ObjectId(creatorId),
+        isHidden: { $ne: true },
+        isStopTakingPayment: { $ne: true },
+        $or: [{ end: { $gte: new Date() } }, { end: undefined }],
+        isPublic: { $ne: true },
+        isDeleted: { $ne: true },
+        iapProductId: { $exists: true },
+      }),
+    ]);
+
+    return c.json(
+      {
+        message: "Fetched Deployment Requirements Checklist",
+        result: [
+          {
+            name: DEPLOYMENT_REQUIREMENTS[0],
+            isCompleted: data[0] ? true : false,
+          },
+          {
+            name: DEPLOYMENT_REQUIREMENTS[1],
+            isCompleted: data[0] ? true : false,
+          },
+          {
+            name: DEPLOYMENT_REQUIREMENTS[2],
+            isCompleted: data[1] ? true : false,
+          },
+          {
+            name: DEPLOYMENT_REQUIREMENTS[3],
+            isCompleted: data[2] ? true : false,
+          },
+        ],
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
 export {
   cancelDeploymentJobByDeploymentId,
   createNewDeploymentHandler,
   getAllDeploymentsHandler,
   getDeploymentDetails,
   getDeploymentDetailsById,
+  getDeploymentRequirementsChecklist,
   getDeploymentTaskLogsByTaskId,
   getRecentDeploymentsHandler,
   updateFailedAndroidDeploymentStatus,

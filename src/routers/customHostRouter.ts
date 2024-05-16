@@ -11,6 +11,7 @@ import {
   getAllDeploymentsHandler,
   getDeploymentDetails,
   getDeploymentDetailsById,
+  getDeploymentRequirementsChecklist,
   getDeploymentTaskLogsByTaskId,
   getRecentDeploymentsHandler,
   updateFailedAndroidDeploymentStatus,
@@ -46,6 +47,10 @@ router.delete(
 router.post(
   "/deployments/failed-android-status",
   ...updateFailedAndroidDeploymentStatus,
+);
+router.get(
+  "/:id/deployments/requirements/:creatorId",
+  ...getDeploymentRequirementsChecklist,
 );
 
 export default router;
