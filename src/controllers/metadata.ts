@@ -110,10 +110,6 @@ const getAppMetadata = factory.createHandlers(async (c) => {
       host: new ObjectId(appId),
     });
 
-    if (!metadata) {
-      return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
-    }
-
     return c.json(
       { message: "Metadata fetched successfully", result: metadata },
       Response.OK,
