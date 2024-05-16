@@ -35,19 +35,19 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
             whitelableStatus: { $ne: "drafted" },
           },
         },
-        // {
-        //   $lookup: {
-        //     from: "customhostmetadatas",
-        //     localField: "deploymentMetadata",
-        //     foreignField: "_id",
-        //     as: "deploymentDetails",
-        //   },
-        // },
-        // {
-        //   $unwind: {
-        //     path: "$deploymentDetails",
-        //   },
-        // },
+        {
+          $lookup: {
+            from: "customhostmetadatas",
+            localField: "deploymentMetadata",
+            foreignField: "_id",
+            as: "deploymentDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$deploymentDetails",
+          },
+        },
         {
           $project: {
             appName: 1,
@@ -55,12 +55,12 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
             logo: 1,
             createdAt: 1,
             updatedAt: 1,
-            // androidVersionName:
-            //   "$deploymentDetails.androidDeploymentDetails.versionName",
-            // iosVersionName:
-            //   "$deploymentDetails.iosDeploymentDetails.versionName",
-            // iosUnderReview:
-            //   "$deploymentDetails.iosDeploymentDetails.isUnderReview",
+            androidVersionName:
+              "$deploymentDetails.androidDeploymentDetails.versionName",
+            iosVersionName:
+              "$deploymentDetails.iosDeploymentDetails.versionName",
+            iosUnderReview:
+              "$deploymentDetails.iosDeploymentDetails.isUnderReview",
           },
         },
         {
