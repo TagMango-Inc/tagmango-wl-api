@@ -1,18 +1,18 @@
-import fs from "fs";
-import { createFactory } from "hono/factory";
-import { ObjectId } from "mongodb";
+import fs from 'fs';
+import { createFactory } from 'hono/factory';
+import { ObjectId } from 'mongodb';
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from '@hono/zod-validator';
 
-import Mongo from "../../src/database";
-import { Response } from "../../src/utils/statuscode";
+import Mongo from '../../src/database';
+import { Response } from '../../src/utils/statuscode';
 import {
   createMetadataSchema,
   updateAndroidDeploymentDetailsSchema,
   updateIosDeploymentDetailsSchema,
   updateMetadataLogoSchema,
   updateMetadataSettingsSchema,
-} from "../../src/validations/metadata";
+} from '../../src/validations/metadata';
 
 const factory = createFactory();
 
@@ -74,12 +74,15 @@ const createMetadata = factory.createHandlers(
         },
       });
 
-      await Mongo.customhost.findOneAndUpdate(
+      await Mongo.customhost.updateOne(
         {
           _id: new ObjectId(appId),
         },
         {
-          deploymentMetadata: newMetadata.insertedId,
+          $set: {
+            deploymentMetadata: newMetadata.insertedId,
+            updatedAt: new Date(),
+          },
         },
       );
 
@@ -160,7 +163,7 @@ const uploadMetadataLogo = factory.createHandlers(
       base64ToImage(background, `${logoPath}/background.png`);
       base64ToImage(foreground, `${logoPath}/foreground.png`);
 
-      const updatedMetadata = await Mongo.metadata.findOneAndUpdate(
+      await Mongo.metadata.updateOne(
         {
           host: new ObjectId(appId),
         },
@@ -179,7 +182,6 @@ const uploadMetadataLogo = factory.createHandlers(
       return c.json(
         {
           message: "Metadata updated successfully",
-          result: updatedMetadata?._id,
         },
         Response.OK,
       );
@@ -207,7 +209,7 @@ const updateMetadataAndroidSettings = factory.createHandlers(
         return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
       }
 
-      const updatedMetadata = await Mongo.metadata.findOneAndUpdate(
+      await Mongo.metadata.updateOne(
         {
           host: new ObjectId(appId),
         },
@@ -225,7 +227,6 @@ const updateMetadataAndroidSettings = factory.createHandlers(
       return c.json(
         {
           message: "Metadata updated successfully",
-          result: updatedMetadata?._id,
         },
         Response.OK,
       );
@@ -253,7 +254,7 @@ const updateMetadataIosSettings = factory.createHandlers(
         return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
       }
 
-      const updatedMetadata = await Mongo.metadata.findOneAndUpdate(
+      await Mongo.metadata.updateOne(
         {
           host: new ObjectId(appId),
         },
@@ -272,12 +273,10 @@ const updateMetadataIosSettings = factory.createHandlers(
       return c.json(
         {
           message: "Metadata updated successfully",
-          result: updatedMetadata?._id,
         },
         Response.OK,
       );
     } catch (error) {
-      console.log(error);
       return c.json(
         { message: "Internal Server Error" },
         Response.INTERNAL_SERVER_ERROR,
@@ -301,7 +300,7 @@ const updateMetadataSettings = factory.createHandlers(
         return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
       }
 
-      const updatedMetadata = await Mongo.metadata.findOneAndUpdate(
+      await Mongo.metadata.updateOne(
         {
           host: new ObjectId(appId),
         },
@@ -313,7 +312,6 @@ const updateMetadataSettings = factory.createHandlers(
       return c.json(
         {
           message: "Metadata updated successfully",
-          result: updatedMetadata?._id,
         },
         Response.OK,
       );

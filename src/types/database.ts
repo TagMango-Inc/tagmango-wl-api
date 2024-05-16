@@ -1,4 +1,4 @@
-import { ObjectId } from "mongodb";
+import { ObjectId } from 'mongodb';
 
 export const Collections = {
   ADMIN_USER: "adminusers",
@@ -41,6 +41,8 @@ export interface IAdminUser {
     role: string;
     isRestricted: boolean;
   };
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface IDeploymentTask {
@@ -186,6 +188,9 @@ export interface ICustomHost {
   routingConfig?: RoutingConfig;
 
   deploymentMetadata: ObjectId;
+
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // Route

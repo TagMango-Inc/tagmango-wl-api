@@ -1,10 +1,11 @@
-import { createFactory } from "hono/factory";
-import { ObjectId } from "mongodb";
+import { createFactory } from 'hono/factory';
+import { ObjectId } from 'mongodb';
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from '@hono/zod-validator';
 
-import Mongo from "../../src/database";
-import { patchCustomHostByIdSchema } from "../../src/validations/customhost";
+import Mongo from '../../src/database';
+import { patchCustomHostByIdSchema } from '../../src/validations/customhost';
+import { Response } from '../utils/statuscode';
 
 const factory = createFactory();
 /**
@@ -98,18 +99,12 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
           hasNext: hasNextPage,
         },
       },
-      {
-        status: 200,
-        statusText: "OK",
-      },
+      Response.OK,
     );
   } catch (error) {
     return c.json(
       { message: "Internal Server Error" },
-      {
-        status: 500,
-        statusText: "Internal Server Error",
-      },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });
@@ -126,19 +121,16 @@ const getCustomHostByIdHandler = factory.createHandlers(async (c) => {
       _id: new ObjectId(id),
     });
     if (!customHost) {
-      return c.json(
-        { message: "Custom Host not found" },
-        { status: 404, statusText: "Not Found" },
-      );
+      return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
     }
     return c.json(
       { message: "Fetched Custom Host", result: customHost },
-      { status: 200, statusText: "OK" },
+      Response.OK,
     );
   } catch (error) {
     return c.json(
       { message: "Internal Server Error" },
-      { status: 500, statusText: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });
@@ -160,10 +152,7 @@ const patchCustomHostByIdHandler = factory.createHandlers(
         _id: new ObjectId(id),
       });
       if (!customHost) {
-        return c.json(
-          { message: "Custom Host not found" },
-          { status: 404, statusText: "Not Found" },
-        );
+        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
       }
       const updatedCustomHost = await Mongo.customhost.findOneAndUpdate(
         {
@@ -180,13 +169,12 @@ const patchCustomHostByIdHandler = factory.createHandlers(
       );
       return c.json(
         { message: "Custom Host Updated", result: updatedCustomHost },
-        { status: 200, statusText: "OK" },
+        Response.OK,
       );
     } catch (error) {
-      console.log(error);
       return c.json(
         { message: "Internal Server Error" },
-        { status: 500, statusText: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
       );
     }
   },

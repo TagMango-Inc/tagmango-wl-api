@@ -1,14 +1,15 @@
-import "dotenv/config";
+import 'dotenv/config';
 
-import bcrypt from "bcrypt";
-import { Hono } from "hono";
-import { sign } from "hono/jwt";
+import bcrypt from 'bcrypt';
+import { Hono } from 'hono';
+import { sign } from 'hono/jwt';
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from '@hono/zod-validator';
 
-import Mongo from "../../src/database";
-import { JWTPayloadType } from "../../src/types";
-import { loginDataSchema } from "../validations/authentication";
+import Mongo from '../../src/database';
+import { JWTPayloadType } from '../../src/types';
+import { Response } from '../utils/statuscode';
+import { loginDataSchema } from '../validations/authentication';
 
 const router = new Hono();
 
@@ -26,10 +27,7 @@ router.post("/login", zValidator("json", loginDataSchema), async (c) => {
         {
           message: "User not found",
         },
-        {
-          status: 404,
-          statusText: "Not Found",
-        },
+        Response.NOT_FOUND,
       );
     }
 
@@ -69,20 +67,14 @@ router.post("/login", zValidator("json", loginDataSchema), async (c) => {
           },
         },
       },
-      {
-        status: 200,
-        statusText: "OK",
-      },
+      Response.OK,
     );
   } catch (error) {
     return c.json(
       {
         message: "Internal Server Error",
       },
-      {
-        status: 500,
-        statusText: "Internal Server Error",
-      },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });

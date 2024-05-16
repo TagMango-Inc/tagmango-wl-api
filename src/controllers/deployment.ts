@@ -68,7 +68,7 @@ const getDeploymentDetails = factory.createHandlers(async (c) => {
     if (deploymentDetails.length === 0) {
       return c.json(
         { message: "Deployment details not found" },
-        { status: 404, statusText: "Not Found" },
+        Response.NOT_FOUND,
       );
     }
 
@@ -93,15 +93,12 @@ const getDeploymentDetails = factory.createHandlers(async (c) => {
           buildNumber: currentBuildNumber,
         },
       },
-      { status: 200, statusText: "OK" },
+      Response.OK,
     );
   } catch (error) {
     return c.json(
       { message: "Internal Server Error" },
-      {
-        status: 500,
-        statusText: "Internal Server Error",
-      },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });
@@ -214,19 +211,12 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
           hasNext: hasNextPage,
         },
       },
-      {
-        status: 200,
-        statusText: "OK",
-      },
+      Response.OK,
     );
   } catch (error) {
-    console.log(error);
     return c.json(
       { message: "Internal Server Error" },
-      {
-        status: 500,
-        statusText: "Internal Server Error",
-      },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });
@@ -296,7 +286,7 @@ const createNewDeploymentHandler = factory.createHandlers(
               "iosDeploymentDetails.lastDeploymentDetails.versionName":
                 currentVersionName,
             };
-      await Mongo.metadata.findOneAndUpdate(
+      await Mongo.metadata.updateOne(
         {
           host: new ObjectId(customHostId),
         },
@@ -513,18 +503,20 @@ const cancelDeploymentJobByDeploymentId = factory.createHandlers(async (c) => {
 
     await job.remove();
 
-    const deployment = await Mongo.deployment.findOneAndUpdate(
+    const deployment = await Mongo.deployment.updateOne(
       {
         _id: new ObjectId(deploymentId),
       },
       {
-        status: "cancelled",
-        cancelledBy: new ObjectId(payload.id),
-        updatedAt: new Date(),
+        $set: {
+          status: "cancelled",
+          cancelledBy: new ObjectId(payload.id),
+          updatedAt: new Date(),
+        },
       },
     );
 
-    if (!deployment) {
+    if (!deployment.acknowledged) {
       return c.json({ message: "Deployment not found" }, Response.NOT_FOUND);
     }
 
@@ -602,7 +594,7 @@ const updateFailedAndroidDeploymentStatus = factory.createHandlers(
       const { deploymentId } = c.req.valid("json");
 
       // updating the deployment status to success
-      await Mongo.deployment.findOneAndUpdate(
+      await Mongo.deployment.updateOne(
         {
           _id: new ObjectId(deploymentId),
         },
@@ -652,7 +644,6 @@ const updateFailedAndroidDeploymentStatus = factory.createHandlers(
         Response.OK,
       );
     } catch (error) {
-      console.log(error);
       return c.json(
         { message: "Internal Server Error" },
         Response.INTERNAL_SERVER_ERROR,

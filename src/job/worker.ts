@@ -1,16 +1,32 @@
-import "dotenv/config";
+import 'dotenv/config';
 
-import { Job, Worker } from "bullmq";
-import { exec } from "child_process";
-import fs from "fs-extra";
-import { ObjectId } from "mongodb";
-import pino from "pino";
+import {
+  Job,
+  Worker,
+} from 'bullmq';
+import { exec } from 'child_process';
+import fs from 'fs-extra';
+import {
+  ObjectId,
+  UpdateFilter,
+} from 'mongodb';
+import pino from 'pino';
 
-import Mongo from "../../src/database";
-import { IDeploymentTask } from "../../src/types/database";
-import { customhostDeploymentDir, githubrepo, ROOT_BRANCH } from "../constants";
-import { BuildJobPayloadType, JobProgressType } from "../types";
-import { queueRedisOptions } from "./config";
+import Mongo from '../../src/database';
+import {
+  IDeploymentTask,
+  IMetaData,
+} from '../../src/types/database';
+import {
+  customhostDeploymentDir,
+  githubrepo,
+  ROOT_BRANCH,
+} from '../constants';
+import {
+  BuildJobPayloadType,
+  JobProgressType,
+} from '../types';
+import { queueRedisOptions } from './config';
 
 const logger = pino({
   level: "debug",
@@ -205,7 +221,7 @@ const worker = new Worker<BuildJobPayloadType>(
 
     try {
       // Changing deployment status to processing from pending
-      await Mongo.deployment.findOneAndUpdate(
+      await Mongo.deployment.updateOne(
         {
           _id: new ObjectId(deploymentId),
         },
@@ -247,7 +263,7 @@ const worker = new Worker<BuildJobPayloadType>(
         hostId,
       });
       // updating the deployment status to failed
-      await Mongo.deployment.findOneAndUpdate(
+      await Mongo.deployment.updateOne(
         {
           _id: new ObjectId(deploymentId),
         },
@@ -314,7 +330,7 @@ const executeTask = async ({
   } as JobProgressType);
 
   // updating task status to processing
-  await Mongo.deployment.findOneAndUpdate(
+  await Mongo.deployment.updateOne(
     {
       _id: new ObjectId(deploymentId),
       "tasks.id": taskId,
@@ -512,7 +528,7 @@ const updateVersionDetails = async ({
     // for deployment success then update the status to success
     // and updating last deployment details for custom host
 
-    await Mongo.deployment.findOneAndUpdate(
+    await Mongo.deployment.updateOne(
       {
         _id: new ObjectId(deploymentId),
       },
@@ -524,7 +540,7 @@ const updateVersionDetails = async ({
       },
     );
 
-    await Mongo.metadata.findOneAndUpdate({ host: new ObjectId(hostId) }, [
+    const updateQuery: UpdateFilter<IMetaData> =
       platform === "android"
         ? {
             $set: {
@@ -537,8 +553,9 @@ const updateVersionDetails = async ({
               "iosDeploymentDetails.buildNumber": deployment.buildNumber,
               "iosDeploymentDetails.versionName": deployment.versionName,
             },
-          },
-    ]);
+          };
+
+    await Mongo.metadata.updateOne({ host: new ObjectId(hostId) }, updateQuery);
 
     logger.info(
       `Deployment ${deploymentId} status updated to ${deployment.status}`,
