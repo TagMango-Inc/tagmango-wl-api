@@ -140,7 +140,8 @@ const generateMetadata = async ({
     iosPath,
   ];
 
-  const { releaseNotes } = await readFile("./data/release.json");
+  const releaseDetails = await readFile("./data/release.json");
+  const { releaseNotes } = JSON.parse(releaseDetails);
 
   // Create all directories concurrently
   await Promise.all(
@@ -157,10 +158,7 @@ const generateMetadata = async ({
 
   // Write changelog for Android
   const changelogPath = `${androidChangeLogsPath}/default.txt`;
-  const androidChangeLogPromise = writeFile(
-    changelogPath,
-    androidStoreSettings.changelog,
-  );
+  const androidChangeLogPromise = writeFile(changelogPath, releaseNotes);
 
   // Writing files for iOS store settings
   const iosStorePromise = Promise.all(
