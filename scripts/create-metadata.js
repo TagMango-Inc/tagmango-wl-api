@@ -119,9 +119,13 @@ const generateMetadata = async ({
   iosScreenshots,
 }) => {
   const androidPath = `${fastlanePath}/metadata/android/en-GB`;
+  const androidUSPath = `${fastlanePath}/metadata/android/en-US`;
   const androidImagesPath = `${androidPath}/images`;
+  const androidUSImagesPath = `${androidUSPath}/images`;
   const androidPhoneScreenshotsPath = `${androidImagesPath}/phoneScreenshots`;
+  const androidUSPhoneScreenshotsPath = `${androidUSImagesPath}/phoneScreenshots`;
   const androidChangeLogsPath = `${androidPath}/changelogs`;
+  const androidUSChangeLogsPath = `${androidUSPath}/changelogs`;
   const iosPath = `${fastlanePath}/metadata/ios`;
   const iosStorePath = `${iosPath}/en-GB`;
   const iosReviewPath = `${iosPath}/review_information`;
@@ -132,9 +136,13 @@ const generateMetadata = async ({
   // Array of directory paths to ensure
   const directories = [
     androidPath,
+    androidUSPath,
     androidImagesPath,
+    androidUSImagesPath,
     androidPhoneScreenshotsPath,
+    androidUSPhoneScreenshotsPath,
     androidChangeLogsPath,
+    androidUSChangeLogsPath,
     iosStorePath,
     iosReviewPath,
     iosPath,
@@ -155,10 +163,18 @@ const generateMetadata = async ({
       return writeFile(path, androidStoreSettings[file] ?? "");
     }),
   );
+  const androidUSPromise = Promise.all(
+    androidStoreFiles.map((file) => {
+      const path = `${androidUSPath}/${file}.txt`;
+      return writeFile(path, androidStoreSettings[file] ?? "");
+    }),
+  );
 
   // Write changelog for Android
   const changelogPath = `${androidChangeLogsPath}/default.txt`;
+  const changelogUSPath = `${androidUSChangeLogsPath}/default.txt`;
   const androidChangeLogPromise = writeFile(changelogPath, releaseNotes);
+  const androidUSChangeLogPromise = writeFile(changelogUSPath, releaseNotes);
 
   // Writing files for iOS store settings
   const iosStorePromise = Promise.all(
@@ -194,11 +210,22 @@ const generateMetadata = async ({
       `${rootAssetPath}/${androidFeatureGraphic}`,
       `${androidImagesPath}/featureGraphic.png`,
     ),
+    fs.copy(
+      `${rootAssetPath}/${androidFeatureGraphic}`,
+      `${androidUSImagesPath}/featureGraphic.png`,
+    ),
     fs.copy(`${rootAssetPath}/icon.png`, `${androidImagesPath}/icon.png`),
+    fs.copy(`${rootAssetPath}/icon.png`, `${androidUSImagesPath}/icon.png`),
     ...androidScreenshots.map((screenshot, index) => {
       return fs.copy(
         `${rootAssetPath}/${screenshot}`,
         `${androidPhoneScreenshotsPath}/${index + 1}_en-IN.png`,
+      );
+    }),
+    ...androidScreenshots.map((screenshot, index) => {
+      return fs.copy(
+        `${rootAssetPath}/${screenshot}`,
+        `${androidUSPhoneScreenshotsPath}/${index + 1}_en-IN.png`,
       );
     }),
   ]);
@@ -228,7 +255,9 @@ const generateMetadata = async ({
   // Execute all operations without waiting for each other to finish
   return Promise.all([
     androidPromise,
+    androidUSPromise,
     androidChangeLogPromise,
+    androidUSChangeLogPromise,
     iosStorePromise,
     iosReleaseNotesPromise,
     iosReviewPromise,
