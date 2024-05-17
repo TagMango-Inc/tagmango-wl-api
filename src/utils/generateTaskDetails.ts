@@ -1,7 +1,7 @@
 import { v4 as uuid } from "uuid";
 
 import { IDeploymentTask } from "../../src/types/database";
-import { customhostDeploymentDir, ROOT_BRANCH } from "../constants";
+import { customhostDeploymentDir } from "../constants";
 
 export function generateTaskNames({
   bundle,
@@ -13,7 +13,7 @@ export function generateTaskNames({
   platform: "android" | "ios";
 }) {
   const tasks = [
-    `Fetching latest changes from origin ${ROOT_BRANCH}`,
+    `Fetching latest changes from root branch`,
     `Copying root project to ${customhostDeploymentDir}/${bundle} directory`,
     // `Copying WLApps/${formatedAppName} to ${customhostDeploymentDir}/${bundle}/WLApps/${formatedAppName}`,
     `Generating assets for android and ios and Copying to ${customhostDeploymentDir}/${bundle}/assets`,

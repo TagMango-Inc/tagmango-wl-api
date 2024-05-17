@@ -4,11 +4,7 @@ import { ObjectId } from "mongodb";
 
 import { zValidator } from "@hono/zod-validator";
 
-import {
-  CURRENT_VERSION_NAME,
-  CURRENT_VERSION_NUMBER,
-  DEPLOYMENT_REQUIREMENTS,
-} from "../../src/constants";
+import { DEPLOYMENT_REQUIREMENTS } from "../../src/constants";
 import Mongo from "../../src/database";
 import { buildQueue } from "../../src/job/config";
 import { JWTPayloadType } from "../../src/types";
@@ -73,9 +69,18 @@ const getDeploymentDetails = factory.createHandlers(async (c) => {
       );
     }
 
+    const releaseBuffer = await fs.promises.readFile(
+      `./data/release.json`,
+      "utf-8",
+    );
+    const releaseDetails = JSON.parse(releaseBuffer) as {
+      versionName: string;
+      buildNumber: number;
+    };
+
     const deploymentDetail = deploymentDetails[0];
-    let currentVersionName = CURRENT_VERSION_NAME;
-    let currentBuildNumber = CURRENT_VERSION_NUMBER;
+    let currentVersionName = releaseDetails.versionName;
+    let currentBuildNumber = releaseDetails.buildNumber;
 
     if (
       deploymentDetail.versionName &&
@@ -263,9 +268,19 @@ const createNewDeploymentHandler = factory.createHandlers(
         versionName: lastDeploymentVersionName,
         buildNumber: lastDeploymentBuildNumber,
       } = lastDeploymentDetails;
-      // let updatedBuildNumber = lastDeploymentBuildNumber;
-      let currentVersionName = CURRENT_VERSION_NAME;
-      let currentBuildNumber = CURRENT_VERSION_NUMBER;
+
+      const releaseBuffer = await fs.promises.readFile(
+        `./data/release.json`,
+        "utf-8",
+      );
+      const releaseDetails = JSON.parse(releaseBuffer) as {
+        versionName: string;
+        buildNumber: number;
+      };
+
+      let currentVersionName = releaseDetails.versionName;
+      let currentBuildNumber = releaseDetails.buildNumber;
+
       if (
         lastDeploymentVersionName &&
         lastDeploymentBuildNumber &&

@@ -8,7 +8,7 @@ import pino from "pino";
 
 import Mongo from "../../src/database";
 import { IDeploymentTask, IMetaData } from "../../src/types/database";
-import { customhostDeploymentDir, githubrepo, ROOT_BRANCH } from "../constants";
+import { customhostDeploymentDir, githubrepo } from "../constants";
 import { BuildJobPayloadType, JobProgressType } from "../types";
 import { queueRedisOptions } from "./config";
 
@@ -65,6 +65,15 @@ const worker = new Worker<BuildJobPayloadType>(
     const formatedAppName = name.replace(/ /g, "");
 
     logger.info("Fetching Deployment Details");
+
+    const releaseBuffer = await fs.promises.readFile(
+      `./data/release.json`,
+      "utf-8",
+    );
+    const releaseDetails = JSON.parse(releaseBuffer) as {
+      versionName: string;
+      buildNumber: number;
+    };
 
     /**
      * Fetching the task names for the deployment
@@ -134,8 +143,8 @@ const worker = new Worker<BuildJobPayloadType>(
       // step: 1: Fetching lastest changes to root TagMango project ( for testing fetching lastest changes from test-build-m1)
       [taskNames[0].id]: [
         `cd root/${githubrepo}`,
-        `git checkout origin/${ROOT_BRANCH}`,
-        `git pull origin ${ROOT_BRANCH}`,
+        `git checkout origin/v/${releaseDetails.versionName}`,
+        `git pull origin v/${releaseDetails.versionName}`,
       ],
       // step: 2: Copying the lastest root project to deployment/{bundleId} folder
       [taskNames[1].id]: [
