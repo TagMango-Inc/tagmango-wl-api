@@ -2,15 +2,19 @@ import { Hono } from "hono";
 
 import {
   deleteAndroidScreenshots,
+  deleteIosScreenshots,
   getAppMetadata,
   reorderAndroidScreenshots,
+  reorderIosScreenshots,
   updateBuildMetadataAndroidSettings,
   updateBuildMetadataIosSettings,
   updateInfoMetadataIosSettings,
   updateReviewMetadataIosSettings,
   updateStoreMetadataAndroidSettings,
   updateStoreMetadataIosSettings,
+  uploadAndroidFeatureGraphic,
   uploadAndroidScreenshots,
+  uploadIosScreenshots,
   uploadMetadataLogo,
 } from "../../src/controllers/metadata";
 
@@ -28,10 +32,10 @@ router.patch(
   "/:appId/settings/android/store",
   ...updateStoreMetadataAndroidSettings,
 );
-// router.patch(
-//   "/settings/android/featureGraphic/:appId",
-//   ...updateAndroidFeatureGraphic,
-// );
+router.patch(
+  "/:appId/settings/android/feature-graphic",
+  ...uploadAndroidFeatureGraphic,
+);
 router.patch(
   "/:appId/settings/android/screenshots",
   ...uploadAndroidScreenshots,
@@ -49,11 +53,14 @@ router.patch("/:appId/settings/ios/build", ...updateBuildMetadataIosSettings);
 router.patch("/:appId/settings/ios/store", ...updateStoreMetadataIosSettings);
 router.patch("/:appId/settings/ios/info", ...updateInfoMetadataIosSettings);
 router.patch("/:appId/settings/ios/review", ...updateReviewMetadataIosSettings);
-// router.patch("/:appId/settings/ios/screenshots/upload", ...uploadIosScreenshots);
-// router.patch(
-//   "/:appId/settings/ios/screenshots/reorder",
-//   ...updateIosScreenshotsOrder,
-// );
-// router.delete("/:appId/settings/ios/screenshots", ...deleteIosScreenshots);
+router.patch("/:appId/settings/ios/screenshots", ...uploadIosScreenshots);
+router.patch(
+  "/:appId/settings/ios/screenshots/reorder",
+  ...reorderIosScreenshots,
+);
+router.patch(
+  "/:appId/settings/ios/screenshots/delete",
+  ...deleteIosScreenshots,
+);
 
 export default router;

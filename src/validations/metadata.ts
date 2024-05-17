@@ -43,20 +43,25 @@ const updateIosDeploymentDetailsSchema = z.object({
 const updateIosStoreMetadataSchema = z.custom<IIosStoreSettings>();
 const updateIosInfoMetadataSchema = z.custom<IIosInfoSettings>();
 const updateIosReviewMetadataSchema = z.custom<IIosReviewSettings>();
-const updateIosScreenshotsSchema = z.object({
+const reorderIosScreenshotsSchema = z.object({
   screenshots: z.array(z.string()),
-  type: z.enum(["5.5", "6.5", "6.7"]),
+  type: z.enum(["iphone_55", "iphone_65", "iphone_67"]),
+});
+const deleteIosScreenshotsSchema = z.object({
+  screenshots: z.array(z.string()),
+  type: z.enum(["iphone_55", "iphone_65", "iphone_67"]),
 });
 
 export {
   deleteAndroidScreenshotsSchema,
+  deleteIosScreenshotsSchema,
   reorderAndroidScreenshotsSchema,
+  reorderIosScreenshotsSchema,
   updateAndroidDeploymentDetailsSchema,
   updateAndroidStoreMetadataSchema,
   updateIosDeploymentDetailsSchema,
   updateIosInfoMetadataSchema,
   updateIosReviewMetadataSchema,
-  updateIosScreenshotsSchema,
   updateIosStoreMetadataSchema,
   updateMetadataLogoSchema,
 };

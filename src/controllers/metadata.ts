@@ -1,4 +1,4 @@
-import fs from "fs";
+import fs from "fs-extra";
 import { createFactory } from "hono/factory";
 import { ObjectId } from "mongodb";
 import path from "path";
@@ -9,7 +9,9 @@ import Mongo from "../../src/database";
 import { Response } from "../../src/utils/statuscode";
 import {
   deleteAndroidScreenshotsSchema,
+  deleteIosScreenshotsSchema,
   reorderAndroidScreenshotsSchema,
+  reorderIosScreenshotsSchema,
   updateAndroidDeploymentDetailsSchema,
   updateAndroidStoreMetadataSchema,
   updateIosDeploymentDetailsSchema,
@@ -18,21 +20,32 @@ import {
   updateIosStoreMetadataSchema,
   updateMetadataLogoSchema,
 } from "../../src/validations/metadata";
+import { IIosScreenshots } from "../types/database";
 
 const factory = createFactory();
 
-function base64ToImage(base64Str: string, path: string) {
+const writeFile = fs.promises.writeFile;
+
+async function base64ToImage(base64Str: string, path: string) {
   // Remove header
   const base64Data = base64Str.replace(/^data:image\/png;base64,/, "");
 
   // Write file
-  fs.writeFile(path, base64Data, "base64", (err) => {
-    if (err) {
-      console.error(err);
-      return;
-    }
-    console.log("File created successfully.");
-  });
+  await writeFile(path, base64Data, "base64");
+}
+
+async function processScreenshot(
+  screenshot: File,
+  fileSavePath: string,
+  fileInnerPath: string,
+  paths: string[],
+) {
+  const name = `${new ObjectId()}.png`;
+  const filePath = path.join(fileSavePath, name);
+  paths.push(`${fileInnerPath}/${name}`);
+  const buffer = await screenshot.arrayBuffer();
+  const file = Buffer.from(buffer);
+  await writeFile(filePath, file);
 }
 
 const getAppMetadata = factory.createHandlers(async (c) => {
@@ -85,12 +98,12 @@ const uploadMetadataLogo = factory.createHandlers(
         });
       }
 
-      if (logo) {
-        base64ToImage(logo, `${logoPath}/logo.png`);
-      }
-      base64ToImage(icon, `${logoPath}/icon.png`);
-      base64ToImage(background, `${logoPath}/background.png`);
-      base64ToImage(foreground, `${logoPath}/foreground.png`);
+      await Promise.all([
+        logo && base64ToImage(logo, `${logoPath}/logo.png`),
+        base64ToImage(icon, `${logoPath}/icon.png`),
+        base64ToImage(background, `${logoPath}/background.png`),
+        base64ToImage(foreground, `${logoPath}/foreground.png`),
+      ]);
 
       await Mongo.metadata.updateOne(
         {
@@ -248,6 +261,60 @@ const updateStoreMetadataAndroidSettings = factory.createHandlers(
   },
 );
 
+const uploadAndroidFeatureGraphic = factory.createHandlers(async (c) => {
+  try {
+    const { appId } = c.req.param();
+    const body = await c.req.parseBody();
+
+    const featureGraphic = body.featureGraphic;
+
+    const metadata = await Mongo.metadata.findOne({
+      host: new ObjectId(appId),
+    });
+
+    if (!metadata) {
+      return c.json({ message: "Metadata not found" }, 404);
+    }
+
+    const fileSavePath = `./assets/${appId}/`;
+
+    // Creating directory if it does not exist
+    if (!fs.existsSync(fileSavePath)) {
+      fs.mkdirSync(fileSavePath, {
+        recursive: true,
+      });
+    }
+
+    const name = `android/featureGraphic.png`;
+    const filePath = path.join(fileSavePath, name);
+    const buffer = await (featureGraphic as File).arrayBuffer();
+    const file = Buffer.from(buffer);
+    await writeFile(filePath, file);
+
+    // Update metadata
+    await Mongo.metadata.updateOne(
+      { host: new ObjectId(appId) },
+      { $set: { androidFeatureGraphic: name } },
+    );
+
+    return c.json(
+      {
+        message: "Feature Graphic uploaded successfully",
+        result: {
+          featureGraphic: name,
+        },
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    console.log(error);
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
 const uploadAndroidScreenshots = factory.createHandlers(async (c) => {
   try {
     const { appId } = c.req.param();
@@ -263,8 +330,9 @@ const uploadAndroidScreenshots = factory.createHandlers(async (c) => {
       return c.json({ message: "Metadata not found" }, 404);
     }
 
-    const paths = [];
+    const paths: string[] = [];
     const fileSavePath = `./assets/${appId}/android/screenshots`;
+    const fileInnerPath = `android/screenshots`;
 
     // Creating directory if it does not exist
     if (!fs.existsSync(fileSavePath)) {
@@ -274,21 +342,23 @@ const uploadAndroidScreenshots = factory.createHandlers(async (c) => {
     }
 
     if (Array.isArray(screenshots)) {
-      for (const screenshot of screenshots) {
-        const name = `${new ObjectId()}.png`;
-        const filePath = path.join(fileSavePath, name);
-        paths.push(`android/screenshots/${name}`);
-        const buffer = await (screenshot as File).arrayBuffer();
-        const file = Buffer.from(buffer);
-        fs.writeFileSync(filePath, file);
-      }
+      await Promise.all(
+        screenshots.map(async (screenshot) =>
+          processScreenshot(
+            screenshot as File,
+            fileSavePath,
+            fileInnerPath,
+            paths,
+          ),
+        ),
+      );
     } else {
-      const name = `${new ObjectId()}.png`;
-      const filePath = path.join(fileSavePath, name);
-      paths.push(`android/screenshots/${name}`);
-      const buffer = await (screenshots as File).arrayBuffer();
-      const file = Buffer.from(buffer);
-      fs.writeFileSync(filePath, file);
+      await processScreenshot(
+        screenshots as File,
+        fileSavePath,
+        fileInnerPath,
+        paths,
+      );
     }
 
     // Update metadata
@@ -562,16 +632,180 @@ const updateReviewMetadataIosSettings = factory.createHandlers(
   },
 );
 
+const uploadIosScreenshots = factory.createHandlers(async (c) => {
+  try {
+    const { appId } = c.req.param();
+    const body = await c.req.parseBody({ all: true });
+
+    const screenshots = body.screenshots;
+    const type = body.type as keyof IIosScreenshots;
+
+    const metadata = await Mongo.metadata.findOne({
+      host: new ObjectId(appId),
+    });
+
+    if (!metadata) {
+      return c.json({ message: "Metadata not found" }, 404);
+    }
+
+    const paths: string[] = [];
+    const fileRootPath = `./assets/${appId}/`;
+    const fileInnerPath = `ios/screenshots/${type}`;
+    const fileSavePath = path.join(fileRootPath, fileInnerPath);
+
+    // Creating directory if it does not exist
+    if (!fs.existsSync(fileSavePath)) {
+      fs.mkdirSync(fileSavePath, {
+        recursive: true,
+      });
+    }
+
+    if (Array.isArray(screenshots)) {
+      await Promise.all(
+        screenshots.map(async (screenshot) =>
+          processScreenshot(
+            screenshot as File,
+            fileSavePath,
+            fileInnerPath,
+            paths,
+          ),
+        ),
+      );
+    } else {
+      await processScreenshot(
+        screenshots as File,
+        fileSavePath,
+        fileInnerPath,
+        paths,
+      );
+    }
+
+    // Update metadata
+    await Mongo.metadata.updateOne(
+      { host: new ObjectId(appId) },
+      {
+        $push: {
+          [`iosScreenshots.${type}`]: { $each: paths },
+        },
+      },
+    );
+
+    return c.json(
+      {
+        message: "Screenshots uploaded successfully",
+        result: {
+          screenshots: paths,
+        },
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    console.log(error);
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
+const reorderIosScreenshots = factory.createHandlers(
+  zValidator("json", reorderIosScreenshotsSchema),
+  async (c) => {
+    try {
+      const { appId } = c.req.param();
+      const { screenshots, type } = c.req.valid("json");
+
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(appId),
+      });
+
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      await Mongo.metadata.updateOne(
+        { host: new ObjectId(appId) },
+        {
+          $set: {
+            [`iosScreenshots.${type}`]: screenshots,
+          },
+        },
+      );
+
+      return c.json(
+        {
+          message: "Screenshots reordered successfully",
+          result: {
+            screenshots: screenshots,
+          },
+        },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
+const deleteIosScreenshots = factory.createHandlers(
+  zValidator("json", deleteIosScreenshotsSchema),
+  async (c) => {
+    try {
+      const { appId } = c.req.param();
+      const { screenshots, type } = c.req.valid("json");
+
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(appId),
+      });
+
+      console.log(metadata?._id, screenshots, type);
+
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      // Delete screenshots
+      screenshots.forEach((screenshot) => {
+        fs.unlinkSync(`./assets/${appId}/${screenshot}`);
+      });
+
+      await Mongo.metadata.updateOne(
+        { host: new ObjectId(appId) },
+        { $pull: { [`iosScreenshots.${type}`]: { $in: screenshots } } },
+      );
+
+      return c.json(
+        {
+          message: "Screenshots deleted successfully",
+        },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
 export {
   deleteAndroidScreenshots,
+  deleteIosScreenshots,
   getAppMetadata,
   reorderAndroidScreenshots,
+  reorderIosScreenshots,
   updateBuildMetadataAndroidSettings,
   updateBuildMetadataIosSettings,
   updateInfoMetadataIosSettings,
   updateReviewMetadataIosSettings,
   updateStoreMetadataAndroidSettings,
   updateStoreMetadataIosSettings,
+  uploadAndroidFeatureGraphic,
   uploadAndroidScreenshots,
+  uploadIosScreenshots,
   uploadMetadataLogo,
 };
