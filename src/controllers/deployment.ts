@@ -1,22 +1,22 @@
-import fs from 'fs-extra';
-import { createFactory } from 'hono/factory';
-import { ObjectId } from 'mongodb';
+import fs from "fs-extra";
+import { createFactory } from "hono/factory";
+import { ObjectId } from "mongodb";
 
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from "@hono/zod-validator";
 
 import {
   CURRENT_VERSION_NAME,
   CURRENT_VERSION_NUMBER,
   DEPLOYMENT_REQUIREMENTS,
-} from '../../src/constants';
-import Mongo from '../../src/database';
-import { buildQueue } from '../../src/job/config';
-import { JWTPayloadType } from '../../src/types';
-import { Status } from '../../src/types/database';
-import { generateDeploymentTasks } from '../../src/utils/generateTaskDetails';
-import { Response } from '../../src/utils/statuscode';
-import { createNewDeploymentSchema } from '../../src/validations/customhost';
-import { updateFailedAndroidDeploymentSchema } from '../validations/deployment';
+} from "../../src/constants";
+import Mongo from "../../src/database";
+import { buildQueue } from "../../src/job/config";
+import { JWTPayloadType } from "../../src/types";
+import { Status } from "../../src/types/database";
+import { generateDeploymentTasks } from "../../src/utils/generateTaskDetails";
+import { Response } from "../../src/utils/statuscode";
+import { createNewDeploymentSchema } from "../../src/validations/customhost";
+import { updateFailedAndroidDeploymentSchema } from "../validations/deployment";
 
 const { readFile } = fs.promises;
 
@@ -303,7 +303,10 @@ const createNewDeploymentHandler = factory.createHandlers(
           target === "android"
             ? metadata.androidDeploymentDetails.bundleId
             : metadata.iosDeploymentDetails.bundleId,
-        formatedAppName: metadata.appName.replace(/ /g, ""),
+        formatedAppName: (target === "android"
+          ? metadata.androidStoreSettings.title
+          : metadata.iosStoreSettings.name
+        ).replace(/ /g, ""),
         platform: target,
       });
       // creating a new deployment
@@ -328,7 +331,10 @@ const createNewDeploymentHandler = factory.createHandlers(
         {
           deploymentId: createdDeployment.insertedId.toString(),
           hostId: customHostId,
-          name: metadata.appName ?? customhost.appName,
+          name:
+            (target === "android"
+              ? metadata.androidStoreSettings.title
+              : metadata.iosStoreSettings.name) ?? customhost.appName,
           bundle:
             target === "android"
               ? metadata.androidDeploymentDetails.bundleId
@@ -340,6 +346,15 @@ const createNewDeploymentHandler = factory.createHandlers(
           platform: target,
           versionName: currentVersionName,
           buildNumber: currentBuildNumber,
+
+          androidStoreSettings: metadata.androidStoreSettings,
+          androidScreenshots: metadata.androidScreenshots,
+          androidFeatureGraphic: metadata.androidFeatureGraphic,
+
+          iosStoreSettings: metadata.iosStoreSettings,
+          iosInfoSettings: metadata.iosInfoSettings,
+          iosReviewSettings: metadata.iosReviewSettings,
+          iosScreenshots: metadata.iosScreenshots,
         },
         {
           attempts: 0,
@@ -660,9 +675,14 @@ const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
     const data = await Promise.all([
       Mongo.metadata.findOne({
         host: new ObjectId(appId),
-        appName: {
+        "androidStoreSettings.title": {
           $exists: true,
         },
+        "iosStoreSettings.name": {
+          $exists: true,
+        },
+      }),
+      Mongo.metadata.findOne({
         logo: {
           $exists: true,
         },
@@ -694,15 +714,15 @@ const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
           },
           {
             name: DEPLOYMENT_REQUIREMENTS[1],
-            isCompleted: data[0] ? true : false,
-          },
-          {
-            name: DEPLOYMENT_REQUIREMENTS[2],
             isCompleted: data[1] ? true : false,
           },
           {
-            name: DEPLOYMENT_REQUIREMENTS[3],
+            name: DEPLOYMENT_REQUIREMENTS[2],
             isCompleted: data[2] ? true : false,
+          },
+          {
+            name: DEPLOYMENT_REQUIREMENTS[3],
+            isCompleted: data[3] ? true : false,
           },
         ],
       },

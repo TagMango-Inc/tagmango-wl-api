@@ -1,5 +1,13 @@
 import { Response } from "express";
 
+import {
+  IAndroidStoreSettings,
+  IIosInfoSettings,
+  IIosReviewSettings,
+  IIosScreenshots,
+  IIosStoreSettings,
+} from "./database";
+
 export type ClientType = {
   id: number;
   response: Response;
@@ -19,6 +27,15 @@ export type BuildConfigType = {
   onesignal_id: string;
   buildNumber: number;
   versionName: string;
+
+  androidStoreSettings: IAndroidStoreSettings;
+  androidScreenshots: string[];
+  androidFeatureGraphic: string;
+
+  iosStoreSettings: IIosStoreSettings;
+  iosInfoSettings: IIosInfoSettings;
+  iosReviewSettings: IIosReviewSettings;
+  iosScreenshots: IIosScreenshots;
 };
 
 export type BuildJobPayloadType = {

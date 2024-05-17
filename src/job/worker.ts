@@ -1,32 +1,16 @@
-import 'dotenv/config';
+import "dotenv/config";
 
-import {
-  Job,
-  Worker,
-} from 'bullmq';
-import { exec } from 'child_process';
-import fs from 'fs-extra';
-import {
-  ObjectId,
-  UpdateFilter,
-} from 'mongodb';
-import pino from 'pino';
+import { Job, Worker } from "bullmq";
+import { exec } from "child_process";
+import fs from "fs-extra";
+import { ObjectId, UpdateFilter } from "mongodb";
+import pino from "pino";
 
-import Mongo from '../../src/database';
-import {
-  IDeploymentTask,
-  IMetaData,
-} from '../../src/types/database';
-import {
-  customhostDeploymentDir,
-  githubrepo,
-  ROOT_BRANCH,
-} from '../constants';
-import {
-  BuildJobPayloadType,
-  JobProgressType,
-} from '../types';
-import { queueRedisOptions } from './config';
+import Mongo from "../../src/database";
+import { IDeploymentTask, IMetaData } from "../../src/types/database";
+import { customhostDeploymentDir, githubrepo, ROOT_BRANCH } from "../constants";
+import { BuildJobPayloadType, JobProgressType } from "../types";
+import { queueRedisOptions } from "./config";
 
 const logger = pino({
   level: "debug",
@@ -67,6 +51,15 @@ const worker = new Worker<BuildJobPayloadType>(
       onesignal_id,
       buildNumber,
       versionName,
+
+      androidStoreSettings,
+      androidScreenshots,
+      androidFeatureGraphic,
+
+      iosStoreSettings,
+      iosInfoSettings,
+      iosReviewSettings,
+      iosScreenshots,
     } = job.data;
 
     const formatedAppName = name.replace(/ /g, "");
@@ -160,9 +153,22 @@ const worker = new Worker<BuildJobPayloadType>(
         `mkdir -p android ios`,
         `npx icon-set-creator create`,
       ],
+      [taskNames[3].id]: [
+        `node ./scripts/create-metadata.js ${JSON.stringify({
+          hostId,
+          fastlanePath: `${customhostDeploymentDir}/${bundle}/${githubrepo}/fastlane`,
+          androidStoreSettings,
+          androidScreenshots,
+          androidFeatureGraphic,
+          iosStoreSettings,
+          iosInfoSettings,
+          iosReviewSettings,
+          iosScreenshots,
+        })}`,
+      ],
       //TODO
       // step: 4: Running the pre deployment and bundle script for the deployment/{bundleId} folder
-      [taskNames[3].id]: [
+      [taskNames[4].id]: [
         `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
         `npm install`,
         `node ./scripts/app-build.js ${JSON.stringify({ name, bundle, domain, color, bgColor, onesignal_id, buildNumber })}`,
@@ -199,7 +205,7 @@ const worker = new Worker<BuildJobPayloadType>(
       // ],
       //TODO
       // step 11: Running the fastlane build for specific targer platform
-      [taskNames[4].id]:
+      [taskNames[5].id]:
         platform === "android"
           ? [
               `cd ${customHostDir}`,
@@ -210,10 +216,10 @@ const worker = new Worker<BuildJobPayloadType>(
           : [`cd ${customHostDir}`, `fastlane ${platform} build`],
       // step 12: Running the fastlane upload for specific targer platform
       // TODO
-      [taskNames[5].id]: [`cd ${customHostDir}`, `fastlane ${platform} upload`],
+      [taskNames[6].id]: [`cd ${customHostDir}`, `fastlane ${platform} upload`],
       // [taskNames[5].id]: [`cd ${customHostDir}`],
       // step 13: Removing the deployment/{bundleId} folder after successful deployment
-      [taskNames[6].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
+      [taskNames[7].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
       // [taskNames[6].id]: [],
     };
 

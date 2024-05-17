@@ -1,4 +1,4 @@
-import { ObjectId } from 'mongodb';
+import { ObjectId } from "mongodb";
 
 export const Collections = {
   ADMIN_USER: "adminusers",
@@ -70,9 +70,76 @@ export interface IDeployment {
   updatedAt: Date;
 }
 
+export interface IAndroidStoreSettings {
+  title: string;
+  short_description: string;
+  full_description: string;
+  video?: string;
+}
+
+export interface IAndroidDeploymentDetails {
+  bundleId: string;
+  versionName: string;
+  buildNumber: number;
+  isUnderReview: boolean;
+  lastDeploymentDetails: {
+    versionName: string;
+    buildNumber: number;
+  };
+}
+
+export interface IIosDeploymentDetails {
+  bundleId: string;
+  versionName: string;
+  buildNumber: number;
+  isUnderReview: boolean;
+  lastDeploymentDetails: {
+    versionName: string;
+    buildNumber: number;
+  };
+}
+
+export interface IIosStoreSettings {
+  name: string;
+  subtitle?: string;
+  description: string;
+  keywords: string;
+  promotional_text: string;
+  privacy_url: string;
+  support_url: string;
+  marketing_url?: string;
+  apple_tv_privacy_policy?: string;
+}
+
+export interface IIosInfoSettings {
+  copyright: string;
+  primary_category: string;
+  primary_first_sub_category?: string;
+  primary_second_sub_category?: string;
+  secondary_category?: string;
+  secondary_first_sub_category?: string;
+  secondary_second_sub_category?: string;
+}
+
+export interface IIosReviewSettings {
+  demo_password: string;
+  demo_user: string;
+  email_address: string;
+  first_name: string;
+  last_name: string;
+  notes: string;
+  phone_number: string;
+}
+
+export interface IIosScreenshots {
+  iphone_55: string[];
+  iphone_65: string[];
+  iphone_67?: string[];
+}
+
 export interface IMetaData {
   host: ObjectId;
-  appName: string;
+  // appName: string;
 
   //   assetDomain: string;
   logo: string;
@@ -83,25 +150,17 @@ export interface IMetaData {
   backgroundGradientAngle: number;
   logoPadding: number;
 
-  iosDeploymentDetails: {
-    bundleId: string;
-    versionName: string;
-    buildNumber: number;
-    isUnderReview: boolean;
-    lastDeploymentDetails: {
-      versionName: string;
-      buildNumber: number;
-    };
-  };
-  androidDeploymentDetails: {
-    bundleId: string;
-    versionName: string;
-    buildNumber: number;
-    lastDeploymentDetails: {
-      versionName: string;
-      buildNumber: number;
-    };
-  };
+  iosDeploymentDetails: IIosDeploymentDetails;
+  androidDeploymentDetails: IAndroidDeploymentDetails;
+
+  androidStoreSettings: IAndroidStoreSettings;
+  androidFeatureGraphic: string;
+  androidScreenshots: string[];
+
+  iosStoreSettings: IIosStoreSettings;
+  iosInfoSettings: IIosInfoSettings;
+  iosReviewSettings: IIosReviewSettings;
+  iosScreenshots: IIosScreenshots;
 }
 
 export interface ICustomHost {

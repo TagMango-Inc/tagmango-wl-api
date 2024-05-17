@@ -1,18 +1,23 @@
-import fs from 'fs';
-import { createFactory } from 'hono/factory';
-import { ObjectId } from 'mongodb';
+import fs from "fs";
+import { createFactory } from "hono/factory";
+import { ObjectId } from "mongodb";
+import path from "path";
 
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from "@hono/zod-validator";
 
-import Mongo from '../../src/database';
-import { Response } from '../../src/utils/statuscode';
+import Mongo from "../../src/database";
+import { Response } from "../../src/utils/statuscode";
 import {
-  createMetadataSchema,
+  deleteAndroidScreenshotsSchema,
+  reorderAndroidScreenshotsSchema,
   updateAndroidDeploymentDetailsSchema,
+  updateAndroidStoreMetadataSchema,
   updateIosDeploymentDetailsSchema,
+  updateIosInfoMetadataSchema,
+  updateIosReviewMetadataSchema,
+  updateIosStoreMetadataSchema,
   updateMetadataLogoSchema,
-  updateMetadataSettingsSchema,
-} from '../../src/validations/metadata';
+} from "../../src/validations/metadata";
 
 const factory = createFactory();
 
@@ -29,78 +34,6 @@ function base64ToImage(base64Str: string, path: string) {
     console.log("File created successfully.");
   });
 }
-
-const createMetadata = factory.createHandlers(
-  zValidator("json", createMetadataSchema),
-  async (c) => {
-    try {
-      const { appName } = c.req.valid("json");
-      const { appId } = c.req.param();
-
-      const metadata = await Mongo.metadata.findOne({
-        host: new ObjectId(appId),
-      });
-
-      if (metadata) {
-        return c.json(
-          { message: "Metadata already exists" },
-          Response.CONFLICT,
-        );
-      }
-
-      const initialDeploymentDetails = {
-        bundleId: "com.tagmango.app",
-        versionName: "1.0.0",
-        buildNumber: 0,
-        lastDeploymentDetails: {
-          versionName: "1.0.0",
-          buildNumber: 0,
-        },
-      };
-
-      const newMetadata = await Mongo.metadata.insertOne({
-        host: new ObjectId(appId),
-        appName,
-        logo: "",
-        backgroundType: "color",
-        backgroundStartColor: "#ffffff",
-        backgroundEndColor: "#ffffff",
-        backgroundGradientAngle: 0,
-        logoPadding: 0,
-        androidDeploymentDetails: initialDeploymentDetails,
-        iosDeploymentDetails: {
-          ...initialDeploymentDetails,
-          isUnderReview: false,
-        },
-      });
-
-      await Mongo.customhost.updateOne(
-        {
-          _id: new ObjectId(appId),
-        },
-        {
-          $set: {
-            deploymentMetadata: newMetadata.insertedId,
-            updatedAt: new Date(),
-          },
-        },
-      );
-
-      return c.json(
-        {
-          message: "Metadata created successfully",
-          result: newMetadata.insertedId.toString(),
-        },
-        Response.CREATED,
-      );
-    } catch (error) {
-      return c.json(
-        { message: "Internal Server Error" },
-        Response.INTERNAL_SERVER_ERROR,
-      );
-    }
-  },
-);
 
 const getAppMetadata = factory.createHandlers(async (c) => {
   try {
@@ -190,7 +123,46 @@ const uploadMetadataLogo = factory.createHandlers(
   },
 );
 
-const updateMetadataAndroidSettings = factory.createHandlers(
+// const updateMetadataSettings = factory.createHandlers(
+//   zValidator("json", updateMetadataSettingsSchema),
+//   async (c) => {
+//     try {
+//       const { appId } = c.req.param();
+//       const body = c.req.valid("json");
+
+//       const metadata = await Mongo.metadata.findOne({
+//         host: new ObjectId(appId),
+//       });
+
+//       if (!metadata) {
+//         return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+//       }
+
+//       await Mongo.metadata.updateOne(
+//         {
+//           host: new ObjectId(appId),
+//         },
+//         {
+//           $set: body,
+//         },
+//       );
+
+//       return c.json(
+//         {
+//           message: "Metadata updated successfully",
+//         },
+//         Response.OK,
+//       );
+//     } catch (error) {
+//       return c.json(
+//         { message: "Internal Server Error" },
+//         Response.INTERNAL_SERVER_ERROR,
+//       );
+//     }
+//   },
+// );
+
+const updateBuildMetadataAndroidSettings = factory.createHandlers(
   zValidator("json", updateAndroidDeploymentDetailsSchema),
   async (c) => {
     try {
@@ -235,7 +207,193 @@ const updateMetadataAndroidSettings = factory.createHandlers(
   },
 );
 
-const updateMetadataIosSettings = factory.createHandlers(
+const updateStoreMetadataAndroidSettings = factory.createHandlers(
+  zValidator("json", updateAndroidStoreMetadataSchema),
+  async (c) => {
+    try {
+      const { appId } = c.req.param();
+      const body = c.req.valid("json");
+
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(appId),
+      });
+
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      await Mongo.metadata.updateOne(
+        {
+          host: new ObjectId(appId),
+        },
+        {
+          $set: {
+            androidStoreSettings: body,
+          },
+        },
+      );
+
+      return c.json(
+        {
+          message: "Metadata updated successfully",
+        },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
+const uploadAndroidScreenshots = factory.createHandlers(async (c) => {
+  try {
+    const { appId } = c.req.param();
+    const body = await c.req.parseBody({ all: true });
+
+    const screenshots = body.screenshots;
+
+    const metadata = await Mongo.metadata.findOne({
+      host: new ObjectId(appId),
+    });
+
+    if (!metadata) {
+      return c.json({ message: "Metadata not found" }, 404);
+    }
+
+    const paths = [];
+    const fileSavePath = `./assets/${appId}/android/screenshots`;
+
+    // Creating directory if it does not exist
+    if (!fs.existsSync(fileSavePath)) {
+      fs.mkdirSync(fileSavePath, {
+        recursive: true,
+      });
+    }
+
+    if (Array.isArray(screenshots)) {
+      for (const screenshot of screenshots) {
+        const name = `${new ObjectId()}.png`;
+        const filePath = path.join(fileSavePath, name);
+        paths.push(`android/screenshots/${name}`);
+        const buffer = await (screenshot as File).arrayBuffer();
+        const file = Buffer.from(buffer);
+        fs.writeFileSync(filePath, file);
+      }
+    } else {
+      const name = `${new ObjectId()}.png`;
+      const filePath = path.join(fileSavePath, name);
+      paths.push(`android/screenshots/${name}`);
+      const buffer = await (screenshots as File).arrayBuffer();
+      const file = Buffer.from(buffer);
+      fs.writeFileSync(filePath, file);
+    }
+
+    // Update metadata
+    await Mongo.metadata.updateOne(
+      { host: new ObjectId(appId) },
+      { $push: { androidScreenshots: { $each: paths } } },
+    );
+
+    return c.json(
+      {
+        message: "Screenshots uploaded successfully",
+        result: {
+          screenshots: paths,
+        },
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    console.log(error);
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
+const reorderAndroidScreenshots = factory.createHandlers(
+  zValidator("json", reorderAndroidScreenshotsSchema),
+  async (c) => {
+    try {
+      const { appId } = c.req.param();
+      const body = c.req.valid("json");
+
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(appId),
+      });
+
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      await Mongo.metadata.updateOne(
+        { host: new ObjectId(appId) },
+        { $set: { androidScreenshots: body.screenshots } },
+      );
+
+      return c.json(
+        {
+          message: "Screenshots reordered successfully",
+          result: {
+            screenshots: body.screenshots,
+          },
+        },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
+const deleteAndroidScreenshots = factory.createHandlers(
+  zValidator("json", deleteAndroidScreenshotsSchema),
+  async (c) => {
+    try {
+      const { appId } = c.req.param();
+      const body = c.req.valid("json");
+
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(appId),
+      });
+
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      // Delete screenshots
+      body.screenshots.forEach((screenshot) => {
+        fs.unlinkSync(`./assets/${appId}/${screenshot}`);
+      });
+
+      await Mongo.metadata.updateOne(
+        { host: new ObjectId(appId) },
+        { $pull: { androidScreenshots: { $in: body.screenshots } } },
+      );
+
+      return c.json(
+        {
+          message: "Screenshots deleted successfully",
+        },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
+const updateBuildMetadataIosSettings = factory.createHandlers(
   zValidator("json", updateIosDeploymentDetailsSchema),
   async (c) => {
     try {
@@ -281,8 +439,8 @@ const updateMetadataIosSettings = factory.createHandlers(
   },
 );
 
-const updateMetadataSettings = factory.createHandlers(
-  zValidator("json", updateMetadataSettingsSchema),
+const updateStoreMetadataIosSettings = factory.createHandlers(
+  zValidator("json", updateIosStoreMetadataSchema),
   async (c) => {
     try {
       const { appId } = c.req.param();
@@ -301,7 +459,91 @@ const updateMetadataSettings = factory.createHandlers(
           host: new ObjectId(appId),
         },
         {
-          $set: body,
+          $set: {
+            iosStoreSettings: body,
+          },
+        },
+      );
+
+      return c.json(
+        {
+          message: "Metadata updated successfully",
+        },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
+const updateInfoMetadataIosSettings = factory.createHandlers(
+  zValidator("json", updateIosInfoMetadataSchema),
+  async (c) => {
+    try {
+      const { appId } = c.req.param();
+      const body = c.req.valid("json");
+
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(appId),
+      });
+
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      await Mongo.metadata.updateOne(
+        {
+          host: new ObjectId(appId),
+        },
+        {
+          $set: {
+            iosInfoSettings: body,
+          },
+        },
+      );
+
+      return c.json(
+        {
+          message: "Metadata updated successfully",
+        },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
+const updateReviewMetadataIosSettings = factory.createHandlers(
+  zValidator("json", updateIosReviewMetadataSchema),
+  async (c) => {
+    try {
+      const { appId } = c.req.param();
+      const body = c.req.valid("json");
+
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(appId),
+      });
+
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      await Mongo.metadata.updateOne(
+        {
+          host: new ObjectId(appId),
+        },
+        {
+          $set: {
+            iosReviewSettings: body,
+          },
         },
       );
 
@@ -321,10 +563,15 @@ const updateMetadataSettings = factory.createHandlers(
 );
 
 export {
-  createMetadata,
+  deleteAndroidScreenshots,
   getAppMetadata,
-  updateMetadataAndroidSettings,
-  updateMetadataIosSettings,
-  updateMetadataSettings,
+  reorderAndroidScreenshots,
+  updateBuildMetadataAndroidSettings,
+  updateBuildMetadataIosSettings,
+  updateInfoMetadataIosSettings,
+  updateReviewMetadataIosSettings,
+  updateStoreMetadataAndroidSettings,
+  updateStoreMetadataIosSettings,
+  uploadAndroidScreenshots,
   uploadMetadataLogo,
 };

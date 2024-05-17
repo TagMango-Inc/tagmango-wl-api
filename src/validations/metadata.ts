@@ -1,10 +1,13 @@
 import { z } from "zod";
 
-const FileSchema = z.instanceof(File);
+import {
+  IAndroidStoreSettings,
+  IIosInfoSettings,
+  IIosReviewSettings,
+  IIosStoreSettings,
+} from "../types/database";
 
-const createMetadataSchema = z.object({
-  appName: z.string(),
-});
+const FileSchema = z.instanceof(File);
 
 const updateMetadataLogoSchema = z.object({
   logo: z.string().optional(),
@@ -18,26 +21,42 @@ const updateMetadataLogoSchema = z.object({
   logoPadding: z.number().optional(),
 });
 
+const updateAndroidDeploymentDetailsSchema = z.object({
+  bundleId: z.string(),
+  versionName: z.string(),
+  buildNumber: z.number(),
+});
+const updateAndroidStoreMetadataSchema = z.custom<IAndroidStoreSettings>();
+const reorderAndroidScreenshotsSchema = z.object({
+  screenshots: z.array(z.string()),
+});
+const deleteAndroidScreenshotsSchema = z.object({
+  screenshots: z.array(z.string()),
+});
+
 const updateIosDeploymentDetailsSchema = z.object({
   bundleId: z.string(),
   versionName: z.string(),
   buildNumber: z.number(),
   isUnderReview: z.boolean(),
 });
-const updateAndroidDeploymentDetailsSchema = z.object({
-  bundleId: z.string(),
-  versionName: z.string(),
-  buildNumber: z.number(),
-});
-
-const updateMetadataSettingsSchema = z.object({
-  appName: z.string().optional(),
+const updateIosStoreMetadataSchema = z.custom<IIosStoreSettings>();
+const updateIosInfoMetadataSchema = z.custom<IIosInfoSettings>();
+const updateIosReviewMetadataSchema = z.custom<IIosReviewSettings>();
+const updateIosScreenshotsSchema = z.object({
+  screenshots: z.array(z.string()),
+  type: z.enum(["5.5", "6.5", "6.7"]),
 });
 
 export {
-  createMetadataSchema,
+  deleteAndroidScreenshotsSchema,
+  reorderAndroidScreenshotsSchema,
   updateAndroidDeploymentDetailsSchema,
+  updateAndroidStoreMetadataSchema,
   updateIosDeploymentDetailsSchema,
+  updateIosInfoMetadataSchema,
+  updateIosReviewMetadataSchema,
+  updateIosScreenshotsSchema,
+  updateIosStoreMetadataSchema,
   updateMetadataLogoSchema,
-  updateMetadataSettingsSchema,
 };
