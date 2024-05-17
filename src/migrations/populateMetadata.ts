@@ -63,3 +63,14 @@ export const removeAppNameFromMetadata = async () => {
     },
   );
 };
+
+export const fixPrimaryCategory = async () => {
+  await Mongo.metadata.updateMany(
+    {},
+    {
+      $set: {
+        "iosInfoSettings.primary_category": "EDUCATION",
+      },
+    },
+  );
+};

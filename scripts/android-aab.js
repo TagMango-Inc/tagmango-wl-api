@@ -4,7 +4,7 @@ const { mergePath } = require("hono/utils/url");
 const writeFile = fs.promises.writeFile;
 const readFile = fs.promises.readFile;
 
-const path = mergePath(__dirname, "android-aab.json");
+const path = mergePath(__dirname, "../data/android-aab.json");
 
 const fetchJSON = async () => {
   try {

@@ -1,7 +1,6 @@
 import fs from "fs-extra";
 import { createFactory } from "hono/factory";
 import { ObjectId } from "mongodb";
-import path from "path";
 
 import Mongo from "../database";
 import { AABDetailsType } from "../types";
@@ -13,11 +12,7 @@ const factory = createFactory();
 
 const getAllaabDetails = factory.createHandlers(async (c) => {
   try {
-    const rootDir = path.resolve(__dirname, "../../../");
-    const rawAABDetails = await readFile(
-      `${rootDir}/outputs/android-aab.json`,
-      "utf-8",
-    );
+    const rawAABDetails = await readFile(`./data/android-aab.json`, "utf-8");
     const parsedAABDetails: AABDetailsType = JSON.parse(rawAABDetails);
 
     const customhostIds = Object.keys(parsedAABDetails).map(

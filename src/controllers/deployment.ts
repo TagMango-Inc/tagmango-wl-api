@@ -171,7 +171,7 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
       .toArray();
 
     const androidAABDetails = await readFile(
-      "./outputs/android-aab.json",
+      "./data/android-aab.json",
       "utf-8",
     );
     const parsedAndroidAABDetails = JSON.parse(androidAABDetails);

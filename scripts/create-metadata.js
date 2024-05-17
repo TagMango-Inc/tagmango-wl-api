@@ -1,4 +1,7 @@
 const fs = require("fs-extra");
+
+const { writeFile, readFile } = fs.promises;
+
 // * metadata/android/
 // * en-US/
 //     * images/
@@ -118,6 +121,7 @@ const generateMetadata = async ({
   const androidPath = `${fastlanePath}/metadata/android/en-US`;
   const androidImagesPath = `${androidPath}/images`;
   const androidPhoneScreenshotsPath = `${androidImagesPath}/phoneScreenshots`;
+  const androidChangeLogsPath = `${androidPath}/changelogs`;
   const iosPath = `${fastlanePath}/metadata/ios`;
   const iosStorePath = `${iosPath}/en-GB`;
   const iosReviewPath = `${iosPath}/review_information`;
@@ -130,37 +134,51 @@ const generateMetadata = async ({
     androidPath,
     androidImagesPath,
     androidPhoneScreenshotsPath,
+    androidChangeLogsPath,
     iosStorePath,
     iosReviewPath,
     iosPath,
   ];
 
+  const { releaseNotes } = await readFile("./data/release.json");
+
   // Create all directories concurrently
   await Promise.all(
-    directories.map((dir) => fs.mkdir(dir, { recursive: true })),
+    directories.map((dir) => fs.ensureDir(dir, { recursive: true })),
   );
 
   // Writing files for Android store settings
   const androidPromise = Promise.all(
     androidStoreFiles.map((file) => {
       const path = `${androidPath}/${file}.txt`;
-      return fs.writeFile(path, androidStoreSettings[file] ?? "");
+      return writeFile(path, androidStoreSettings[file] ?? "");
     }),
+  );
+
+  // Write changelog for Android
+  const changelogPath = `${androidChangeLogsPath}/default.txt`;
+  const androidChangeLogPromise = writeFile(
+    changelogPath,
+    androidStoreSettings.changelog,
   );
 
   // Writing files for iOS store settings
   const iosStorePromise = Promise.all(
     iosStoreFiles.map((file) => {
       const path = `${iosStorePath}/${file}.txt`;
-      return fs.writeFile(path, iosStoreSettings[file] ?? "");
+      return writeFile(path, iosStoreSettings[file] ?? "");
     }),
   );
+
+  // Writing release notes for iOS
+  const releaseNotesPath = `${iosStorePath}/release_notes.txt`;
+  const iosReleaseNotesPromise = writeFile(releaseNotesPath, releaseNotes);
 
   // Writing review files for iOS
   const iosReviewPromise = Promise.all(
     iosReviewFiles.map((file) => {
       const path = `${iosReviewPath}/${file}.txt`;
-      return fs.writeFile(path, iosReviewSettings[file] ?? "");
+      return writeFile(path, iosReviewSettings[file] ?? "");
     }),
   );
 
@@ -168,7 +186,7 @@ const generateMetadata = async ({
   const iosInfoPromise = Promise.all(
     iosInfoFiles.map((file) => {
       const path = `${iosPath}/${file}.txt`;
-      return fs.writeFile(path, iosInfoSettings[file] ?? "");
+      return writeFile(path, iosInfoSettings[file] ?? "");
     }),
   );
 
@@ -212,7 +230,9 @@ const generateMetadata = async ({
   // Execute all operations without waiting for each other to finish
   return Promise.all([
     androidPromise,
+    androidChangeLogPromise,
     iosStorePromise,
+    iosReleaseNotesPromise,
     iosReviewPromise,
     iosInfoPromise,
     copyAndroidImages,
