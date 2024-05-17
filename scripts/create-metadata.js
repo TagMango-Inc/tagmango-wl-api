@@ -118,7 +118,7 @@ const generateMetadata = async ({
 
   iosScreenshots,
 }) => {
-  const androidPath = `${fastlanePath}/metadata/android/en-US`;
+  const androidPath = `${fastlanePath}/metadata/android/en-GB`;
   const androidImagesPath = `${androidPath}/images`;
   const androidPhoneScreenshotsPath = `${androidImagesPath}/phoneScreenshots`;
   const androidChangeLogsPath = `${androidPath}/changelogs`;
