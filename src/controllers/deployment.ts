@@ -1,18 +1,18 @@
-import fs from "fs-extra";
-import { createFactory } from "hono/factory";
-import { ObjectId } from "mongodb";
+import fs from 'fs-extra';
+import { createFactory } from 'hono/factory';
+import { ObjectId } from 'mongodb';
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from '@hono/zod-validator';
 
-import { DEPLOYMENT_REQUIREMENTS } from "../../src/constants";
-import Mongo from "../../src/database";
-import { buildQueue } from "../../src/job/config";
-import { JWTPayloadType } from "../../src/types";
-import { Status } from "../../src/types/database";
-import { generateDeploymentTasks } from "../../src/utils/generateTaskDetails";
-import { Response } from "../../src/utils/statuscode";
-import { createNewDeploymentSchema } from "../../src/validations/customhost";
-import { updateFailedAndroidDeploymentSchema } from "../validations/deployment";
+import { DEPLOYMENT_REQUIREMENTS } from '../../src/constants';
+import Mongo from '../../src/database';
+import { buildQueue } from '../../src/job/config';
+import { JWTPayloadType } from '../../src/types';
+import { Status } from '../../src/types/database';
+import { generateDeploymentTasks } from '../../src/utils/generateTaskDetails';
+import { Response } from '../../src/utils/statuscode';
+import { createNewDeploymentSchema } from '../../src/validations/customhost';
+import { updateFailedAndroidDeploymentSchema } from '../validations/deployment';
 
 const { readFile } = fs.promises;
 
@@ -431,6 +431,7 @@ const getDeploymentDetailsById = factory.createHandlers(async (c) => {
             updatedAt: 1,
             versionName: 1,
             buildNumber: 1,
+            host: 1,
             tasks: {
               $map: {
                 input: "$tasks",
@@ -454,8 +455,21 @@ const getDeploymentDetailsById = factory.createHandlers(async (c) => {
       return c.json({ message: "Deployment not found" }, Response.NOT_FOUND);
     }
 
+    const androidAABDetails = await readFile(
+      "./data/android-aab.json",
+      "utf-8",
+    );
+    const parsedAndroidAABDetails = JSON.parse(androidAABDetails);
+
+    const isAndroidBundleAvailable = parsedAndroidAABDetails[deployment.host]
+      ? true
+      : false;
+
     return c.json(
-      { message: "Fetched Deployment Details", result: deployment },
+      {
+        message: "Fetched Deployment Details",
+        result: { ...deployment, isAndroidBundleAvailable },
+      },
       Response.OK,
     );
   } catch (error) {
