@@ -17,6 +17,7 @@ export function generateTaskNames({
     `Copying root project to ${customhostDeploymentDir}/${bundle} directory`,
     // `Copying WLApps/${formatedAppName} to ${customhostDeploymentDir}/${bundle}/WLApps/${formatedAppName}`,
     `Generating assets for android and ios and Copying to ${customhostDeploymentDir}/${bundle}/assets`,
+    `Generating metadata files for android and ios`,
     `Running pre deployment and bundle script`,
     `Running fastlane bundle for ${platform} platform`,
     `Running fastlane deploy for ${platform} platform`,

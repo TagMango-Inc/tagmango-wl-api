@@ -9,10 +9,10 @@ const ROOT_BRANCH = `v/${CURRENT_VERSION_NAME}`;
 const RECURRING_JOB = "0 0 * * SUN";
 
 const DEPLOYMENT_REQUIREMENTS = [
-  "Update metadata app name",
-  "Upload metadata app logo",
-  "Update Onesignal app id",
-  "Enable In-app purchase from the app settings",
+  "Update android & iOS app name",
+  "Upload app logo for deployment",
+  "Update OneSignal Id",
+  "Add In-app purchase from the app settings",
 ];
 
 export {

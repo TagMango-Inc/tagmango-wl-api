@@ -1,10 +1,13 @@
 import { z } from "zod";
 
-const FileSchema = z.instanceof(File);
+import {
+  IAndroidStoreSettings,
+  IIosInfoSettings,
+  IIosReviewSettings,
+  IIosStoreSettings,
+} from "../types/database";
 
-const createMetadataSchema = z.object({
-  appName: z.string(),
-});
+const FileSchema = z.instanceof(File);
 
 const updateMetadataLogoSchema = z.object({
   logo: z.string().optional(),
@@ -18,26 +21,47 @@ const updateMetadataLogoSchema = z.object({
   logoPadding: z.number().optional(),
 });
 
+const updateAndroidDeploymentDetailsSchema = z.object({
+  bundleId: z.string(),
+  versionName: z.string(),
+  buildNumber: z.number(),
+});
+const updateAndroidStoreMetadataSchema = z.custom<IAndroidStoreSettings>();
+const reorderAndroidScreenshotsSchema = z.object({
+  screenshots: z.array(z.string()),
+});
+const deleteAndroidScreenshotsSchema = z.object({
+  screenshots: z.array(z.string()),
+});
+
 const updateIosDeploymentDetailsSchema = z.object({
   bundleId: z.string(),
   versionName: z.string(),
   buildNumber: z.number(),
   isUnderReview: z.boolean(),
 });
-const updateAndroidDeploymentDetailsSchema = z.object({
-  bundleId: z.string(),
-  versionName: z.string(),
-  buildNumber: z.number(),
+const updateIosStoreMetadataSchema = z.custom<IIosStoreSettings>();
+const updateIosInfoMetadataSchema = z.custom<IIosInfoSettings>();
+const updateIosReviewMetadataSchema = z.custom<IIosReviewSettings>();
+const reorderIosScreenshotsSchema = z.object({
+  screenshots: z.array(z.string()),
+  type: z.enum(["iphone_55", "iphone_65", "iphone_67"]),
 });
-
-const updateMetadataSettingsSchema = z.object({
-  appName: z.string().optional(),
+const deleteIosScreenshotsSchema = z.object({
+  screenshots: z.array(z.string()),
+  type: z.enum(["iphone_55", "iphone_65", "iphone_67"]),
 });
 
 export {
-  createMetadataSchema,
+  deleteAndroidScreenshotsSchema,
+  deleteIosScreenshotsSchema,
+  reorderAndroidScreenshotsSchema,
+  reorderIosScreenshotsSchema,
   updateAndroidDeploymentDetailsSchema,
+  updateAndroidStoreMetadataSchema,
   updateIosDeploymentDetailsSchema,
+  updateIosInfoMetadataSchema,
+  updateIosReviewMetadataSchema,
+  updateIosStoreMetadataSchema,
   updateMetadataLogoSchema,
-  updateMetadataSettingsSchema,
 };
