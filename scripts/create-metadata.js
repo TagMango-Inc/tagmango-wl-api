@@ -109,70 +109,131 @@ const generateMetadata = async ({
   iosStoreSettings,
   iosInfoSettings,
   iosReviewSettings,
+
+  androidFeatureGraphic,
+  androidScreenshots,
+
+  iosScreenshots,
 }) => {
   const androidPath = `${fastlanePath}/metadata/android/en-US`;
+  const androidImagesPath = `${androidPath}/images`;
+  const androidPhoneScreenshotsPath = `${androidImagesPath}/phoneScreenshots`;
   const iosPath = `${fastlanePath}/metadata/ios`;
   const iosStorePath = `${iosPath}/en-GB`;
   const iosReviewPath = `${iosPath}/review_information`;
+  const iosScreenshotsPath = `${iosPath}/screenshots/en-GB`;
 
-  await fs.ensureDir(androidPath);
-  await fs.ensureDir(iosStorePath);
-  await fs.ensureDir(iosReviewPath);
-  await fs.ensureDir(iosPath);
+  const rootAssetPath = `./assets/${hostId}`;
 
+  // Array of directory paths to ensure
+  const directories = [
+    androidPath,
+    androidImagesPath,
+    androidPhoneScreenshotsPath,
+    iosStorePath,
+    iosReviewPath,
+    iosPath,
+  ];
+
+  // Create all directories concurrently
   await Promise.all(
-    androidStoreFiles.map(async (file) => {
+    directories.map((dir) => fs.mkdir(dir, { recursive: true })),
+  );
+
+  // Writing files for Android store settings
+  const androidPromise = Promise.all(
+    androidStoreFiles.map((file) => {
       const path = `${androidPath}/${file}.txt`;
-      await fs.writeFile(path, androidStoreSettings[file] ?? "");
+      return fs.writeFile(path, androidStoreSettings[file] ?? "");
     }),
   );
 
-  await Promise.all(
-    iosStoreFiles.map(async (file) => {
+  // Writing files for iOS store settings
+  const iosStorePromise = Promise.all(
+    iosStoreFiles.map((file) => {
       const path = `${iosStorePath}/${file}.txt`;
-      await fs.writeFile(path, iosStoreSettings[file] ?? "");
+      return fs.writeFile(path, iosStoreSettings[file] ?? "");
     }),
   );
 
-  await Promise.all(
-    iosReviewFiles.map(async (file) => {
+  // Writing review files for iOS
+  const iosReviewPromise = Promise.all(
+    iosReviewFiles.map((file) => {
       const path = `${iosReviewPath}/${file}.txt`;
-      await fs.writeFile(path, iosReviewSettings[file] ?? "");
+      return fs.writeFile(path, iosReviewSettings[file] ?? "");
     }),
   );
 
-  await Promise.all(
-    iosInfoFiles.map(async (file) => {
+  // Writing info files for iOS
+  const iosInfoPromise = Promise.all(
+    iosInfoFiles.map((file) => {
       const path = `${iosPath}/${file}.txt`;
-      await fs.writeFile(path, iosInfoSettings[file] ?? "");
+      return fs.writeFile(path, iosInfoSettings[file] ?? "");
     }),
   );
+
+  // Copying Android images
+  const copyAndroidImages = Promise.all([
+    fs.copy(
+      `${rootAssetPath}/${androidFeatureGraphic}`,
+      `${androidImagesPath}/featureGraphic.png`,
+    ),
+    fs.copy(`${rootAssetPath}/icon.png`, `${androidImagesPath}/icon.png`),
+    ...androidScreenshots.map((screenshot, index) => {
+      return fs.copy(
+        `${rootAssetPath}/${screenshot}`,
+        `${androidPhoneScreenshotsPath}/${index + 1}_en-IN.png`,
+      );
+    }),
+  ]);
+
+  // Copying iOS screenshots
+  const copyIosImages = Promise.all([
+    ...(iosScreenshots["iphone_65"]?.map((screenshot, index) =>
+      fs.copy(
+        `${rootAssetPath}/${screenshot}`,
+        `${iosScreenshotsPath}/${index}_APP_IPHONE_65_${index}.jpg`,
+      ),
+    ) || []),
+    ...(iosScreenshots["iphone_55"]?.map((screenshot, index) =>
+      fs.copy(
+        `${rootAssetPath}/${screenshot}`,
+        `${iosScreenshotsPath}/${index}_APP_IPHONE_55_${index}.png`,
+      ),
+    ) || []),
+    ...(iosScreenshots["iphone_67"]?.map((screenshot, index) =>
+      fs.copy(
+        `${rootAssetPath}/${screenshot}`,
+        `${iosScreenshotsPath}/${index}_APP_IPHONE_67_${index}.png`,
+      ),
+    ) || []),
+  ]);
+
+  // Execute all operations without waiting for each other to finish
+  return Promise.all([
+    androidPromise,
+    iosStorePromise,
+    iosReviewPromise,
+    iosInfoPromise,
+    copyAndroidImages,
+    copyIosImages,
+  ]);
 };
 
 const commandLineArgs = process.argv.slice(2);
 
 if (commandLineArgs) {
-  const config = {};
-  commandLineArgs.forEach((entry) => {
-    const items = entry.split(":");
-    let keys = [];
-    let value = "";
-    if (items.length > 2) {
-      keys = items.slice(0, 2);
-      value = items.slice(2).join(":");
-    } else {
-      keys = [items[0]];
-      value = items[1];
-    }
+  let config = {};
 
-    keys.reduce((acc, key, index) => {
-      if (index === keys.length - 1) {
-        acc[key] = value;
-      } else {
-        acc[key] = acc[key] || {};
-      }
-      return acc[key];
-    }, config);
+  commandLineArgs.forEach((entry) => {
+    const [key, ...values] = entry.split(":");
+    const value = values.join(":");
+
+    try {
+      config[key] = JSON.parse(value);
+    } catch (e) {
+      config[key] = value;
+    }
   });
 
   generateMetadata(config);
