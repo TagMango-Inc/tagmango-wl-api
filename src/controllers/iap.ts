@@ -84,7 +84,7 @@ const getAllMangoesByCreator = factory.createHandlers(async (c) => {
             .find(
               {
                 creator: new ObjectId(creatorId),
-                fan: new ObjectId(demoUser._id),
+                fan: demoUser._id,
                 status: "active",
               },
               { projection: { mango: 1 } },
