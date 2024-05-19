@@ -1,10 +1,14 @@
-import { createFactory } from "hono/factory";
-import { verify } from "hono/jwt";
-import { ObjectId } from "mongodb";
+import { createFactory } from 'hono/factory';
+import { verify } from 'hono/jwt';
+import {
+  JwtTokenExpired,
+  JwtTokenInvalid,
+} from 'hono/utils/jwt/types';
+import { ObjectId } from 'mongodb';
 
-import Mongo from "../../src/database";
-import { Response } from "../../src/utils/statuscode";
-import { JWTPayloadType } from "../types";
+import Mongo from '../../src/database';
+import { Response } from '../../src/utils/statuscode';
+import { JWTPayloadType } from '../types';
 
 const factory = createFactory();
 
@@ -12,13 +16,7 @@ const authenticationMiddleware = factory.createMiddleware(async (c, next) => {
   try {
     const authorizationHeader = c.req.header("authorization");
     if (!authorizationHeader) {
-      return c.json(
-        { message: "unauthorized access" },
-        {
-          status: 401,
-          statusText: "Unauthorized",
-        },
-      );
+      return c.json({ message: "unauthorized access" }, Response.UNAUTHORIZED);
     }
     const token = authorizationHeader.split(" ")[1];
     const secret = process.env.JWT_SECRET as string;
@@ -33,6 +31,9 @@ const authenticationMiddleware = factory.createMiddleware(async (c, next) => {
     c.set("jwtPayload", payload);
     await next();
   } catch (error) {
+    if (error instanceof JwtTokenInvalid || error instanceof JwtTokenExpired) {
+      return c.json({ message: "unauthorized access" }, Response.UNAUTHORIZED);
+    }
     return c.json(
       { message: "Internal Server Error" },
       Response.INTERNAL_SERVER_ERROR,
