@@ -8,7 +8,11 @@ import { DEPLOYMENT_REQUIREMENTS } from '../../src/constants';
 import Mongo from '../../src/database';
 import { buildQueue } from '../../src/job/config';
 import { JWTPayloadType } from '../../src/types';
-import { Status } from '../../src/types/database';
+import {
+  PlatformValues,
+  Status,
+  StatusValues,
+} from '../../src/types/database';
 import { generateDeploymentTasks } from '../../src/utils/generateTaskDetails';
 import { Response } from '../../src/utils/statuscode';
 import { createNewDeploymentSchema } from '../../src/validations/customhost';
@@ -116,61 +120,77 @@ const getDeploymentDetails = factory.createHandlers(async (c) => {
 const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
   try {
     const { id: appId } = c.req.param();
-    const { page, limit, search } = c.req.query();
+    const { page, limit, search, platform, status } = c.req.query();
 
     let PAGE = page ? parseInt(page as string) : 1;
-    let LIMIT = limit ? parseInt(limit as string) : 10;
+    let LIMIT = limit ? parseInt(limit as string) : 30;
     let SEARCH = search ? (search as string) : "";
 
-    const totalDeployments = await Mongo.deployment
-      .find({ host: new ObjectId(appId) })
-      .toArray();
-
-    const deployments = await Mongo.deployment
+    const searchedDeployments = await Mongo.deployment
       .aggregate([
         {
           $match: {
             host: new ObjectId(appId),
-          },
-        },
-        {
-          $match: {
             $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
+            platform: platform ?? { $in: PlatformValues },
+            status: status ?? {
+              $in: StatusValues,
+            },
           },
         },
         {
-          $lookup: {
-            from: "adminusers",
-            localField: "user",
-            foreignField: "_id",
-            as: "user",
+          $facet: {
+            totalSearchResults: [
+              {
+                $count: "count",
+              },
+            ],
+            deployments: [
+              {
+                $lookup: {
+                  from: "adminusers",
+                  localField: "user",
+                  foreignField: "_id",
+                  as: "user",
+                },
+              },
+              {
+                $unwind: "$user",
+              },
+              {
+                $project: {
+                  "user._id": 1,
+                  "user.name": 1,
+                  // "user.customhostDashboardAccess": 1,
+                  host: 1,
+                  platform: 1,
+                  versionName: 1,
+                  buildNumber: 1,
+                  status: 1,
+                  updatedAt: 1,
+                  createdAt: 1,
+                },
+              },
+              {
+                $sort: { updatedAt: -1 },
+              },
+              {
+                $skip: (PAGE - 1) * LIMIT,
+              },
+              {
+                $limit: LIMIT,
+              },
+            ],
           },
         },
         {
-          $unwind: "$user",
+          $unwind: "$totalSearchResults",
         },
         {
           $project: {
-            "user._id": 1,
-            "user.name": 1,
-            // "user.customhostDashboardAccess": 1,
-            host: 1,
-            platform: 1,
-            versionName: 1,
-            buildNumber: 1,
-            status: 1,
-            updatedAt: 1,
-            createdAt: 1,
+            deployments: 1,
+            totalDeployments: "$totalSearchResults.count",
           },
-        },
-        {
-          $sort: { updatedAt: -1 },
-        },
-        {
-          $skip: (PAGE - 1) * LIMIT,
-        },
-        {
-          $limit: LIMIT,
         },
       ])
       .toArray();
@@ -181,36 +201,32 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
     );
     const parsedAndroidAABDetails = JSON.parse(androidAABDetails);
 
-    const modifiedResults = deployments.map((deployment) => {
-      const aabDetails = parsedAndroidAABDetails[deployment.host];
-      const isAndroidBundleAvailable =
-        aabDetails &&
-        aabDetails.versionName === deployment.versionName &&
-        aabDetails.buildNumber === deployment.buildNumber
-          ? true
-          : false;
-      return {
-        ...deployment,
-        isAndroidBundleAvailable,
-      };
-    });
+    const modifiedResults =
+      searchedDeployments.length > 0 && searchedDeployments[0].deployments
+        ? searchedDeployments[0].deployments.map((deployment: any) => {
+            const aabDetails = parsedAndroidAABDetails[deployment.host];
+            const isAndroidBundleAvailable =
+              aabDetails &&
+              aabDetails.versionName === deployment.versionName &&
+              aabDetails.buildNumber === deployment.buildNumber
+                ? true
+                : false;
+            return {
+              ...deployment,
+              isAndroidBundleAvailable,
+            };
+          })
+        : [];
 
-    const totalSearchResults = await Mongo.deployment
-      .find({
-        _id: new ObjectId(appId),
-        $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
-      })
-      .toArray();
-
-    const hasNextPage = totalSearchResults.length > PAGE * LIMIT;
+    const hasNextPage = searchedDeployments[0]?.totalDeployments > PAGE * LIMIT;
 
     return c.json(
       {
         message: "All Deployments for Custom Host",
         result: {
           deployments: modifiedResults,
-          totalDeployments: totalDeployments.length,
-          totalSearchResults: totalSearchResults.length,
+          totalDeployments: 0, //! no need for this
+          totalSearchResults: searchedDeployments[0]?.totalDeployments,
           currentPage: PAGE,
           nextPage: hasNextPage ? PAGE + 1 : -1,
           limit: LIMIT,
@@ -220,6 +236,7 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
       Response.OK,
     );
   } catch (error) {
+    console.log(error);
     return c.json(
       { message: "Internal Server Error" },
       Response.INTERNAL_SERVER_ERROR,

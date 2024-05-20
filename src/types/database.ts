@@ -1,4 +1,4 @@
-import { ObjectId } from "mongodb";
+import { ObjectId } from 'mongodb';
 
 export const Collections = {
   ADMIN_USER: "adminusers",
@@ -18,6 +18,8 @@ export const Platform = {
   IOS: "ios",
 } as const;
 
+export const PlatformValues = Object.values(Platform);
+
 export type Platform = (typeof Platform)[keyof typeof Platform];
 
 export const Status = {
@@ -28,6 +30,8 @@ export const Status = {
   CANCELLED: "cancelled",
   WARNING: "warning",
 } as const;
+
+export const StatusValues = Object.values(Status);
 
 export type Status = (typeof Status)[keyof typeof Status];
 
