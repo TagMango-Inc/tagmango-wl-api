@@ -25,32 +25,11 @@ async function populateMeilisearch() {
           },
         },
         {
-          $lookup: {
-            from: "customhostmetadatas",
-            localField: "deploymentMetadata",
-            foreignField: "_id",
-            as: "deploymentDetails",
-          },
-        },
-        {
-          $unwind: {
-            path: "$deploymentDetails",
-          },
-        },
-        {
           $project: {
             _id: 1,
             appName: 1,
             host: 1,
             logo: 1,
-            createdAt: 1,
-            updatedAt: 1,
-            androidVersionName:
-              "$deploymentDetails.androidDeploymentDetails.versionName",
-            iosVersionName:
-              "$deploymentDetails.iosDeploymentDetails.versionName",
-            iosUnderReview:
-              "$deploymentDetails.iosDeploymentDetails.isUnderReview",
           },
         },
       ])
