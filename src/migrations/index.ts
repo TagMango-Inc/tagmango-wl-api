@@ -1,4 +1,4 @@
-import Mongo from "../database";
+import Mongo from '../database';
 
 const runMigration = async () => {
   // Run your migration here
@@ -6,5 +6,12 @@ const runMigration = async () => {
 };
 
 Mongo.connect().then(() => {
-  runMigration();
+  runMigration()
+    .then(() => {
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
 });

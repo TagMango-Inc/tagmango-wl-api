@@ -23,115 +23,63 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
     let LIMIT = limit ? parseInt(limit as string) : 10;
     let SEARCH = search ? (search as string) : "";
 
-    const [totalCustomhostsArray, searchedCustomhostsArray] = await Promise.all(
-      [
-        Mongo.customhost
-          .aggregate([
-            {
-              $match: {
-                whitelableStatus: { $ne: "drafted" },
-              },
-            },
-            {
-              $count: "count",
-            },
-            {
-              $project: {
-                totalCustomhosts: "$count",
-              },
-            },
-          ])
-          .toArray(),
-        Mongo.customhost
-          .aggregate([
-            {
-              $match: {
-                $or: [
-                  { appName: { $regex: new RegExp(SEARCH, "i") } },
-                  { host: { $regex: new RegExp(SEARCH, "i") } },
-                  { brandname: { $regex: new RegExp(SEARCH, "i") } },
-                ],
-                whitelableStatus: { $ne: "drafted" },
-              },
-            },
-            {
-              $facet: {
-                totalSearchResults: [
-                  {
-                    $count: "count",
-                  },
-                ],
-                customhosts: [
-                  {
-                    $sort: { updatedAt: -1 },
-                  },
-                  {
-                    $skip: (PAGE - 1) * LIMIT,
-                  },
-                  {
-                    $limit: LIMIT,
-                  },
-                  {
-                    $lookup: {
-                      from: "customhostmetadatas",
-                      localField: "deploymentMetadata",
-                      foreignField: "_id",
-                      as: "deploymentDetails",
-                    },
-                  },
-                  {
-                    $unwind: {
-                      path: "$deploymentDetails",
-                    },
-                  },
-                  {
-                    $project: {
-                      appName: 1,
-                      host: 1,
-                      logo: 1,
-                      createdAt: 1,
-                      updatedAt: 1,
-                      androidVersionName:
-                        "$deploymentDetails.androidDeploymentDetails.versionName",
-                      iosVersionName:
-                        "$deploymentDetails.iosDeploymentDetails.versionName",
-                      iosUnderReview:
-                        "$deploymentDetails.iosDeploymentDetails.isUnderReview",
-                    },
-                  },
-                ],
-              },
-            },
-            {
-              $unwind: {
-                path: "$totalSearchResults",
-              },
-            },
-            {
-              $project: {
-                totalSearchResults: "$totalSearchResults.count",
-                customhosts: 1,
-              },
-            },
-          ])
-          .toArray(),
-      ],
-    );
-
-    const hasNextPage =
-      searchedCustomhostsArray[0].totalSearchResults > PAGE * LIMIT;
+    const searchedCustomhostsArray = await Mongo.customhost
+      .aggregate([
+        {
+          $match: {
+            $or: [
+              { appName: { $regex: new RegExp(SEARCH, "i") } },
+              { host: { $regex: new RegExp(SEARCH, "i") } },
+              { brandname: { $regex: new RegExp(SEARCH, "i") } },
+            ],
+            whitelableStatus: { $ne: "drafted" },
+          },
+        },
+        {
+          $lookup: {
+            from: "customhostmetadatas",
+            localField: "deploymentMetadata",
+            foreignField: "_id",
+            as: "deploymentDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$deploymentDetails",
+          },
+        },
+        {
+          $project: {
+            appName: 1,
+            host: 1,
+            logo: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            androidVersionName:
+              "$deploymentDetails.androidDeploymentDetails.versionName",
+            iosVersionName:
+              "$deploymentDetails.iosDeploymentDetails.versionName",
+            iosUnderReview:
+              "$deploymentDetails.iosDeploymentDetails.isUnderReview",
+          },
+        },
+        {
+          $sort: { updatedAt: -1 },
+        },
+        {
+          $skip: (PAGE - 1) * LIMIT,
+        },
+        {
+          $limit: LIMIT,
+        },
+      ])
+      .toArray();
 
     return c.json(
       {
         message: "All Custom Hosts",
         result: {
-          customHosts: searchedCustomhostsArray[0].customhosts,
-          totalSearchResults: searchedCustomhostsArray[0].totalSearchResults,
-          totalCustomHosts: totalCustomhostsArray[0].totalCustomhosts,
-          currentPage: PAGE,
-          nextPage: hasNextPage ? PAGE + 1 : -1,
-          limit: LIMIT,
-          hasNext: hasNextPage,
+          customHosts: searchedCustomhostsArray,
         },
       },
       Response.OK,
@@ -143,6 +91,7 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
     );
   }
 });
+
 /**
     /wl/apps/{:id
     GET
