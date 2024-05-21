@@ -158,10 +158,40 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
                 $unwind: "$user",
               },
               {
+                $lookup: {
+                  from: "adminusers",
+                  let: { cancelledById: "$cancelledBy" },
+                  pipeline: [
+                    {
+                      $match: {
+                        $expr: { $ne: ["$$cancelledById", null] },
+                      },
+                    },
+                    {
+                      $match: {
+                        $expr: { $eq: ["$_id", "$$cancelledById"] },
+                      },
+                    },
+                    {
+                      $project: { _id: 1, name: 1 },
+                    },
+                  ],
+                  as: "cancelled_by_user",
+                },
+              },
+              {
+                $unwind: {
+                  path: "$cancelled_by_user",
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
                 $project: {
                   "user._id": 1,
                   "user.name": 1,
                   // "user.customhostDashboardAccess": 1,
+                  "cancelled_by_user._id": 1,
+                  "cancelled_by_user.name": 1,
                   host: 1,
                   platform: 1,
                   versionName: 1,
@@ -251,6 +281,29 @@ const createNewDeploymentHandler = factory.createHandlers(
       const { id: customHostId } = c.req.param();
       const { target } = c.req.valid("json");
       const payload: JWTPayloadType = c.get("jwtPayload");
+
+      // pending or processing
+      const recentActiveDeployment = await Mongo.deployment.findOne({
+        host: new ObjectId(customHostId),
+        status: { $in: [Status.PENDING, Status.PROCESSING] },
+        platform: target,
+      });
+
+      if (recentActiveDeployment) {
+        const { _id, versionName, platform } = recentActiveDeployment;
+        const jobName = `${_id}-${platform}-${versionName}`;
+        const jobs = await buildQueue.getJobs();
+        const job = jobs.find((job) => job.name === jobName);
+        if (job) {
+          const jobStatus = await job.getState();
+          if (jobStatus === "active" || jobStatus === "waiting") {
+            return c.json(
+              { message: "Deployment job already exists" },
+              Response.CONFLICT,
+            );
+          }
+        }
+      }
 
       const user = await Mongo.user.findOne(
         {
@@ -394,7 +447,7 @@ const createNewDeploymentHandler = factory.createHandlers(
       );
       return c.json(
         {
-          message: "Created New Deployment and added new job",
+          message: "Created new deployment job",
           result: {
             _id: createdDeployment.insertedId.toString(),
             user,
@@ -562,8 +615,11 @@ const cancelDeploymentJobByDeploymentId = factory.createHandlers(async (c) => {
     if (!job) {
       return c.json({ message: "Job not found" }, Response.NOT_FOUND);
     }
+    const jobStatus = await job.getState();
 
-    await job.remove();
+    if (jobStatus !== "active") {
+      await job.remove();
+    }
 
     const deployment = await Mongo.deployment.updateOne(
       {
