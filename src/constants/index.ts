@@ -1,8 +1,6 @@
 const githubrepo = "TagMangoApp";
 const customhostDeploymentDir = "deployments";
 
-const RECURRING_JOB = "0 0 * * SUN";
-
 const DEPLOYMENT_REQUIREMENTS = [
   "Update android & iOS app name",
   "Upload app logo for deployment",
@@ -10,9 +8,15 @@ const DEPLOYMENT_REQUIREMENTS = [
   "Add In-app purchase from the app settings",
 ];
 
+const DAY_FROM_NOW = 4;
+const REMOVE_SUCCESS_LOGS_CRON = "0 0 * * SUN";
+const REMOVE_BUNDLES_CRON = "0 0 * * SUN";
+
 export {
   customhostDeploymentDir,
+  DAY_FROM_NOW,
   DEPLOYMENT_REQUIREMENTS,
   githubrepo,
-  RECURRING_JOB,
+  REMOVE_BUNDLES_CRON,
+  REMOVE_SUCCESS_LOGS_CRON,
 };
