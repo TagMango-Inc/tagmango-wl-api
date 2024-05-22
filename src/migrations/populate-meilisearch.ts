@@ -1,8 +1,8 @@
-import 'dotenv/config';
+import "dotenv/config";
 
-import { MeiliSearch } from 'meilisearch';
+import { MeiliSearch } from "meilisearch";
 
-import Mongo from '../database';
+import Mongo from "../database";
 
 const client = new MeiliSearch({
   host: "http://localhost:7700",
@@ -32,6 +32,7 @@ async function populateMeilisearch() {
     primaryKey: "_id",
   });
 
+  console.log(resp);
   console.log(await client.getStats());
 }
 
