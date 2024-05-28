@@ -392,7 +392,7 @@ const executeTask = async ({
   // started executing the task
   const e = exec(commands.join(" && "), {
     cwd: process.cwd(),
-    maxBuffer: 1024 * 1024 * 5,
+    maxBuffer: 1024 * 1024 * 50,
     env: {
       ...process.env,
       LC_ALL: "en_US.UTF-8",
