@@ -1,7 +1,9 @@
 import { Response } from "express";
+import { WithId } from "mongodb";
 
 import {
   IAndroidStoreSettings,
+  IDeveloperAccountAndroid,
   IIosInfoSettings,
   IIosReviewSettings,
   IIosScreenshots,
@@ -36,6 +38,8 @@ export type BuildConfigType = {
   iosInfoSettings: IIosInfoSettings;
   iosReviewSettings: IIosReviewSettings;
   iosScreenshots: IIosScreenshots;
+
+  androidDeveloperAccount?: null | WithId<IDeveloperAccountAndroid>;
 };
 
 export type BuildJobPayloadType = {

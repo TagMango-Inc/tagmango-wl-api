@@ -107,6 +107,7 @@ const iosInfoFiles = [
 
 const generateMetadata = async ({
   hostId,
+  rootPath,
   fastlanePath,
   androidStoreSettings,
   iosStoreSettings,
@@ -117,6 +118,8 @@ const generateMetadata = async ({
   androidScreenshots,
 
   iosScreenshots,
+
+  androidDeveloperAccount,
 }) => {
   const androidPath = `${fastlanePath}/metadata/android/en-GB`;
   const androidUSPath = `${fastlanePath}/metadata/android/en-US`;
@@ -150,6 +153,22 @@ const generateMetadata = async ({
 
   const releaseDetails = await readFile("./data/release.json");
   const { releaseNotes } = JSON.parse(releaseDetails);
+
+  if (androidDeveloperAccount && androidDeveloperAccount._id) {
+    // move developer_accounts/android/[androidDeveloperAccount._id]/keystore.jks to rootPath/android/app/keystore.jks
+    const keystorePath = `${rootPath}/android/app/keystore.jks`;
+    await fs.copy(
+      `./developer_accounts/android/${androidDeveloperAccount._id}/keystore.jks`,
+      keystorePath,
+    );
+
+    // move developer_accounts/android/[androidDeveloperAccount._id]/fastlane-android.json to rootPath/fastlane-android.json
+    const fastlaneAndroidJSONPath = `${rootPath}/fastlane-android.json`;
+    await fs.copy(
+      `./developer_accounts/android/${androidDeveloperAccount._id}/fastlane-android.json`,
+      fastlaneAndroidJSONPath,
+    );
+  }
 
   // Create all directories concurrently
   await Promise.all(

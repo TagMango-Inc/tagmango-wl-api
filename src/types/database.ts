@@ -1,4 +1,4 @@
-import { ObjectId } from 'mongodb';
+import { ObjectId } from "mongodb";
 
 export const Collections = {
   ADMIN_USER: "adminusers",
@@ -11,6 +11,7 @@ export const Collections = {
   SUBSCRIPTION: "subscriptions",
   USER: "users",
   MANGO_ROOM: "rooms",
+  DEVELOPER_ACCOUNT_ANDROID: "androiddeveloperaccounts",
 } as const;
 
 export const Platform = {
@@ -165,6 +166,8 @@ export interface IMetaData {
   iosInfoSettings: IIosInfoSettings;
   iosReviewSettings: IIosReviewSettings;
   iosScreenshots: IIosScreenshots;
+
+  androidDeveloperAccount?: ObjectId;
 }
 
 export interface ICustomHost {
@@ -520,4 +523,16 @@ export interface IMangoRoom {
   createdAt: Date;
   updatedAt: Date;
   lastMessageTime: Date;
+}
+
+export interface IDeveloperAccountAndroid {
+  name: string;
+  organizationalUnit: string;
+  organization: string;
+  city: string;
+  state: string;
+  countryCode: string;
+
+  keyAlias: string;
+  keyPassword: string;
 }
