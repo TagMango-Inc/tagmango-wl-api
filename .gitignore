@@ -12,3 +12,4 @@ dist/
 ecosystem.config.js
 dump.rdb
 data.ms
+developer_accounts/*
