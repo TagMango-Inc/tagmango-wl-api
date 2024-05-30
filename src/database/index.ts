@@ -1,6 +1,10 @@
-import "dotenv/config";
+import 'dotenv/config';
 
-import { Collection, Db, MongoClient } from "mongodb";
+import {
+  Collection,
+  Db,
+  MongoClient,
+} from 'mongodb';
 
 import {
   Collections,
@@ -8,13 +12,14 @@ import {
   ICourse,
   ICustomHost,
   IDeployment,
+  IDeveloperAccountAndroid,
   IMango,
   IMangoRoom,
   IMetaData,
   IPost,
   ISubscription,
   IUser,
-} from "../../src/types/database";
+} from '../../src/types/database';
 
 abstract class Mongo {
   private static client: MongoClient;
@@ -33,6 +38,7 @@ abstract class Mongo {
   public static subscription: Collection<ISubscription>;
   public static platform_users: Collection<IUser>;
   public static mango_rooms: Collection<IMangoRoom>;
+  public static developer_accounts_android: Collection<IDeveloperAccountAndroid>;
 
   public static async connect(): Promise<void> {
     try {
@@ -62,6 +68,10 @@ abstract class Mongo {
       );
       this.platform_users = this.db.collection<IUser>(Collections.USER);
       this.mango_rooms = this.db.collection<IMangoRoom>(Collections.MANGO_ROOM);
+      this.developer_accounts_android =
+        this.db.collection<IDeveloperAccountAndroid>(
+          Collections.DEVELOPER_ACCOUNT_ANDROID,
+        );
     } catch (error) {
       console.log(`Error connecting to database: ${error}`);
       throw new Error("Error connecting to database");

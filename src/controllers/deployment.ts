@@ -1,22 +1,23 @@
-import fs from 'fs-extra';
-import { createFactory } from 'hono/factory';
-import { ObjectId } from 'mongodb';
+import fs from "fs-extra";
+import { createFactory } from "hono/factory";
+import { ObjectId, WithId } from "mongodb";
 
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from "@hono/zod-validator";
 
-import { DEPLOYMENT_REQUIREMENTS } from '../../src/constants';
-import Mongo from '../../src/database';
-import { buildQueue } from '../../src/job/config';
-import { JWTPayloadType } from '../../src/types';
+import { DEPLOYMENT_REQUIREMENTS } from "../../src/constants";
+import Mongo from "../../src/database";
+import { buildQueue } from "../../src/job/config";
+import { JWTPayloadType } from "../../src/types";
 import {
+  IDeveloperAccountAndroid,
   PlatformValues,
   Status,
   StatusValues,
-} from '../../src/types/database';
-import { generateDeploymentTasks } from '../../src/utils/generateTaskDetails';
-import { Response } from '../../src/utils/statuscode';
-import { createNewDeploymentSchema } from '../../src/validations/customhost';
-import { updateFailedAndroidDeploymentSchema } from '../validations/deployment';
+} from "../../src/types/database";
+import { generateDeploymentTasks } from "../../src/utils/generateTaskDetails";
+import { Response } from "../../src/utils/statuscode";
+import { createNewDeploymentSchema } from "../../src/validations/customhost";
+import { updateFailedAndroidDeploymentSchema } from "../validations/deployment";
 
 const { readFile } = fs.promises;
 
@@ -410,6 +411,16 @@ const createNewDeploymentHandler = factory.createHandlers(
       // TODO: can't create another job if the job already exists and processing
       // creating a new job for deployment
 
+      let androidDeveloperAccount: WithId<IDeveloperAccountAndroid> | null =
+        null;
+
+      if (target === "android" && metadata.androidDeveloperAccount) {
+        androidDeveloperAccount =
+          await Mongo.developer_accounts_android.findOne({
+            _id: metadata.androidDeveloperAccount,
+          });
+      }
+
       await buildQueue.add(
         `${createdDeployment.insertedId.toString()}-${target}-${currentVersionName}`,
         {
@@ -439,6 +450,8 @@ const createNewDeploymentHandler = factory.createHandlers(
           iosInfoSettings: metadata.iosInfoSettings,
           iosReviewSettings: metadata.iosReviewSettings,
           iosScreenshots: metadata.iosScreenshots,
+
+          androidDeveloperAccount,
         },
         {
           attempts: 0,

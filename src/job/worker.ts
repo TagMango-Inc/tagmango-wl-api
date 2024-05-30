@@ -1,31 +1,16 @@
-import 'dotenv/config';
+import "dotenv/config";
 
-import {
-  Job,
-  Worker,
-} from 'bullmq';
-import { exec } from 'child_process';
-import fs from 'fs-extra';
-import {
-  ObjectId,
-  UpdateFilter,
-} from 'mongodb';
-import pino from 'pino';
+import { Job, Worker } from "bullmq";
+import { exec } from "child_process";
+import fs from "fs-extra";
+import { ObjectId, UpdateFilter } from "mongodb";
+import pino from "pino";
 
-import Mongo from '../../src/database';
-import {
-  IDeploymentTask,
-  IMetaData,
-} from '../../src/types/database';
-import {
-  customhostDeploymentDir,
-  githubrepo,
-} from '../constants';
-import {
-  BuildJobPayloadType,
-  JobProgressType,
-} from '../types';
-import { queueRedisOptions } from './config';
+import Mongo from "../../src/database";
+import { IDeploymentTask, IMetaData } from "../../src/types/database";
+import { customhostDeploymentDir, githubrepo } from "../constants";
+import { BuildJobPayloadType, JobProgressType } from "../types";
+import { queueRedisOptions } from "./config";
 
 const logger = pino({
   level: "debug",
@@ -78,6 +63,8 @@ const { readFile, writeFile } = fs.promises;
             iosInfoSettings,
             iosReviewSettings,
             iosScreenshots,
+
+            androidDeveloperAccount,
           } = job.data;
 
           const formatedAppName = name.replace(/ /g, "");
@@ -190,6 +177,7 @@ const { readFile, writeFile } = fs.promises;
             [taskNames[3].id]: [
               `node ./scripts/create-metadata.js ${JSON.stringify({
                 hostId,
+                rootPath: `${customhostDeploymentDir}/${bundle}/${githubrepo}`,
                 fastlanePath: `${customhostDeploymentDir}/${bundle}/${githubrepo}/fastlane`,
                 androidStoreSettings: JSON.stringify(androidStoreSettings),
                 iosStoreSettings: JSON.stringify(iosStoreSettings),
@@ -198,6 +186,9 @@ const { readFile, writeFile } = fs.promises;
                 androidScreenshots: JSON.stringify(androidScreenshots),
                 iosScreenshots: JSON.stringify(iosScreenshots),
                 androidFeatureGraphic: androidFeatureGraphic,
+                androidDeveloperAccount: JSON.stringify(
+                  androidDeveloperAccount ?? {},
+                ),
               })}`,
             ],
             //TODO
@@ -205,7 +196,18 @@ const { readFile, writeFile } = fs.promises;
             [taskNames[4].id]: [
               `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
               `npm install`,
-              `node ./scripts/app-build.js ${JSON.stringify({ name, bundle, domain, color, bgColor, onesignal_id, buildNumber })}`,
+              `node ./scripts/app-build.js ${JSON.stringify({
+                name,
+                bundle,
+                domain,
+                color,
+                bgColor,
+                onesignal_id,
+                buildNumber,
+                androidDeveloperAccount: JSON.stringify(
+                  androidDeveloperAccount ?? {},
+                ),
+              })}`,
             ],
 
             // // Step 4: Rename the app and bundle

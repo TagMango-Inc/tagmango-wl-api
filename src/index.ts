@@ -12,6 +12,7 @@ import Mongo from './database';
 import authenticationMiddleware from './middleware/authentication';
 import authenticationRouter from './routers/authenticationRouter';
 import customHostRouter from './routers/customHostRouter';
+import developerAccountsRouter from './routers/developerAccountsRouter';
 import iapRouter from './routers/iapRouter';
 import metadataRouter from './routers/metadataRouter';
 import outputRouter from './routers/outputRouter';
@@ -31,6 +32,7 @@ Mongo.connect().then(() => {
   app.use("/metadata/*", authenticationMiddleware);
   app.use("/output/*", authenticationMiddleware);
   app.use("/release/*", authenticationMiddleware);
+  app.use("/developer-accounts/*", authenticationMiddleware);
 
   app.get("/", async (c) => {
     return c.json({
@@ -71,6 +73,7 @@ Mongo.connect().then(() => {
   app.route("/output", outputRouter);
   app.route("/release", releaseRouter);
   app.route("/sse", sseRouter);
+  app.route("/developer-accounts", developerAccountsRouter);
 
   app.use(prettyJSON());
 
