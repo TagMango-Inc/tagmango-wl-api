@@ -134,9 +134,7 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
             host: new ObjectId(appId),
             $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
             platform: platform ?? { $in: PlatformValues },
-            status: status ?? {
-              $in: StatusValues,
-            },
+            status: status ?? { $in: StatusValues },
           },
         },
         {
@@ -156,7 +154,10 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
                 },
               },
               {
-                $unwind: "$user",
+                $unwind: {
+                  path: "$user",
+                  preserveNullAndEmptyArrays: true,
+                },
               },
               {
                 $lookup: {
@@ -183,13 +184,13 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
               {
                 $unwind: {
                   path: "$cancelled_by_user",
+                  preserveNullAndEmptyArrays: true,
                 },
               },
               {
                 $project: {
                   "user._id": 1,
                   "user.name": 1,
-                  // "user.customhostDashboardAccess": 1,
                   "cancelled_by_user._id": 1,
                   "cancelled_by_user.name": 1,
                   host: 1,
@@ -214,12 +215,15 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
           },
         },
         {
-          $unwind: "$totalSearchResults",
+          $unwind: {
+            path: "$totalSearchResults",
+            preserveNullAndEmptyArrays: true,
+          },
         },
         {
           $project: {
             deployments: 1,
-            totalDeployments: "$totalSearchResults.count",
+            totalDeployments: { $ifNull: ["$totalSearchResults.count", 0] },
           },
         },
       ])
