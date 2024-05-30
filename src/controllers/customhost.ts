@@ -1,11 +1,11 @@
-import { createFactory } from 'hono/factory';
-import { ObjectId } from 'mongodb';
+import { createFactory } from "hono/factory";
+import { ObjectId } from "mongodb";
 
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from "@hono/zod-validator";
 
-import Mongo from '../../src/database';
-import { patchCustomHostByIdSchema } from '../../src/validations/customhost';
-import { Response } from '../utils/statuscode';
+import Mongo from "../../src/database";
+import { patchCustomHostByIdSchema } from "../../src/validations/customhost";
+import { Response } from "../utils/statuscode";
 
 const factory = createFactory();
 /**
@@ -46,6 +46,7 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
         {
           $unwind: {
             path: "$deploymentDetails",
+            preserveNullAndEmptyArrays: true,
           },
         },
         {

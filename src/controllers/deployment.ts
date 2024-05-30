@@ -1,22 +1,18 @@
-import fs from 'fs-extra';
-import { createFactory } from 'hono/factory';
-import { ObjectId } from 'mongodb';
+import fs from "fs-extra";
+import { createFactory } from "hono/factory";
+import { ObjectId } from "mongodb";
 
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from "@hono/zod-validator";
 
-import { DEPLOYMENT_REQUIREMENTS } from '../../src/constants';
-import Mongo from '../../src/database';
-import { buildQueue } from '../../src/job/config';
-import { JWTPayloadType } from '../../src/types';
-import {
-  PlatformValues,
-  Status,
-  StatusValues,
-} from '../../src/types/database';
-import { generateDeploymentTasks } from '../../src/utils/generateTaskDetails';
-import { Response } from '../../src/utils/statuscode';
-import { createNewDeploymentSchema } from '../../src/validations/customhost';
-import { updateFailedAndroidDeploymentSchema } from '../validations/deployment';
+import { DEPLOYMENT_REQUIREMENTS } from "../../src/constants";
+import Mongo from "../../src/database";
+import { buildQueue } from "../../src/job/config";
+import { JWTPayloadType } from "../../src/types";
+import { PlatformValues, Status, StatusValues } from "../../src/types/database";
+import { generateDeploymentTasks } from "../../src/utils/generateTaskDetails";
+import { Response } from "../../src/utils/statuscode";
+import { createNewDeploymentSchema } from "../../src/validations/customhost";
+import { updateFailedAndroidDeploymentSchema } from "../validations/deployment";
 
 const { readFile } = fs.promises;
 
@@ -156,6 +152,7 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
               },
               {
                 $unwind: "$user",
+                preserveNullAndEmptyArrays: true,
               },
               {
                 $lookup: {
@@ -215,6 +212,7 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
         },
         {
           $unwind: "$totalSearchResults",
+          preserveNullAndEmptyArrays: true,
         },
         {
           $project: {
@@ -491,6 +489,7 @@ const getDeploymentDetailsById = factory.createHandlers(async (c) => {
         },
         {
           $unwind: "$user",
+          preserveNullAndEmptyArrays: true,
         },
         {
           $project: {
@@ -563,6 +562,7 @@ const getDeploymentTaskLogsByTaskId = factory.createHandlers(async (c) => {
         {
           $unwind: {
             path: "$tasks",
+            preserveNullAndEmptyArrays: true,
           },
         },
         {
@@ -674,6 +674,7 @@ const getRecentDeploymentsHandler = factory.createHandlers(async (c) => {
         },
         {
           $unwind: "$host",
+          preserveNullAndEmptyArrays: true,
         },
         {
           $project: {
