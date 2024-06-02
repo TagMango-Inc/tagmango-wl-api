@@ -12,6 +12,7 @@ import {
   deleteIosScreenshotsSchema,
   reorderAndroidScreenshotsSchema,
   reorderIosScreenshotsSchema,
+  updateAndroidDeploymentAccountSchema,
   updateAndroidDeploymentDetailsSchema,
   updateAndroidStoreMetadataSchema,
   updateIosDeploymentDetailsSchema,
@@ -463,6 +464,45 @@ const deleteAndroidScreenshots = factory.createHandlers(
   },
 );
 
+const updateAndroidDeveloperAccountForApp = factory.createHandlers(
+  zValidator("json", updateAndroidDeploymentAccountSchema),
+  async (c) => {
+    try {
+      const { appId } = c.req.param();
+      const { developerAccountId } = c.req.valid("json");
+
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(appId),
+      });
+
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      await Mongo.metadata.updateOne(
+        { host: new ObjectId(appId) },
+        {
+          $set: {
+            androidDeveloperAccount: new ObjectId(developerAccountId),
+          },
+        },
+      );
+
+      return c.json(
+        {
+          message: "Developer Account updated successfully",
+        },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
 const updateBuildMetadataIosSettings = factory.createHandlers(
   zValidator("json", updateIosDeploymentDetailsSchema),
   async (c) => {
@@ -798,6 +838,7 @@ export {
   getAppMetadata,
   reorderAndroidScreenshots,
   reorderIosScreenshots,
+  updateAndroidDeveloperAccountForApp,
   updateBuildMetadataAndroidSettings,
   updateBuildMetadataIosSettings,
   updateInfoMetadataIosSettings,
