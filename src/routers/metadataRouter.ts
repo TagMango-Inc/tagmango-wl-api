@@ -6,6 +6,7 @@ import {
   getAppMetadata,
   reorderAndroidScreenshots,
   reorderIosScreenshots,
+  updateAndroidDeveloperAccountForApp,
   updateBuildMetadataAndroidSettings,
   updateBuildMetadataIosSettings,
   updateInfoMetadataIosSettings,
@@ -47,6 +48,10 @@ router.patch(
 router.patch(
   "/:appId/settings/android/screenshots/delete",
   ...deleteAndroidScreenshots,
+);
+router.patch(
+  "/:appId/settings/android/developer-account",
+  ...updateAndroidDeveloperAccountForApp,
 );
 
 router.patch("/:appId/settings/ios/build", ...updateBuildMetadataIosSettings);

@@ -33,6 +33,9 @@ const reorderAndroidScreenshotsSchema = z.object({
 const deleteAndroidScreenshotsSchema = z.object({
   screenshots: z.array(z.string()),
 });
+const updateAndroidDeploymentAccountSchema = z.object({
+  developerAccountId: z.string(),
+});
 
 const updateIosDeploymentDetailsSchema = z.object({
   bundleId: z.string(),
@@ -57,6 +60,7 @@ export {
   deleteIosScreenshotsSchema,
   reorderAndroidScreenshotsSchema,
   reorderIosScreenshotsSchema,
+  updateAndroidDeploymentAccountSchema,
   updateAndroidDeploymentDetailsSchema,
   updateAndroidStoreMetadataSchema,
   updateIosDeploymentDetailsSchema,
