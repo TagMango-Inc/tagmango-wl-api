@@ -22,10 +22,10 @@ const writeFileAsync = fs.promises.writeFile;
 const getAllDeveloperAccountsAndroidHandler = factory.createHandlers(
   async (c) => {
     try {
-      const accounts = Mongo.developer_accounts_android.find();
+      const accounts = await Mongo.developer_accounts_android.find().toArray();
       return c.json({
         message: "Developer Accounts Android",
-        result: accounts,
+        result: accounts ?? [],
       });
     } catch (error) {
       return c.json(
@@ -100,6 +100,7 @@ const createNewDeveloperAccountAndroidHandler = factory.createHandlers(
         countryCode,
         keyAlias,
         keyPassword,
+        createdAt: new Date(),
       });
 
       // use these values to create a new jks file using keytool
