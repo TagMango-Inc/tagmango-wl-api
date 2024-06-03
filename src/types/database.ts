@@ -535,4 +535,6 @@ export interface IDeveloperAccountAndroid {
 
   keyAlias: string;
   keyPassword: string;
+
+  createdAt: Date;
 }
