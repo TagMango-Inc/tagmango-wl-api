@@ -23,6 +23,8 @@ const router = new Hono();
 
 router.get("/:appId", ...getAppMetadata);
 
+router.post("/:appId", ...getAppMetadata);
+
 router.patch("/:appId/settings/logo/upload", ...uploadMetadataLogo);
 
 router.patch(

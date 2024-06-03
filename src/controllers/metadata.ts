@@ -49,6 +49,107 @@ async function processScreenshot(
   await writeFile(filePath, file);
 }
 
+const createMetadata = factory.createHandlers(async (c) => {
+  try {
+    const { appId } = c.req.param();
+
+    const metadata = await Mongo.metadata.findOne({
+      host: new ObjectId(appId),
+    });
+
+    if (metadata) {
+      return c.json(
+        { message: "Metadata already exists", result: metadata },
+        Response.OK,
+      );
+    }
+
+    const customhost = await Mongo.customhost.findOne({
+      _id: new ObjectId(appId),
+    });
+
+    if (!customhost) {
+      return c.json({ message: "App not found" }, Response.NOT_FOUND);
+    }
+
+    const appName = customhost.appName ?? customhost.brandname ?? "";
+    const formattedName = appName.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+
+    const result = await Mongo.metadata.insertOne({
+      host: new ObjectId(appId),
+      logo: "",
+      backgroundType: "color",
+      backgroundStartColor: "#ffffff",
+      backgroundEndColor: "#ffffff",
+      backgroundGradientAngle: 45,
+      logoPadding: 15,
+      iosDeploymentDetails: {
+        bundleId: `com.tagmango.${formattedName}`,
+        lastDeploymentDetails: {
+          versionName: "3.0.7",
+          buildNumber: 450,
+        },
+        isUnderReview: false,
+      },
+      androidDeploymentDetails: {
+        bundleId: `com.tagmango.${formattedName}`,
+        lastDeploymentDetails: {
+          versionName: "3.0.7",
+          buildNumber: 450,
+        },
+        isUnderReview: false,
+      },
+      androidStoreSettings: {
+        title: appName,
+        short_description: `Get access to all premium content by ${appName}!`,
+        full_description: `Get access to all premium content in ${appName}. Access pre-recorded courses, enrol for live workshops, get certified and a lot more! Be a part of the awesome community that you always wanted to be in!`,
+        video: "",
+      },
+      iosStoreSettings: {
+        description: `Get access to all premium content in ${appName}. Access pre-recorded courses, enrol for live workshops, get certified and a lot more! Be a part of the awesome community that you always wanted to be in!`,
+        keywords: "EdTech, Education",
+        marketing_url: "",
+        name: appName,
+        privacy_url: "",
+        promotional_text: `Get access to all premium content by ${appName}!`,
+        subtitle: "",
+        support_url: "https://help.tagmango.com",
+      },
+      iosInfoSettings: {
+        copyright: "©2021 TagMango, Inc.",
+        primary_category: "Education",
+      },
+      iosReviewSettings: {
+        demo_password: "123456",
+        demo_user: "1223334444",
+        email_address: "hasan@tagmango.com",
+        first_name: "Mohammad",
+        last_name: "Hasan",
+        notes:
+          'The App requires OTP to login. Please use the password as OTP to login.\n\nIf the app is expecting email id to login please use below credentials:\nemail:\ntest.review@tagmango.com\npassword(OTP):\n123456\n\nIf on entering the OTP it shows "Login Limit Exceeded" on a modal press on "Continue" button to enter the app.',
+        phone_number: "+919748286867",
+      },
+    } as any);
+
+    const newMetadata = await Mongo.metadata.findOne({
+      _id: result.insertedId,
+    });
+
+    return c.json(
+      {
+        message: "Metadata created successfully",
+        result: newMetadata,
+      },
+      Response.CREATED,
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
 const getAppMetadata = factory.createHandlers(async (c) => {
   try {
     const { appId } = c.req.param();
@@ -833,6 +934,7 @@ const deleteIosScreenshots = factory.createHandlers(
 );
 
 export {
+  createMetadata,
   deleteAndroidScreenshots,
   deleteIosScreenshots,
   getAppMetadata,
