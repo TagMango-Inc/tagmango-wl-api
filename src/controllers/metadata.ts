@@ -381,8 +381,8 @@ const uploadAndroidFeatureGraphic = factory.createHandlers(async (c) => {
     const fileSavePath = `./assets/${appId}/`;
 
     // Creating directory if it does not exist
-    if (!fs.existsSync(fileSavePath)) {
-      fs.mkdirSync(fileSavePath, {
+    if (!fs.existsSync(`${fileSavePath}/android`)) {
+      fs.mkdirSync(`${fileSavePath}/android`, {
         recursive: true,
       });
     }
