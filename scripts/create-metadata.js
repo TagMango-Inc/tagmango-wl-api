@@ -131,8 +131,10 @@ const generateMetadata = async ({
   const androidUSChangeLogsPath = `${androidUSPath}/changelogs`;
   const iosPath = `${fastlanePath}/metadata/ios`;
   const iosStorePath = `${iosPath}/en-GB`;
+  const iosUSStorePath = `${iosPath}/en-US`;
   const iosReviewPath = `${iosPath}/review_information`;
   const iosScreenshotsPath = `${iosPath}/screenshots/en-GB`;
+  const iosUSScreenshotsPath = `${iosPath}/screenshots/en-US`;
 
   const rootAssetPath = `./assets/${hostId}`;
 
@@ -147,8 +149,11 @@ const generateMetadata = async ({
     androidChangeLogsPath,
     androidUSChangeLogsPath,
     iosStorePath,
+    iosUSStorePath,
     iosReviewPath,
     iosPath,
+    iosScreenshotsPath,
+    iosUSScreenshotsPath,
   ];
 
   const releaseDetails = await readFile("./data/release.json");
@@ -202,10 +207,22 @@ const generateMetadata = async ({
       return writeFile(path, iosStoreSettings[file] ?? "");
     }),
   );
+  const iosUSStorePromise = Promise.all(
+    iosStoreFiles.map((file) => {
+      const path = `${iosUSStorePath}/${file}.txt`;
+      return writeFile(path, iosStoreSettings[file] ?? "");
+    }),
+  );
 
   // Writing release notes for iOS
   const releaseNotesPath = `${iosStorePath}/release_notes.txt`;
   const iosReleaseNotesPromise = writeFile(releaseNotesPath, releaseNotes);
+
+  const iosUSReleaseNotesPath = `${iosUSStorePath}/release_notes.txt`;
+  const iosUSReleaseNotesPromise = writeFile(
+    iosUSReleaseNotesPath,
+    releaseNotes,
+  );
 
   // Writing review files for iOS
   const iosReviewPromise = Promise.all(
@@ -271,6 +288,27 @@ const generateMetadata = async ({
     ) || []),
   ]);
 
+  const copyIosUSImages = Promise.all([
+    ...(iosScreenshots["iphone_65"]?.map((screenshot, index) =>
+      fs.copy(
+        `${rootAssetPath}/${screenshot}`,
+        `${iosUSScreenshotsPath}/${index}_APP_IPHONE_65_${index}.jpg`,
+      ),
+    ) || []),
+    ...(iosScreenshots["iphone_55"]?.map((screenshot, index) =>
+      fs.copy(
+        `${rootAssetPath}/${screenshot}`,
+        `${iosUSScreenshotsPath}/${index}_APP_IPHONE_55_${index}.png`,
+      ),
+    ) || []),
+    ...(iosScreenshots["iphone_67"]?.map((screenshot, index) =>
+      fs.copy(
+        `${rootAssetPath}/${screenshot}`,
+        `${iosUSScreenshotsPath}/${index}_APP_IPHONE_67_${index}.png`,
+      ),
+    ) || []),
+  ]);
+
   // Execute all operations without waiting for each other to finish
   return Promise.all([
     androidPromise,
@@ -278,11 +316,14 @@ const generateMetadata = async ({
     androidChangeLogPromise,
     androidUSChangeLogPromise,
     iosStorePromise,
+    iosUSStorePromise,
     iosReleaseNotesPromise,
+    iosUSReleaseNotesPromise,
     iosReviewPromise,
     iosInfoPromise,
     copyAndroidImages,
     copyIosImages,
+    copyIosUSImages,
   ]);
 };
 
