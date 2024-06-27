@@ -358,6 +358,7 @@ const createOrRevokeSubscription = factory.createHandlers(
           {
             $set: {
               status: "active",
+              latestSubscriptionDate: new Date(),
             },
           },
         );
