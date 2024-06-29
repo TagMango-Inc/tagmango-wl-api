@@ -473,6 +473,7 @@ export interface ISubscription {
   createdAt: Date;
   expiredAt: Date;
   orders: any[];
+  latestSubscriptionDate?: Date;
 }
 
 export interface IUser {
