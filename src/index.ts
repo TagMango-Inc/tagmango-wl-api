@@ -1,24 +1,25 @@
-import 'dotenv/config';
+import "dotenv/config";
 
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
-import { prettyJSON } from 'hono/pretty-json';
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { logger } from "hono/logger";
+import { prettyJSON } from "hono/pretty-json";
 
-import { serve } from '@hono/node-server';
-import { serveStatic } from '@hono/node-server/serve-static';
+import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
 
-import Mongo from './database';
-import authenticationMiddleware from './middleware/authentication';
-import authenticationRouter from './routers/authenticationRouter';
-import customHostRouter from './routers/customHostRouter';
-import developerAccountsRouter from './routers/developerAccountsRouter';
-import iapRouter from './routers/iapRouter';
-import metadataRouter from './routers/metadataRouter';
-import outputRouter from './routers/outputRouter';
-import releaseRouter from './routers/releaseRouter';
-import sseRouter from './routers/sse';
-import userManagementRouter from './routers/userManagementRouter';
+import Mongo from "./database";
+import authenticationMiddleware from "./middleware/authentication";
+import appFormsRouter from "./routers/appFormsRouter";
+import authenticationRouter from "./routers/authenticationRouter";
+import customHostRouter from "./routers/customHostRouter";
+import developerAccountsRouter from "./routers/developerAccountsRouter";
+import iapRouter from "./routers/iapRouter";
+import metadataRouter from "./routers/metadataRouter";
+import outputRouter from "./routers/outputRouter";
+import releaseRouter from "./routers/releaseRouter";
+import sseRouter from "./routers/sse";
+import userManagementRouter from "./routers/userManagementRouter";
 
 const app = new Hono().basePath("/wl");
 
@@ -33,6 +34,7 @@ Mongo.connect().then(() => {
   app.use("/output/*", authenticationMiddleware);
   app.use("/release/*", authenticationMiddleware);
   app.use("/developer-accounts/*", authenticationMiddleware);
+  app.use("/forms", authenticationMiddleware);
 
   app.get("/", async (c) => {
     return c.json({
@@ -74,6 +76,7 @@ Mongo.connect().then(() => {
   app.route("/release", releaseRouter);
   app.route("/sse", sseRouter);
   app.route("/developer-accounts", developerAccountsRouter);
+  app.route("/forms", appFormsRouter);
 
   app.use(prettyJSON());
 

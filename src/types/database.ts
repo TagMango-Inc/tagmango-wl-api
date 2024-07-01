@@ -539,3 +539,40 @@ export interface IDeveloperAccountAndroid {
 
   createdAt: Date;
 }
+
+export enum AppFormStatus {
+  NOT_SENT = "not-sent",
+  PENDING = "pending",
+  IN_REVIEW = "in-review",
+  APPROVED = "approved",
+  REJECTED = "rejected",
+  DEPLOYED = "deployed",
+}
+
+export interface IAppForm {
+  host: ObjectId;
+
+  backgroundType: "color" | "gradient";
+  backgroundStartColor: string;
+  backgroundEndColor: string;
+  backgroundGradientAngle: number;
+  logoPadding: number;
+
+  androidStoreSettings: IAndroidStoreSettings;
+  androidFeatureGraphic: string;
+
+  iosStoreSettings: IIosStoreSettings;
+  iosInfoSettings: IIosInfoSettings;
+
+  status: AppFormStatus;
+
+  createdAt: Date;
+  updatedAt: Date;
+
+  rejectionDetails?: {
+    date: Date;
+    reviewer: ObjectId;
+    message: string;
+    errors: Record<string, string>;
+  };
+}
