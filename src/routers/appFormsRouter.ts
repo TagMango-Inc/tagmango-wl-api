@@ -1,18 +1,46 @@
 import { Hono } from "hono";
 
+import {
+  approveFormHandler,
+  createFormRequestHandler,
+  deleteFormByIdHandler,
+  getAllFormsHandler,
+  getFormByHostIdHandler,
+  getFormByIdHandler,
+  markFormDeployedHandler,
+  rejectFormHandler,
+  submitFormHandler,
+  updateInfoIosSettings,
+  updateStoreAndroidSettings,
+  updateStoreIosSettings,
+  uploadAndroidFeatureGraphic,
+  uploadFormLogo,
+} from "../controllers/appForms";
+
 const router = new Hono();
 
 router.get("/", ...getAllFormsHandler);
+router.get("/:formId", ...getFormByIdHandler);
 
-router.get("/:hostId", ...getFormByHostIdHandler);
-router.post("/:hostId/request", ...createFormRequestHandler);
+router.get("/host/:hostId", ...getFormByHostIdHandler);
+router.post("/host/:hostId/request", ...createFormRequestHandler);
+router.patch("/host/:hostId/mark-deployed", ...markFormDeployedHandler);
 
-router.patch("/:formId", ...patchFormByIdHandler);
+// router.patch("/:formId", ...patchFormByIdHandler);
+router.patch("/:formId/logo/upload", ...uploadFormLogo);
+router.patch("/:formId/android/store", ...updateStoreAndroidSettings);
+router.patch(
+  "/:formId/android/feature-graphic",
+  ...uploadAndroidFeatureGraphic,
+);
+router.patch("/:formId/ios/store", ...updateStoreIosSettings);
+router.patch("/:formId/ios/info", ...updateInfoIosSettings);
+
+router.patch("/:formId/submit", ...submitFormHandler);
+
 router.delete("/:formId", ...deleteFormByIdHandler);
 
 router.patch("/:formId/approve", ...approveFormHandler);
 router.patch("/:formId/reject", ...rejectFormHandler);
-
-router.patch("/:formId/mark-deployed", ...markFormDeployedHandler);
 
 export default router;

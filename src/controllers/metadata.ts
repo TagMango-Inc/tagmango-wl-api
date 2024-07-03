@@ -22,18 +22,11 @@ import {
   updateMetadataLogoSchema,
 } from "../../src/validations/metadata";
 import { IIosScreenshots } from "../types/database";
+import { base64ToImage } from "../utils/image";
 
 const factory = createFactory();
 
 const writeFile = fs.promises.writeFile;
-
-async function base64ToImage(base64Str: string, path: string) {
-  // Remove header
-  const base64Data = base64Str.replace(/^data:image\/png;base64,/, "");
-
-  // Write file
-  await writeFile(path, base64Data, "base64");
-}
 
 async function processScreenshot(
   screenshot: File,
@@ -117,7 +110,7 @@ const createMetadata = factory.createHandlers(async (c) => {
       },
       iosInfoSettings: {
         copyright: "©2021 TagMango, Inc.",
-        primary_category: "Education",
+        primary_category: "EDUCATION",
       },
       iosReviewSettings: {
         demo_password: "123456",
