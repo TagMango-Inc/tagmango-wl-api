@@ -7,6 +7,7 @@ import {
   getAllFormsHandler,
   getFormByHostIdHandler,
   getFormByIdHandler,
+  getFormOverviewByHostIdHandler,
   markFormDeployedHandler,
   rejectFormHandler,
   submitFormHandler,
@@ -15,6 +16,7 @@ import {
   updateStoreIosSettings,
   uploadAndroidFeatureGraphic,
   uploadFormLogo,
+  generateFormValuesAIHandler
 } from "../controllers/appForms";
 
 const router = new Hono();
@@ -22,9 +24,12 @@ const router = new Hono();
 router.get("/", ...getAllFormsHandler);
 router.get("/:formId", ...getFormByIdHandler);
 
+router.get("/host/:hostId/overview", ...getFormOverviewByHostIdHandler);
 router.get("/host/:hostId", ...getFormByHostIdHandler);
 router.post("/host/:hostId/request", ...createFormRequestHandler);
 router.patch("/host/:hostId/mark-deployed", ...markFormDeployedHandler);
+
+router.post("/:formId/generate", ...generateFormValuesAIHandler);
 
 // router.patch("/:formId", ...patchFormByIdHandler);
 router.patch("/:formId/logo/upload", ...uploadFormLogo);

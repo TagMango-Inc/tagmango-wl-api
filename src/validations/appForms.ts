@@ -5,4 +5,11 @@ const rejectFormByIdSchema = z.object({
   errors: z.record(z.string()),
 });
 
-export { rejectFormByIdSchema };
+const generateFormValuesAISchema = z.object({
+  audience: z.string(),
+  purpose: z.string(),
+  category: z.string(),
+  name: z.string(),
+});
+
+export { generateFormValuesAISchema, rejectFormByIdSchema };

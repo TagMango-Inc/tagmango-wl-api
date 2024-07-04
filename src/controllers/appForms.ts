@@ -11,13 +11,17 @@ import { JWTPayloadType } from "../types";
 import { AppFormStatus, IAppForm } from "../types/database";
 import { base64ToImage } from "../utils/image";
 import { Response } from "../utils/statuscode";
-import { rejectFormByIdSchema } from "../validations/appForms";
+import {
+  generateFormValuesAISchema,
+  rejectFormByIdSchema,
+} from "../validations/appForms";
 import {
   updateAndroidStoreMetadataSchema,
   updateIosInfoMetadataSchema,
   updateIosStoreMetadataSchema,
   updateMetadataLogoSchema,
 } from "../validations/metadata";
+import { generateAppFormDescriptions } from "./openai";
 
 const factory = createFactory();
 
@@ -222,6 +226,75 @@ const getFormByIdHandler = factory.createHandlers(async (c) => {
             brandname: customHost.brandname,
             logo: customHost.logo,
             createdAt: customHost.createdAt,
+          },
+        },
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
+/**
+ * GET wl/forms/host/:hostId/overview
+ * Get the form overview data by customhostId
+ * Protected Route
+ * @param hostId: string
+ */
+const getFormOverviewByHostIdHandler = factory.createHandlers(async (c) => {
+  try {
+    const { hostId } = c.req.param();
+
+    const customHost = await Mongo.customhost.findOne({
+      _id: new ObjectId(hostId),
+    });
+
+    if (!customHost) {
+      return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
+    }
+
+    const appForm = await Mongo.app_forms.findOne({
+      host: new ObjectId(hostId),
+    });
+    if (!appForm) {
+      return c.json({ message: "Form not found" }, Response.NOT_FOUND);
+    }
+
+    let reviewer = null;
+    if (appForm.rejectionDetails && appForm.rejectionDetails.reviewer) {
+      reviewer = await Mongo.user.findOne({
+        _id: new ObjectId(appForm.rejectionDetails.reviewer),
+      });
+
+      if (!reviewer) {
+        return c.json({ message: "Reviewer not found" }, Response.NOT_FOUND);
+      }
+    }
+
+    return c.json(
+      {
+        message: "Form Overview",
+        result: {
+          form: {
+            _id: appForm._id,
+            status: appForm.status,
+            isFormSubmitted: appForm.isFormSubmitted ?? false,
+            rejectionDetails:
+              appForm.rejectionDetails && reviewer
+                ? {
+                    ...appForm.rejectionDetails,
+                    reviewer: {
+                      _id: reviewer._id,
+                      name: reviewer.name,
+                      email: reviewer.email,
+                    },
+                  }
+                : appForm.rejectionDetails,
+            updatedAt: appForm.updatedAt,
           },
         },
       },
@@ -999,13 +1072,75 @@ const deleteFormByIdHandler = factory.createHandlers(
   },
 );
 
+/**
+ * POST wl/forms/:formId/generate
+ * Generate the form values using AI by formId
+ */
+const generateFormValuesAIHandler = factory.createHandlers(
+  zValidator("json", generateFormValuesAISchema),
+  async (c) => {
+    try {
+      const { formId } = c.req.param();
+      const body = c.req.valid("json");
+
+      const form = await Mongo.app_forms.findOne({
+        _id: new ObjectId(formId),
+      });
+
+      if (!form) {
+        return c.json({ message: "Form not found" }, Response.NOT_FOUND);
+      }
+
+      if (
+        [AppFormStatus.APPROVED, AppFormStatus.DEPLOYED].includes(form.status)
+      ) {
+        return c.json(
+          {
+            message:
+              "Cannot generate form values for approved or deployed form",
+          },
+          Response.BAD_REQUEST,
+        );
+      }
+
+      // AI logic here
+      const results = await generateAppFormDescriptions({
+        name: body.name,
+        category: body.category,
+        audience: body.audience,
+        purpose: body.purpose,
+      });
+
+      return c.json(
+        {
+          message: "Form values generated successfully",
+          result: results.reduce((acc, curr) => {
+            return {
+              ...acc,
+              [curr.type]: curr.text,
+            };
+          }, {}),
+        },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
 export {
   approveFormHandler,
   createFormRequestHandler,
   deleteFormByIdHandler,
+  generateFormValuesAIHandler,
   getAllFormsHandler,
   getFormByHostIdHandler,
   getFormByIdHandler,
+  getFormOverviewByHostIdHandler,
   markFormDeployedHandler,
   rejectFormHandler,
   submitFormHandler,
