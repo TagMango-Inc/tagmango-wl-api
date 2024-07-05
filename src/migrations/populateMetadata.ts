@@ -29,7 +29,7 @@ export const populateMetadata = async () => {
       },
       iosInfoSettings: {
         copyright: "©2021 TagMango, Inc.",
-        primary_category: "Education",
+        primary_category: "EDUCATION",
       },
       iosReviewSettings: {
         demo_password: "123456",

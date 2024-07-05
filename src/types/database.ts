@@ -12,6 +12,7 @@ export const Collections = {
   USER: "users",
   MANGO_ROOM: "rooms",
   DEVELOPER_ACCOUNT_ANDROID: "androiddeveloperaccounts",
+  APP_FORM: "appforms",
 } as const;
 
 export const Platform = {
@@ -543,6 +544,7 @@ export interface IDeveloperAccountAndroid {
 export enum AppFormStatus {
   NOT_SENT = "not-sent",
   PENDING = "pending",
+  IN_PROGRESS = "in-progress",
   IN_REVIEW = "in-review",
   APPROVED = "approved",
   REJECTED = "rejected",
@@ -551,6 +553,8 @@ export enum AppFormStatus {
 
 export interface IAppForm {
   host: ObjectId;
+
+  logo: string;
 
   backgroundType: "color" | "gradient";
   backgroundStartColor: string;
@@ -569,10 +573,12 @@ export interface IAppForm {
   createdAt: Date;
   updatedAt: Date;
 
+  isFormSubmitted?: boolean;
+
   rejectionDetails?: {
     date: Date;
     reviewer: ObjectId;
-    message: string;
+    reason: string;
     errors: Record<string, string>;
   };
 }

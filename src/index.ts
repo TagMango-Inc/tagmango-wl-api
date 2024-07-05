@@ -34,7 +34,7 @@ Mongo.connect().then(() => {
   app.use("/output/*", authenticationMiddleware);
   app.use("/release/*", authenticationMiddleware);
   app.use("/developer-accounts/*", authenticationMiddleware);
-  app.use("/forms", authenticationMiddleware);
+  // app.use("/forms", authenticationMiddleware);
 
   app.get("/", async (c) => {
     return c.json({
