@@ -1,12 +1,12 @@
-import fs from "fs-extra";
-import { createFactory } from "hono/factory";
-import { ObjectId } from "mongodb";
-import path from "path";
+import fs from 'fs-extra';
+import { createFactory } from 'hono/factory';
+import { ObjectId } from 'mongodb';
+import path from 'path';
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from '@hono/zod-validator';
 
-import Mongo from "../../src/database";
-import { Response } from "../../src/utils/statuscode";
+import Mongo from '../../src/database';
+import { Response } from '../../src/utils/statuscode';
 import {
   deleteAndroidScreenshotsSchema,
   deleteIosScreenshotsSchema,
@@ -20,9 +20,9 @@ import {
   updateIosReviewMetadataSchema,
   updateIosStoreMetadataSchema,
   updateMetadataLogoSchema,
-} from "../../src/validations/metadata";
-import { IIosScreenshots } from "../types/database";
-import { base64ToImage } from "../utils/image";
+} from '../../src/validations/metadata';
+import { IIosScreenshots } from '../types/database';
+import { base64ToImage } from '../utils/image';
 
 const factory = createFactory();
 
@@ -207,11 +207,14 @@ const uploadMetadataLogo = factory.createHandlers(
         {
           $set: {
             logo: `logo.png`,
-            backgroundType: body.backgroundType,
-            backgroundStartColor: body.backgroundStartColor,
-            backgroundEndColor: body.backgroundEndColor,
-            backgroundGradientAngle: body.backgroundGradientAngle,
-            logoPadding: body.logoPadding,
+            backgroundType: body.backgroundType || metadata.backgroundType,
+            backgroundStartColor:
+              body.backgroundStartColor || metadata.backgroundStartColor,
+            backgroundEndColor:
+              body.backgroundEndColor || metadata.backgroundEndColor,
+            backgroundGradientAngle:
+              body.backgroundGradientAngle || metadata.backgroundGradientAngle,
+            logoPadding: body.logoPadding || metadata.logoPadding,
           },
         },
       );

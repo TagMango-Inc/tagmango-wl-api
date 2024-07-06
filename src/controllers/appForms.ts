@@ -1,27 +1,30 @@
-import fs from "fs-extra";
-import { createFactory } from "hono/factory";
-import { ObjectId } from "mongodb";
-import path from "path";
+import fs from 'fs-extra';
+import { createFactory } from 'hono/factory';
+import { ObjectId } from 'mongodb';
+import path from 'path';
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from '@hono/zod-validator';
 
-import Mongo from "../database";
-import authenticationMiddleware from "../middleware/authentication";
-import { JWTPayloadType } from "../types";
-import { AppFormStatus, IAppForm } from "../types/database";
-import { base64ToImage } from "../utils/image";
-import { Response } from "../utils/statuscode";
+import Mongo from '../database';
+import authenticationMiddleware from '../middleware/authentication';
+import { JWTPayloadType } from '../types';
+import {
+  AppFormStatus,
+  IAppForm,
+} from '../types/database';
+import { base64ToImage } from '../utils/image';
+import { Response } from '../utils/statuscode';
 import {
   generateFormValuesAISchema,
   rejectFormByIdSchema,
-} from "../validations/appForms";
+} from '../validations/appForms';
 import {
   updateAndroidStoreMetadataSchema,
   updateIosInfoMetadataSchema,
   updateIosStoreMetadataSchema,
   updateMetadataLogoSchema,
-} from "../validations/metadata";
-import { generateAppFormDescriptions } from "./openai";
+} from '../validations/metadata';
+import { generateAppFormDescriptions } from './openai';
 
 const factory = createFactory();
 
@@ -519,10 +522,16 @@ const uploadFormLogo = factory.createHandlers(
       }
 
       if (
-        [AppFormStatus.APPROVED, AppFormStatus.DEPLOYED].includes(form.status)
+        ![
+          AppFormStatus.PENDING,
+          AppFormStatus.IN_PROGRESS,
+          AppFormStatus.REJECTED,
+        ].includes(form.status)
       ) {
         return c.json(
-          { message: "Cannot update logo for approved or deployed form" },
+          {
+            message: "Cannot update info settings for this form",
+          },
           Response.BAD_REQUEST,
         );
       }
@@ -556,11 +565,14 @@ const uploadFormLogo = factory.createHandlers(
         {
           $set: {
             logo: `logo.png`,
-            backgroundType: body.backgroundType,
-            backgroundStartColor: body.backgroundStartColor,
-            backgroundEndColor: body.backgroundEndColor,
-            backgroundGradientAngle: body.backgroundGradientAngle,
-            logoPadding: body.logoPadding,
+            backgroundType: body.backgroundType || form.backgroundType,
+            backgroundStartColor:
+              body.backgroundStartColor || form.backgroundStartColor,
+            backgroundEndColor:
+              body.backgroundEndColor || form.backgroundEndColor,
+            backgroundGradientAngle:
+              body.backgroundGradientAngle || form.backgroundGradientAngle,
+            logoPadding: body.logoPadding || form.logoPadding,
             status: AppFormStatus.IN_PROGRESS,
             updatedAt: new Date(),
           },
@@ -603,12 +615,15 @@ const updateStoreAndroidSettings = factory.createHandlers(
       }
 
       if (
-        [AppFormStatus.APPROVED, AppFormStatus.DEPLOYED].includes(form.status)
+        ![
+          AppFormStatus.PENDING,
+          AppFormStatus.IN_PROGRESS,
+          AppFormStatus.REJECTED,
+        ].includes(form.status)
       ) {
         return c.json(
           {
-            message:
-              "Cannot update store settings for approved or deployed form",
+            message: "Cannot update info settings for this form",
           },
           Response.BAD_REQUEST,
         );
@@ -661,12 +676,15 @@ const uploadAndroidFeatureGraphic = factory.createHandlers(async (c) => {
     }
 
     if (
-      [AppFormStatus.APPROVED, AppFormStatus.DEPLOYED].includes(form.status)
+      ![
+        AppFormStatus.PENDING,
+        AppFormStatus.IN_PROGRESS,
+        AppFormStatus.REJECTED,
+      ].includes(form.status)
     ) {
       return c.json(
         {
-          message:
-            "Cannot update feature graphic for approved or deployed form",
+          message: "Cannot update info settings for this form",
         },
         Response.BAD_REQUEST,
       );
@@ -703,6 +721,9 @@ const uploadAndroidFeatureGraphic = factory.createHandlers(async (c) => {
     return c.json(
       {
         message: "Feature Graphic updated successfully",
+        result: {
+          featureGraphic: name,
+        },
       },
       Response.OK,
     );
@@ -735,12 +756,15 @@ const updateStoreIosSettings = factory.createHandlers(
       }
 
       if (
-        [AppFormStatus.APPROVED, AppFormStatus.DEPLOYED].includes(form.status)
+        ![
+          AppFormStatus.PENDING,
+          AppFormStatus.IN_PROGRESS,
+          AppFormStatus.REJECTED,
+        ].includes(form.status)
       ) {
         return c.json(
           {
-            message:
-              "Cannot update store settings for approved or deployed form",
+            message: "Cannot update info settings for this form",
           },
           Response.BAD_REQUEST,
         );
@@ -793,12 +817,15 @@ const updateInfoIosSettings = factory.createHandlers(
       }
 
       if (
-        [AppFormStatus.APPROVED, AppFormStatus.DEPLOYED].includes(form.status)
+        ![
+          AppFormStatus.PENDING,
+          AppFormStatus.IN_PROGRESS,
+          AppFormStatus.REJECTED,
+        ].includes(form.status)
       ) {
         return c.json(
           {
-            message:
-              "Cannot update info settings for approved or deployed form",
+            message: "Cannot update info settings for this form",
           },
           Response.BAD_REQUEST,
         );
@@ -847,11 +874,9 @@ const submitFormHandler = factory.createHandlers(async (c) => {
       return c.json({ message: "Form not found" }, Response.NOT_FOUND);
     }
 
-    if (
-      [AppFormStatus.APPROVED, AppFormStatus.DEPLOYED].includes(form.status)
-    ) {
+    if (form.status !== AppFormStatus.IN_PROGRESS) {
       return c.json(
-        { message: "Cannot submit approved or deployed form" },
+        { message: "Cannot submit this form!" },
         Response.BAD_REQUEST,
       );
     }
