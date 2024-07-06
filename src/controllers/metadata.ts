@@ -21,7 +21,10 @@ import {
   updateIosStoreMetadataSchema,
   updateMetadataLogoSchema,
 } from '../../src/validations/metadata';
-import { IIosScreenshots } from '../types/database';
+import {
+  AppFormStatus,
+  IIosScreenshots,
+} from '../types/database';
 import { base64ToImage } from '../utils/image';
 
 const factory = createFactory();
@@ -122,6 +125,8 @@ const createMetadata = factory.createHandlers(async (c) => {
           'The App requires OTP to login. Please use the password as OTP to login.\n\nIf the app is expecting email id to login please use below credentials:\nemail:\ntest.review@tagmango.com\npassword(OTP):\n123456\n\nIf on entering the OTP it shows "Login Limit Exceeded" on a modal press on "Continue" button to enter the app.',
         phone_number: "+919748286867",
       },
+
+      isFormImported: false,
     } as any);
 
     const newMetadata = await Mongo.metadata.findOne({
@@ -151,8 +156,23 @@ const getAppMetadata = factory.createHandlers(async (c) => {
       host: new ObjectId(appId),
     });
 
+    const form = await Mongo.app_forms.findOne({
+      host: new ObjectId(appId),
+    });
+
     return c.json(
-      { message: "Metadata fetched successfully", result: metadata },
+      {
+        message: "Metadata fetched successfully",
+        result: {
+          ...metadata,
+          isFormAvailableForImport: Boolean(
+            form?.status === AppFormStatus.APPROVED &&
+              form?.isFormSubmitted &&
+              !metadata?.isFormImported,
+          ),
+          isMetadataCreated: Boolean(metadata),
+        },
+      },
       Response.OK,
     );
   } catch (error) {
@@ -371,7 +391,7 @@ const uploadAndroidFeatureGraphic = factory.createHandlers(async (c) => {
     });
 
     if (!metadata) {
-      return c.json({ message: "Metadata not found" }, 404);
+      return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
     }
 
     const fileSavePath = `./assets/${appId}/`;
@@ -425,7 +445,7 @@ const uploadAndroidScreenshots = factory.createHandlers(async (c) => {
     });
 
     if (!metadata) {
-      return c.json({ message: "Metadata not found" }, 404);
+      return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
     }
 
     const paths: string[] = [];
@@ -782,7 +802,7 @@ const uploadIosScreenshots = factory.createHandlers(async (c) => {
     });
 
     if (!metadata) {
-      return c.json({ message: "Metadata not found" }, 404);
+      return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
     }
 
     const paths: string[] = [];
@@ -929,11 +949,110 @@ const deleteIosScreenshots = factory.createHandlers(
   },
 );
 
+const importMetadataFromAppForm = factory.createHandlers(async (c) => {
+  try {
+    const { appId } = c.req.param();
+
+    const metadata = await Mongo.metadata.findOne({
+      host: new ObjectId(appId),
+    });
+
+    if (!metadata) {
+      return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+    }
+
+    const form = await Mongo.app_forms.findOne({
+      host: new ObjectId(appId),
+    });
+
+    if (!form) {
+      return c.json({ message: "Form not found" }, Response.NOT_FOUND);
+    }
+
+    if (form.status !== AppFormStatus.APPROVED || !form.isFormSubmitted) {
+      return c.json(
+        { message: "Form is not approved or not submitted" },
+        Response.BAD_REQUEST,
+      );
+    }
+
+    if (metadata.isFormImported) {
+      return c.json(
+        { message: "Metadata already imported" },
+        Response.BAD_REQUEST,
+      );
+    }
+
+    const currentLogoPath = `./forms/${appId}`;
+    const newLogoPath = `./assets/${appId}`;
+
+    // copy currentLogoPath/logo.png, icon.png, background.png, foreground.png to newLogoPath
+    // copy currentLogoPath/android/featureGraphic.png to newLogoPath/android/featureGraphic.png
+    // overwrite if exists
+
+    const files = [
+      "logo.png",
+      "icon.png",
+      "background.png",
+      "foreground.png",
+      "android/featureGraphic.png",
+    ];
+
+    files.forEach(async (file) => {
+      // create directory if not exists
+      if (!fs.existsSync(newLogoPath)) {
+        fs.mkdirSync(newLogoPath, {
+          recursive: true,
+        });
+      }
+
+      if (fs.existsSync(`${currentLogoPath}/${file}`)) {
+        fs.copyFileSync(`${currentLogoPath}/${file}`, `${newLogoPath}/${file}`);
+      }
+    });
+
+    const newMetadata = await Mongo.metadata.updateOne(
+      { host: new ObjectId(appId) },
+      {
+        $set: {
+          logo: form.logo,
+          backgroundType: form.backgroundType,
+          backgroundStartColor: form.backgroundStartColor,
+          backgroundEndColor: form.backgroundEndColor,
+          backgroundGradientAngle: form.backgroundGradientAngle,
+          logoPadding: form.logoPadding,
+          androidStoreSettings: form.androidStoreSettings,
+          iosStoreSettings: form.iosStoreSettings,
+          iosInfoSettings: form.iosInfoSettings,
+          androidFeatureGraphic:
+            form.androidFeatureGraphic ?? metadata.androidFeatureGraphic,
+
+          isFormImported: true,
+        },
+      },
+    );
+
+    return c.json(
+      {
+        message: "Metadata imported successfully",
+        result: newMetadata,
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
 export {
   createMetadata,
   deleteAndroidScreenshots,
   deleteIosScreenshots,
   getAppMetadata,
+  importMetadataFromAppForm,
   reorderAndroidScreenshots,
   reorderIosScreenshots,
   updateAndroidDeveloperAccountForApp,

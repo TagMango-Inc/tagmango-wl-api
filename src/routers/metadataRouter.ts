@@ -1,10 +1,11 @@
-import { Hono } from "hono";
+import { Hono } from 'hono';
 
 import {
   createMetadata,
   deleteAndroidScreenshots,
   deleteIosScreenshots,
   getAppMetadata,
+  importMetadataFromAppForm,
   reorderAndroidScreenshots,
   reorderIosScreenshots,
   updateAndroidDeveloperAccountForApp,
@@ -18,7 +19,7 @@ import {
   uploadAndroidScreenshots,
   uploadIosScreenshots,
   uploadMetadataLogo,
-} from "../../src/controllers/metadata";
+} from '../../src/controllers/metadata';
 
 const router = new Hono();
 
@@ -70,5 +71,7 @@ router.patch(
   "/:appId/settings/ios/screenshots/delete",
   ...deleteIosScreenshots,
 );
+
+router.patch("/:appId/settings/import", ...importMetadataFromAppForm);
 
 export default router;

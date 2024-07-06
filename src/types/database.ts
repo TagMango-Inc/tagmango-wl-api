@@ -1,4 +1,4 @@
-import { ObjectId } from "mongodb";
+import { ObjectId } from 'mongodb';
 
 export const Collections = {
   ADMIN_USER: "adminusers",
@@ -169,6 +169,8 @@ export interface IMetaData {
   iosScreenshots: IIosScreenshots;
 
   androidDeveloperAccount?: ObjectId;
+
+  isFormImported?: boolean;
 }
 
 export interface ICustomHost {
