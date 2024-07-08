@@ -983,8 +983,21 @@ const importMetadataFromAppForm = factory.createHandlers(async (c) => {
       );
     }
 
-    const currentLogoPath = `./forms/${appId}`;
+    const currentLogoPath = `./forms/${form._id}`;
     const newLogoPath = `./assets/${appId}`;
+
+    // create directory if not exists
+    if (!fs.existsSync(newLogoPath)) {
+      fs.mkdirSync(newLogoPath, {
+        recursive: true,
+      });
+    }
+
+    if (!fs.existsSync(`${newLogoPath}/android`)) {
+      fs.mkdirSync(`${newLogoPath}/android`, {
+        recursive: true,
+      });
+    }
 
     // copy currentLogoPath/logo.png, icon.png, background.png, foreground.png to newLogoPath
     // copy currentLogoPath/android/featureGraphic.png to newLogoPath/android/featureGraphic.png
@@ -999,13 +1012,6 @@ const importMetadataFromAppForm = factory.createHandlers(async (c) => {
     ];
 
     files.forEach(async (file) => {
-      // create directory if not exists
-      if (!fs.existsSync(newLogoPath)) {
-        fs.mkdirSync(newLogoPath, {
-          recursive: true,
-        });
-      }
-
       if (fs.existsSync(`${currentLogoPath}/${file}`)) {
         fs.copyFileSync(`${currentLogoPath}/${file}`, `${newLogoPath}/${file}`);
       }
