@@ -4,6 +4,8 @@ import {
   approveFormHandler,
   createFormRequestHandler,
   deleteFormByIdHandler,
+  fetchPreRequisitesForApp,
+  generateFormValuesAIHandler,
   getAllFormsHandler,
   getFormByHostIdHandler,
   getFormByIdHandler,
@@ -16,7 +18,6 @@ import {
   updateStoreIosSettings,
   uploadAndroidFeatureGraphic,
   uploadFormLogo,
-  generateFormValuesAIHandler
 } from "../controllers/appForms";
 
 const router = new Hono();
@@ -47,5 +48,7 @@ router.delete("/:formId", ...deleteFormByIdHandler);
 
 router.patch("/:formId/approve", ...approveFormHandler);
 router.patch("/:formId/reject", ...rejectFormHandler);
+
+router.get("/host/:hostId/pre-requisites", ...fetchPreRequisitesForApp);
 
 export default router;

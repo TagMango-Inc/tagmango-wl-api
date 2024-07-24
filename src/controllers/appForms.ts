@@ -1157,10 +1157,127 @@ const generateFormValuesAIHandler = factory.createHandlers(
   },
 );
 
+const fetchPreRequisitesForApp = factory.createHandlers(async (c) => {
+  try {
+    const { hostId } = c.req.param();
+    if (!hostId)
+      return c.json(
+        { message: "Host is required" },
+        {
+          status: 400,
+          statusText: "Bad Request",
+        },
+      );
+
+    const customHost = await Mongo.customhost.findOne({
+      _id: new ObjectId(hostId),
+    });
+
+    if (!customHost)
+      return c.json(
+        { message: "Host not found" },
+        {
+          status: 404,
+          statusText: "Not Found",
+        },
+      );
+
+    const creatorId = customHost.creator;
+
+    const [mangoes, allPosts, allCourses, allMangoRooms] = await Promise.all([
+      Mongo.mango
+        .find(
+          {
+            creator: new ObjectId(creatorId),
+            isHidden: { $ne: true },
+            isStopTakingPayment: { $ne: true },
+            $or: [{ end: { $gte: new Date() } }, { end: undefined }],
+            isPublic: { $ne: true },
+            isDeleted: { $ne: true },
+          },
+          {
+            sort: { createdAt: -1 },
+            projection: {
+              title: 1,
+              description: 1,
+              price: 1,
+              inrAmount: 1,
+              usdAmount: 1,
+              eurAmount: 1,
+              recurringType: 1,
+              currency: 1,
+              iapProductId: 1,
+              createdAt: 1,
+              iapDescription: 1,
+              iapPrice: 1,
+            },
+          },
+        )
+        .toArray(),
+      Mongo.post
+        .find(
+          { creator: new ObjectId(creatorId) },
+          { projection: { mangoArr: 1 } },
+        )
+        .toArray(),
+      Mongo.course
+        .find(
+          { creator: new ObjectId(creatorId), isPublished: true },
+          { projection: { mangoArr: 1 } },
+        )
+        .toArray(),
+      Mongo.mango_rooms
+        .find(
+          { creator: new ObjectId(creatorId) },
+          { projection: { mango: 1 } },
+        )
+        .toArray(),
+    ]);
+
+    return c.json(
+      {
+        message: "Pre-requisites for app fetched successfully",
+        result: [
+          {
+            title: "Create a service",
+            isCompleted: mangoes.length > 0,
+          },
+          {
+            title: "Create a post in a service",
+            isCompleted: allPosts.length > 0,
+          },
+          {
+            title: "Create a course in a service",
+            isCompleted: allCourses.length > 0,
+          },
+          {
+            title: "Create a room in a service",
+            isCompleted: allMangoRooms.length > 0,
+          },
+        ],
+      },
+      {
+        status: 200,
+        statusText: "OK",
+      },
+    );
+  } catch (err) {
+    console.log(err);
+    return c.json(
+      { message: "Internal Server Error" },
+      {
+        status: 500,
+        statusText: "Internal Server Error",
+      },
+    );
+  }
+});
+
 export {
   approveFormHandler,
   createFormRequestHandler,
   deleteFormByIdHandler,
+  fetchPreRequisitesForApp,
   generateFormValuesAIHandler,
   getAllFormsHandler,
   getFormByHostIdHandler,
