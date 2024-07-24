@@ -1241,18 +1241,22 @@ const fetchPreRequisitesForApp = factory.createHandlers(async (c) => {
           {
             title: "Create a service",
             isCompleted: mangoes.length > 0,
+            url: "/dashboard/mango-overview?newMangoform=true",
           },
           {
             title: "Create a post in a service",
             isCompleted: allPosts.length > 0,
+            url: "/activity",
           },
           {
             title: "Create a course in a service",
             isCompleted: allCourses.length > 0,
+            url: "/courses",
           },
           {
             title: "Create a room in a service",
             isCompleted: allMangoRooms.length > 0,
+            url: "/messages",
           },
         ],
       },
