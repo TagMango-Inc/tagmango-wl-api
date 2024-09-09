@@ -155,13 +155,17 @@ const { readFile, writeFile } = fs.promises;
             // step: 1: Fetching lastest changes to root TagMango project ( for testing fetching lastest changes from test-build-m1)
             [taskNames[0].id]: [
               `cd root/${githubrepo}`,
-              `git checkout origin/v/${releaseDetails.versionName}`,
-              `git pull origin v/${releaseDetails.versionName}`,
+              `git checkout main`,
+              `git reset --hard origin/main`,
+              `git fetch --all`,
             ],
             // step: 2: Copying the lastest root project to deployment/{bundleId} folder
             [taskNames[1].id]: [
               `mkdir -p ${customhostDeploymentDir}/${bundle}`,
               `cp -r root/${githubrepo} ${customhostDeploymentDir}/${bundle}`,
+              `cd ${customHostDir}`,
+              `git checkout -b v/${releaseDetails.versionName} --track origin/v/${releaseDetails.versionName}`,
+              `git pull origin v/${releaseDetails.versionName}`,
             ],
             // step: 3: Copying the WL assets from WLApps/{formatedName} to deployment/{bundleId}/WLApps/{formatedName}
             [taskNames[2].id]: [
@@ -249,12 +253,15 @@ const { readFile, writeFile } = fs.promises;
                     `cp -r android/app/build/outputs/bundle/release/app-release.aab ../../../outputs/android/${hostId}.aab`,
                     `node ../../../scripts/android-aab.js ${JSON.stringify({ hostId, versionName, buildNumber })}`,
                   ]
-                : [`cd ${customHostDir}`, `fastlane ${platform} build`],
+                : [
+                    `cd ${customHostDir}`,
+                    `bundle exec fastlane ${platform} build`,
+                  ],
             // step 12: Running the fastlane upload for specific targer platform
             // TODO
             [taskNames[6].id]: [
               `cd ${customHostDir}`,
-              `fastlane ${platform} upload`,
+              `bundle exec fastlane ${platform} upload`,
             ],
             // [taskNames[5].id]: [`cd ${customHostDir}`],
             // step 13: Removing the deployment/{bundleId} folder after successful deployment
