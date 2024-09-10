@@ -1,16 +1,31 @@
-import "dotenv/config";
+import 'dotenv/config';
 
-import { Job, Worker } from "bullmq";
-import { exec } from "child_process";
-import fs from "fs-extra";
-import { ObjectId, UpdateFilter } from "mongodb";
-import pino from "pino";
+import {
+  Job,
+  Worker,
+} from 'bullmq';
+import { exec } from 'child_process';
+import fs from 'fs-extra';
+import {
+  ObjectId,
+  UpdateFilter,
+} from 'mongodb';
+import pino from 'pino';
 
-import Mongo from "../../src/database";
-import { IDeploymentTask, IMetaData } from "../../src/types/database";
-import { customhostDeploymentDir, githubrepo } from "../constants";
-import { BuildJobPayloadType, JobProgressType } from "../types";
-import { queueRedisOptions } from "./config";
+import Mongo from '../../src/database';
+import {
+  IDeploymentTask,
+  IMetaData,
+} from '../../src/types/database';
+import {
+  customhostDeploymentDir,
+  githubrepo,
+} from '../constants';
+import {
+  BuildJobPayloadType,
+  JobProgressType,
+} from '../types';
+import { queueRedisOptions } from './config';
 
 const logger = pino({
   level: "debug",
@@ -161,6 +176,7 @@ const { readFile, writeFile } = fs.promises;
             ],
             // step: 2: Copying the lastest root project to deployment/{bundleId} folder
             [taskNames[1].id]: [
+              `rm -rf ${customhostDeploymentDir}/${bundle}`, // temporary fix
               `mkdir -p ${customhostDeploymentDir}/${bundle}`,
               `cp -r root/${githubrepo} ${customhostDeploymentDir}/${bundle}`,
               `cd ${customHostDir}`,
@@ -304,16 +320,19 @@ const { readFile, writeFile } = fs.promises;
           } catch (error) {
             logger.error(error, "Failed to execute Deployment Process");
 
-            // if we are getting any erro (throw error) then we need to remove the deployment/{bundleId} folder
-            const task = taskNames.slice(-1)[0];
-            await executeTask({
-              commands: commands[task.id],
-              taskId: task.id,
-              taskName: task.name,
-              job,
-              deploymentId,
-              hostId,
-            });
+            // commenting this for now
+            // adding a new command in the beginning of the task
+            // to remove the deployment / { bundleId } folder when new deployment is started
+            // // if we are getting any erro (throw error) then we need to remove the deployment/{bundleId} folder
+            // const task = taskNames.slice(-1)[0];
+            // await executeTask({
+            //   commands: commands[task.id],
+            //   taskId: task.id,
+            //   taskName: task.name,
+            //   job,
+            //   deploymentId,
+            //   hostId,
+            // });
             // updating the deployment status to failed
             await Mongo.deployment.updateOne(
               {
