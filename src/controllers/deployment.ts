@@ -616,6 +616,108 @@ const getDeploymentTaskLogsByTaskId = factory.createHandlers(async (c) => {
   }
 });
 
+const restartDeploymentTaskByDeploymentId = factory.createHandlers(
+  async (c) => {
+    try {
+      const { deploymentId } = c.req.param();
+
+      const deployment = await Mongo.deployment.findOne({
+        _id: new ObjectId(deploymentId),
+      });
+
+      if (!deployment) {
+        return c.json({ message: "Deployment not found" }, Response.NOT_FOUND);
+      }
+
+      const customhost = await Mongo.customhost.findOne({
+        _id: deployment?.host,
+      });
+
+      const metadata = await Mongo.metadata.findOne({
+        host: deployment?.host,
+      });
+
+      if (!customhost) {
+        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
+      }
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      const releaseBuffer = await fs.promises.readFile(
+        `./data/release.json`,
+        "utf-8",
+      );
+      const releaseDetails = JSON.parse(releaseBuffer) as {
+        versionName: string;
+        buildNumber: number;
+      };
+
+      let androidDeveloperAccount: WithId<IDeveloperAccountAndroid> | null =
+        null;
+
+      if (
+        deployment.platform === "android" &&
+        metadata.androidDeveloperAccount
+      ) {
+        androidDeveloperAccount =
+          await Mongo.developer_accounts_android.findOne({
+            _id: metadata.androidDeveloperAccount,
+          });
+      }
+
+      await buildQueue.add(
+        `${deploymentId}-${deployment.platform}-${releaseDetails.versionName}`,
+        {
+          deploymentId,
+          hostId: deployment.host.toString(),
+          name:
+            (deployment.platform === "android"
+              ? metadata.androidStoreSettings.title
+              : metadata.iosStoreSettings.name) ?? customhost.appName,
+          bundle:
+            deployment.platform === "android"
+              ? metadata.androidDeploymentDetails.bundleId
+              : metadata.iosDeploymentDetails.bundleId,
+          domain: customhost.host,
+          color: customhost.colors.PRIMARY,
+          bgColor: metadata.backgroundStartColor,
+          onesignal_id: customhost.onesignalAppId || "",
+          platform: deployment.platform,
+          versionName: releaseDetails.versionName,
+          buildNumber: releaseDetails.buildNumber,
+
+          androidStoreSettings: metadata.androidStoreSettings,
+          androidScreenshots: metadata.androidScreenshots,
+          androidFeatureGraphic: metadata.androidFeatureGraphic,
+
+          iosStoreSettings: metadata.iosStoreSettings,
+          iosInfoSettings: metadata.iosInfoSettings,
+          iosReviewSettings: metadata.iosReviewSettings,
+          iosScreenshots: metadata.iosScreenshots,
+
+          androidDeveloperAccount,
+        },
+        {
+          attempts: 0,
+        },
+      );
+      return c.json(
+        {
+          message: "Restarted deployment job with last failed task",
+          result: {},
+        },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
 const cancelDeploymentJobByDeploymentId = factory.createHandlers(async (c) => {
   try {
     const { deploymentId, target, version } = c.req.param();
@@ -860,6 +962,7 @@ export {
   getAllDeploymentsHandler,
   getDeploymentDetails,
   getDeploymentDetailsById,
+  restartDeploymentTaskByDeploymentId,
   getDeploymentRequirementsChecklist,
   getDeploymentTaskLogsByTaskId,
   getRecentDeploymentsHandler,
