@@ -63,6 +63,7 @@ export const patchCustomHostByIdSchema = z.object({
     })
     .optional(),
   onesignalAppId: z.string().optional(),
+  customOneSignalApiKey: z.string().optional(),
   enableSupportWidget: z.boolean().optional(),
   supportWidget: z
     .array(

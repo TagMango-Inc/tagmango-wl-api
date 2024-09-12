@@ -115,6 +115,7 @@ const { readFile, writeFile } = fs.promises;
                       in: {
                         id: "$$task.id",
                         name: "$$task.name",
+                        status: "$$task.status",
                       },
                     },
                   },
@@ -127,41 +128,11 @@ const { readFile, writeFile } = fs.promises;
             taskNames: {
               id: string;
               name: string;
+              status: string;
             }[];
           };
 
-          /**
-      // Define various paths and constants used across multiple steps
-    */
-
-          const onesignalExtension = "OneSignalNotificationServiceExtension";
-          const domains = ["tagmango.app", domain];
-          const androidManifestPath =
-            "./android/app/src/main/AndroidManifest.xml";
-          const stringsPath = "./android/app/src/main/res/values/strings.xml";
-          const infoPlistPath = `./ios/${formatedAppName}/Info.plist`;
-          const entitlementsPath = `./ios/${formatedAppName}/${formatedAppName}.entitlements`;
-          const oneSignalEntitlementsPath = `./ios/${onesignalExtension}/${onesignalExtension}.entitlements`;
-          const launchScreenPath = `./ios/${formatedAppName}/LaunchScreen.storyboard`;
-          const mainActivityPath = `./android/app/src/main/java/${bundle.replace(
-            /\./g,
-            "/",
-          )}/MainActivity.java`;
-          const appDelegatePath = `./ios/${formatedAppName}/AppDelegate.mm`;
-          const javaFilesPath = `./android/app/src/main/java/${bundle
-            .split(".")
-            .join("/")}`;
-          const drawableFolders = [
-            "hdpi",
-            "mdpi",
-            "xhdpi",
-            "xxhdpi",
-            "xxxhdpi",
-          ];
-          const removeDrawableFolders = drawableFolders.map(
-            (folder) => `rm -rf android/app/src/main/res/drawable-${folder}`,
-          );
-          const customHostDir = `${customhostDeploymentDir}/${bundle}/${githubrepo}`;
+          const customHostAppDir = `${customhostDeploymentDir}/${bundle}/${githubrepo}`;
 
           /**
            * Combining commands with their respective task names and is
@@ -179,13 +150,13 @@ const { readFile, writeFile } = fs.promises;
               `rm -rf ${customhostDeploymentDir}/${bundle}`, // temporary fix
               `mkdir -p ${customhostDeploymentDir}/${bundle}`,
               `cp -r root/${githubrepo} ${customhostDeploymentDir}/${bundle}`,
-              `cd ${customHostDir}`,
+              `cd ${customHostAppDir}`,
               `git checkout -b v/${releaseDetails.versionName} --track origin/v/${releaseDetails.versionName}`,
               `git pull origin v/${releaseDetails.versionName}`,
             ],
             // step: 3: Copying the WL assets from WLApps/{formatedName} to deployment/{bundleId}/WLApps/{formatedName}
             [taskNames[2].id]: [
-              `cd ${customHostDir}`,
+              `cd ${customHostAppDir}`,
               `mkdir -p icons`,
               `cd icons`,
               `cp ../../../../assets/${hostId}/icon.png .`,
@@ -197,8 +168,8 @@ const { readFile, writeFile } = fs.promises;
             [taskNames[3].id]: [
               `node ./scripts/create-metadata.js ${JSON.stringify({
                 hostId,
-                rootPath: `${customhostDeploymentDir}/${bundle}/${githubrepo}`,
-                fastlanePath: `${customhostDeploymentDir}/${bundle}/${githubrepo}/fastlane`,
+                rootPath: `${customHostAppDir}`,
+                fastlanePath: `${customHostAppDir}/fastlane`,
                 androidStoreSettings: JSON.stringify(androidStoreSettings),
                 iosStoreSettings: JSON.stringify(iosStoreSettings),
                 iosInfoSettings: JSON.stringify(iosInfoSettings),
@@ -214,7 +185,7 @@ const { readFile, writeFile } = fs.promises;
             //TODO
             // step: 4: Running the pre deployment and bundle script for the deployment/{bundleId} folder
             [taskNames[4].id]: [
-              `cd ${customhostDeploymentDir}/${bundle}/${githubrepo}`,
+              `cd ${customHostAppDir}`,
               `npm install`,
               `node ./scripts/app-build.js ${JSON.stringify({
                 name,
@@ -230,57 +201,26 @@ const { readFile, writeFile } = fs.promises;
               })}`,
             ],
 
-            // // Step 4: Rename the app and bundle
-            // [taskNames[3].id]: [
-            //   `cd ${customHostDir}`,
-            //   `npx react-native-rename ${name} -b ${bundle}`,
-            // ],
-
-            // // Step 5: Fix custom Java files package name issue
-
-            // // Step 6: Clear node_modules and reinstall dependencies
-            // [taskNames[5].id]: [
-            //   `cd ${customHostDir}`,
-            //   `rm -rf node_modules`,
-            //   `npm install --reset-cache`,
-            // ],
-
-            // //Step 7: Create a production JavaScript bundle for android
-            // [taskNames[6].id]: [`cd ${customHostDir}`, `npm run bundle`],
-
-            // // Step 8: Remove old drawable directories
-            // [taskNames[7].id]: [`cd ${customHostDir}`, ...removeDrawableFolders],
-
-            // // Step 9: Create a production JavaScript bundle for iOS
-            // [taskNames[8].id]: [`cd ${customHostDir}`, `npm run bundle-ios`],
-
-            // // Step 10: Copy the main.jsbundle file to the iOS project
-            // [taskNames[9].id]: [
-            //   `cd ${customHostDir}`,
-            //   `cp ./main.jsbundle ./ios/main.jsbundle`,
-            // ],
-            //TODO
-            // step 11: Running the fastlane build for specific targer platform
+            // step 5: Running the fastlane build for specific targer platform
             [taskNames[5].id]:
               platform === "android"
                 ? [
-                    `cd ${customHostDir}`,
+                    `cd ${customHostAppDir}`,
                     `fastlane ${platform} build`,
                     `cp -r android/app/build/outputs/bundle/release/app-release.aab ../../../outputs/android/${hostId}.aab`,
                     `node ../../../scripts/android-aab.js ${JSON.stringify({ hostId, versionName, buildNumber })}`,
                   ]
                 : [
-                    `cd ${customHostDir}`,
+                    `cd ${customHostAppDir}`,
                     `bundle exec fastlane ${platform} build`,
                   ],
-            // step 12: Running the fastlane upload for specific targer platform
+            // step 6: Running the fastlane upload for specific targer platform
             // TODO
             [taskNames[6].id]: [
-              `cd ${customHostDir}`,
+              `cd ${customHostAppDir}`,
               `bundle exec fastlane ${platform} upload`,
             ],
-            // [taskNames[5].id]: [`cd ${customHostDir}`],
-            // step 13: Removing the deployment/{bundleId} folder after successful deployment
+            // step 7: Removing the deployment/{bundleId} folder after successful deployment
             [taskNames[7].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
             // [taskNames[6].id]: [],
           };
@@ -305,6 +245,12 @@ const { readFile, writeFile } = fs.promises;
 
             // executing the tasks
             for (const task of taskNames) {
+              // don't execute the last task which have success/processing status
+              if (task.status === "success" || task.status === "processing") {
+                continue;
+              }
+
+              // executing the task which are either failed or pending
               await executeTask({
                 commands: commands[task.id],
                 taskId: task.id,
@@ -558,7 +504,7 @@ const executeTask = async ({
       {
         $set: {
           "tasks.$.status": "failed",
-          "tasks.$.logs": errorLogs,
+          "tasks.$.logs": [...outputLogs, ...errorLogs],
           "tasks.$.duration": Date.now() - startTime,
           updatedAt: new Date(),
         },

@@ -11,6 +11,7 @@ import {
   getAllDeploymentsHandler,
   getDeploymentDetails,
   getDeploymentDetailsById,
+  restartDeploymentTaskByDeploymentId,
   getDeploymentRequirementsChecklist,
   getDeploymentTaskLogsByTaskId,
   getRecentDeploymentsHandler,
@@ -21,7 +22,7 @@ const router = new Hono();
 
 /**https://www.postman.com/lively-spaceship-273497/workspace/tagmango/request/22586029-73920c1e-9c46-4045-ad5c-559dbdb94234
 *! Protected Routes
-** App Router 
+** App Router
 /wl/apps/
 /wl/apps/{:id} [ GET PATCH ]
 /wl/apps/{:id}/deploy/{:android|ios} [ GET ]  [sse]  [ fetching all the required data for the build process  from database without passing it through query params ]
@@ -35,6 +36,7 @@ router.patch("/:id", ...patchCustomHostByIdHandler);
 router.get("/:id/deployment-details/:target", ...getDeploymentDetails);
 router.get("/:id/deployments", ...getAllDeploymentsHandler);
 router.get("/:id/deployments/:deploymentId", ...getDeploymentDetailsById);
+router.get("/:id/deployments/:deploymentId/restart", ...restartDeploymentTaskByDeploymentId);
 router.post("/:id/deployments", ...createNewDeploymentHandler);
 router.get(
   "/:id/deployments/:deploymentId/logs/:taskId",
