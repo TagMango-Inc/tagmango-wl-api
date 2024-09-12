@@ -1,72 +1,104 @@
-import "dotenv/config";
+import 'dotenv/config';
 
-import { Hono } from "hono";
-import { cors } from "hono/cors";
-import { logger } from "hono/logger";
-import { prettyJSON } from "hono/pretty-json";
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { logger } from 'hono/logger';
+import { prettyJSON } from 'hono/pretty-json';
 
-import { serve } from "@hono/node-server";
+import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
 
-import authenticationMiddleware from "./middleware/authentication";
-import authenticationRouter from "./routers/authenticationRouter";
-import customHostRouter from "./routers/customHostRouter";
-import iapRouter from "./routers/iapRouter";
-import sseRouter from "./routers/sse";
-import userManagementRouter from "./routers/userManagementRouter";
-import databaseConntect from "./utils/database";
+import Mongo from './database';
+import authenticationMiddleware from './middleware/authentication';
+import appFormsRouter from './routers/appFormsRouter';
+import authenticationRouter from './routers/authenticationRouter';
+import customHostRouter from './routers/customHostRouter';
+import developerAccountsRouter from './routers/developerAccountsRouter';
+import iapRouter from './routers/iapRouter';
+import metadataRouter from './routers/metadataRouter';
+import outputRouter from './routers/outputRouter';
+import releaseRouter from './routers/releaseRouter';
+import sseRouter from './routers/sse';
+import userManagementRouter from './routers/userManagementRouter';
 
 const app = new Hono().basePath("/wl");
 
-app.use(logger());
-app.use("/*", cors());
+Mongo.connect().then(() => {
+  app.use(logger());
+  app.use("/*", cors());
 
-app.use("/user-management/*", authenticationMiddleware);
-app.use("/apps/*", authenticationMiddleware);
-app.use("/iap/*", authenticationMiddleware);
+  app.use("/user-management/*", authenticationMiddleware);
+  app.use("/apps/*", authenticationMiddleware);
+  app.use("/iap/*", authenticationMiddleware);
+  app.use("/metadata/*", authenticationMiddleware);
+  app.use("/output/*", authenticationMiddleware);
+  app.use("/release/*", authenticationMiddleware);
+  app.use("/developer-accounts/*", authenticationMiddleware);
+  // app.use("/forms", authenticationMiddleware);
 
-/**
-** Auth Router
-/wl/auth/login [ POST ]
-/wl/auth/register [ POST ]
-
-*! Protected Routes
-** User Management Router
-/wl/user-management/roles [ GET POST DELETE ]
-/wl/user-management/users [ GET POST]
-
-*! Protected Routes
-** App Router 
-/wl/apps/
-/wl/apps/{:id} [ GET PATCH ]
-/wl/apps/{:id}/deploy/{:target} [ GET ]  [sse]  [ fetching all the required data for the build process  from database without passing it through query params ]
-/wl/apps/{:id}/upload/asset [ POST ]  [ ":id" is for future purpose, may be someday we may have to upload the asset to S3 and store the URL in the database.]
-
-*/
-app.get("/", async (c) => {
-  return c.json({
-    message: "Welcome to TagMango App Deployment API",
-    version: "1.0.0",
+  app.get("/", async (c) => {
+    return c.json({
+      message: "Welcome to TagMango App Deployment API",
+      version: "1.0.0",
+    });
   });
-});
-app.route("/apps", customHostRouter);
-app.route("/auth", authenticationRouter);
-app.route("/user-management", userManagementRouter);
-app.route("/iap", iapRouter);
-app.route("/sse", sseRouter);
 
-app.use(prettyJSON());
+  // serving static files from the assets folder
+  app.get(
+    "/assets/*",
+    serveStatic({
+      root: "./",
+      rewriteRequestPath: (path) => {
+        const paths = path.split("/");
+        return `./assets/${paths.slice(3).join("/")}`;
+      },
+    }),
+  );
 
-const port = Number(process.env.PORT) || 3000;
-console.log(`Server is running on port ${port}`);
+  // serving static files from the form assets folder
+  app.get(
+    "/form-assets/*",
+    serveStatic({
+      root: "./",
+      rewriteRequestPath: (path) => {
+        const paths = path.split("/");
+        return `./forms/${paths.slice(3).join("/")}`;
+      },
+    }),
+  );
 
-serve(
-  {
+  // serving static files from the outputs folder
+  app.get(
+    "/outputs/*",
+    serveStatic({
+      root: "./",
+      rewriteRequestPath: (path) => {
+        const paths = path.split("/");
+        return `./outputs/${paths.slice(3).join("/")}`;
+      },
+    }),
+  );
+
+  app.route("/apps", customHostRouter);
+  app.route("/auth", authenticationRouter);
+  app.route("/user-management", userManagementRouter);
+  app.route("/iap", iapRouter);
+  app.route("/metadata", metadataRouter);
+  app.route("/output", outputRouter);
+  app.route("/release", releaseRouter);
+  app.route("/sse", sseRouter);
+  app.route("/developer-accounts", developerAccountsRouter);
+  app.route("/forms", appFormsRouter);
+
+  app.use(prettyJSON());
+
+  const port = Number(process.env.PORT) || 3000;
+  console.log(`Server is running on port ${port}`);
+
+  serve({
     fetch: app.fetch,
     port,
-  },
-  async (info) => {
-    await databaseConntect();
-  },
-);
+  });
+});
 
 export default app;

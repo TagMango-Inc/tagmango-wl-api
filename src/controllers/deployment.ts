@@ -1,78 +1,115 @@
+import fs from "fs-extra";
 import { createFactory } from "hono/factory";
-import mongoose from "mongoose";
-import { buildQueue } from "src/job/config";
-import CustomHostModel from "src/models/customHost.model";
-import DeploymentModel from "src/models/deployment.model";
-import { JWTPayloadType } from "src/types";
-import { generateDeploymentTasks } from "src/utils/generateTaskDetails";
-import { createNewDeploymentSchema } from "src/validations/customhost";
+import { ObjectId, WithId } from "mongodb";
 
 import { zValidator } from "@hono/zod-validator";
+
+import { DEPLOYMENT_REQUIREMENTS } from "../../src/constants";
+import Mongo from "../../src/database";
+import { buildQueue } from "../../src/job/config";
+import { JWTPayloadType } from "../../src/types";
+import {
+  IDeveloperAccountAndroid,
+  PlatformValues,
+  Status,
+  StatusValues,
+} from "../../src/types/database";
+import { generateDeploymentTasks } from "../../src/utils/generateTaskDetails";
+import { Response } from "../../src/utils/statuscode";
+import { createNewDeploymentSchema } from "../../src/validations/customhost";
+import { updateFailedAndroidDeploymentSchema } from "../validations/deployment";
+
+const { readFile } = fs.promises;
 
 const factory = createFactory();
 
 const getDeploymentDetails = factory.createHandlers(async (c) => {
   try {
     const { id, target } = c.req.param();
-    const deploymentDetails = await CustomHostModel.aggregate([
-      {
-        $match: {
-          _id: new mongoose.Types.ObjectId(id),
-        },
-      },
-      {
-        $project: {
-          bundleId: {
-            $cond: {
-              if: {
-                $eq: [target, "android"],
-              },
-              then: "$androidDeploymentDetails.bundleId",
-              else: "$iosDeploymentDetails.bundleId",
-            },
-          },
-          versionName: {
-            $cond: {
-              if: {
-                $eq: [target, "android"],
-              },
-              then: "$androidDeploymentDetails.versionName",
-              else: "$iosDeploymentDetails.versionName",
-            },
-          },
-          buildNumber: {
-            $cond: {
-              if: {
-                $eq: [target, "android"],
-              },
-              then: "$androidDeploymentDetails.buildNumber",
-              else: "$iosDeploymentDetails.buildNumber",
-            },
+    const deploymentDetails = await Mongo.metadata
+      .aggregate([
+        {
+          $match: {
+            host: new ObjectId(id),
           },
         },
-      },
-    ]);
+        {
+          $project: {
+            bundleId: {
+              $cond: {
+                if: {
+                  $eq: [target, "android"],
+                },
+                then: "$androidDeploymentDetails.bundleId",
+                else: "$iosDeploymentDetails.bundleId",
+              },
+            },
+            versionName: {
+              $cond: {
+                if: {
+                  $eq: [target, "android"],
+                },
+                then: "$androidDeploymentDetails.lastDeploymentDetails.versionName",
+                else: "$iosDeploymentDetails.lastDeploymentDetails.versionName",
+              },
+            },
+            buildNumber: {
+              $cond: {
+                if: {
+                  $eq: [target, "android"],
+                },
+                then: "$androidDeploymentDetails.lastDeploymentDetails.buildNumber",
+                else: "$iosDeploymentDetails.lastDeploymentDetails.buildNumber",
+              },
+            },
+          },
+        },
+      ])
+      .toArray();
 
     if (deploymentDetails.length === 0) {
       return c.json(
         { message: "Deployment details not found" },
-        { status: 404, statusText: "Not Found" },
+        Response.NOT_FOUND,
       );
     }
 
+    const releaseBuffer = await fs.promises.readFile(
+      `./data/release.json`,
+      "utf-8",
+    );
+    const releaseDetails = JSON.parse(releaseBuffer) as {
+      versionName: string;
+      buildNumber: number;
+    };
+
     const deploymentDetail = deploymentDetails[0];
+    let currentVersionName = releaseDetails.versionName;
+    let currentBuildNumber = releaseDetails.buildNumber;
+
+    if (
+      deploymentDetail.versionName &&
+      deploymentDetail.buildNumber &&
+      deploymentDetail.versionName === currentVersionName
+    ) {
+      currentBuildNumber = deploymentDetail.buildNumber + 1;
+    }
 
     return c.json(
-      { message: "Fetched Deployment Details", result: deploymentDetail },
-      { status: 200, statusText: "OK" },
+      {
+        message: "Fetched Deployment Details",
+        result: {
+          bundleId: deploymentDetail.bundleId,
+          versionName: currentVersionName,
+          buildNumber: currentBuildNumber,
+        },
+      },
+      Response.OK,
     );
   } catch (error) {
     return c.json(
       { message: "Internal Server Error" },
-      {
-        status: 500,
-        statusText: "Internal Server Error",
-      },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });
@@ -83,95 +120,160 @@ const getDeploymentDetails = factory.createHandlers(async (c) => {
 
 const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
   try {
-    const { id } = c.req.param();
-    const { page, limit, search } = c.req.query();
+    const { id: appId } = c.req.param();
+    const { page, limit, search, platform, status } = c.req.query();
 
     let PAGE = page ? parseInt(page as string) : 1;
-    let LIMIT = limit ? parseInt(limit as string) : 10;
+    let LIMIT = limit ? parseInt(limit as string) : 30;
     let SEARCH = search ? (search as string) : "";
 
-    const totalDeployments =
-      await DeploymentModel.findById(id).countDocuments();
+    const searchedDeployments = await Mongo.deployment
+      .aggregate([
+        {
+          $match: {
+            host: new ObjectId(appId),
+            $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
+            platform: platform ?? { $in: PlatformValues },
+            status: status ?? { $in: StatusValues },
+          },
+        },
+        {
+          $facet: {
+            totalSearchResults: [
+              {
+                $count: "count",
+              },
+            ],
+            deployments: [
+              {
+                $lookup: {
+                  from: "adminusers",
+                  localField: "user",
+                  foreignField: "_id",
+                  as: "user",
+                },
+              },
+              {
+                $unwind: {
+                  path: "$user",
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
+                $lookup: {
+                  from: "adminusers",
+                  let: { cancelledById: "$cancelledBy" },
+                  pipeline: [
+                    {
+                      $match: {
+                        $expr: { $ne: ["$$cancelledById", null] },
+                      },
+                    },
+                    {
+                      $match: {
+                        $expr: { $eq: ["$_id", "$$cancelledById"] },
+                      },
+                    },
+                    {
+                      $project: { _id: 1, name: 1 },
+                    },
+                  ],
+                  as: "cancelled_by_user",
+                },
+              },
+              {
+                $unwind: {
+                  path: "$cancelled_by_user",
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
+                $project: {
+                  "user._id": 1,
+                  "user.name": 1,
+                  "cancelled_by_user._id": 1,
+                  "cancelled_by_user.name": 1,
+                  host: 1,
+                  platform: 1,
+                  versionName: 1,
+                  buildNumber: 1,
+                  status: 1,
+                  updatedAt: 1,
+                  createdAt: 1,
+                },
+              },
+              {
+                $sort: { updatedAt: -1 },
+              },
+              {
+                $skip: (PAGE - 1) * LIMIT,
+              },
+              {
+                $limit: LIMIT,
+              },
+            ],
+          },
+        },
+        {
+          $unwind: {
+            path: "$totalSearchResults",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            deployments: 1,
+            totalDeployments: { $ifNull: ["$totalSearchResults.count", 0] },
+          },
+        },
+      ])
+      .toArray();
 
-    const deployments = await DeploymentModel.aggregate([
-      {
-        $match: {
-          host: new mongoose.Types.ObjectId(id),
-        },
-      },
-      {
-        $match: {
-          $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
-        },
-      },
-      {
-        $lookup: {
-          from: "adminusers",
-          localField: "user",
-          foreignField: "_id",
-          as: "user",
-        },
-      },
-      {
-        $unwind: "$user",
-      },
-      {
-        $project: {
-          "user._id": 1,
-          "user.name": 1,
-          // "user.customhostDashboardAccess": 1,
-          // host: 1,
-          platform: 1,
-          versionName: 1,
-          buildNumber: 1,
-          status: 1,
-          updatedAt: 1,
-          createdAt: 1,
-        },
-      },
-      {
-        $sort: { updatedAt: -1 },
-      },
-      {
-        $skip: (PAGE - 1) * LIMIT,
-      },
-      {
-        $limit: LIMIT,
-      },
-    ]);
+    const androidAABDetails = await readFile(
+      "./data/android-aab.json",
+      "utf-8",
+    );
+    const parsedAndroidAABDetails = JSON.parse(androidAABDetails);
 
-    const totalSearchResults = await DeploymentModel.find({
-      _id: new mongoose.Types.ObjectId(id),
-      $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
-    }).countDocuments();
+    const modifiedResults =
+      searchedDeployments.length > 0 && searchedDeployments[0].deployments
+        ? searchedDeployments[0].deployments.map((deployment: any) => {
+            const aabDetails = parsedAndroidAABDetails[deployment.host];
+            const isAndroidBundleAvailable =
+              aabDetails &&
+              aabDetails.versionName === deployment.versionName &&
+              aabDetails.buildNumber === deployment.buildNumber
+                ? true
+                : false;
+            return {
+              ...deployment,
+              isAndroidBundleAvailable,
+            };
+          })
+        : [];
 
-    const hasNextPage = totalSearchResults > PAGE * LIMIT;
+    const hasNextPage = searchedDeployments[0]?.totalDeployments > PAGE * LIMIT;
 
     return c.json(
       {
         message: "All Deployments for Custom Host",
         result: {
-          deployments,
-          totalDeployments,
-          totalSearchResults,
+          deployments: modifiedResults,
+          totalDeployments: 0, //! no need for this
+          totalSearchResults: searchedDeployments[0]?.totalDeployments,
           currentPage: PAGE,
           nextPage: hasNextPage ? PAGE + 1 : -1,
           limit: LIMIT,
           hasNext: hasNextPage,
         },
       },
-      {
-        status: 200,
-        statusText: "OK",
-      },
+      Response.OK,
     );
   } catch (error) {
+    console.log(error);
     return c.json(
       { message: "Internal Server Error" },
-      {
-        status: 500,
-        statusText: "Internal Server Error",
-      },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });
@@ -184,119 +286,201 @@ const createNewDeploymentHandler = factory.createHandlers(
       const { target } = c.req.valid("json");
       const payload: JWTPayloadType = c.get("jwtPayload");
 
-      const customhost = await CustomHostModel.findById(customHostId);
+      // pending or processing
+      const recentActiveDeployment = await Mongo.deployment.findOne({
+        host: new ObjectId(customHostId),
+        status: { $in: [Status.PENDING, Status.PROCESSING] },
+        platform: target,
+      });
 
+      if (recentActiveDeployment) {
+        const { _id, versionName, platform } = recentActiveDeployment;
+        const jobName = `${_id}-${platform}-${versionName}`;
+        const jobs = await buildQueue.getJobs();
+        const job = jobs.find((job) => job.name === jobName);
+        if (job) {
+          const jobStatus = await job.getState();
+          if (jobStatus === "active" || jobStatus === "waiting") {
+            return c.json(
+              { message: "Deployment job already exists" },
+              Response.CONFLICT,
+            );
+          }
+        }
+      }
+
+      const user = await Mongo.user.findOne(
+        {
+          _id: new ObjectId(payload.id),
+        },
+        { projection: { name: 1 } },
+      );
+
+      const customhost = await Mongo.customhost.findOne({
+        _id: new ObjectId(customHostId),
+      });
+
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(customHostId),
+      });
+
+      if (!user) {
+        return c.json({ message: "User not found" }, Response.NOT_FOUND);
+      }
       if (!customhost) {
-        return c.json(
-          { message: "Custom Host not found" },
-          { status: 404, statusText: "Not Found" },
-        );
+        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
+      }
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
       }
 
       const { versionName: productionVersionName, lastDeploymentDetails } =
         target === "android"
-          ? customhost.androidDeploymentDetails
-          : customhost.iosDeploymentDetails;
-
+          ? metadata.androidDeploymentDetails
+          : metadata.iosDeploymentDetails;
       const {
         versionName: lastDeploymentVersionName,
         buildNumber: lastDeploymentBuildNumber,
       } = lastDeploymentDetails;
 
-      let updatedBuildNumber = lastDeploymentBuildNumber;
+      const releaseBuffer = await fs.promises.readFile(
+        `./data/release.json`,
+        "utf-8",
+      );
+      const releaseDetails = JSON.parse(releaseBuffer) as {
+        versionName: string;
+        buildNumber: number;
+      };
 
-      if (productionVersionName === lastDeploymentVersionName) {
-        // increment the build number
-        await CustomHostModel.findOneAndUpdate(
-          {
-            _id: new mongoose.Types.ObjectId(customHostId),
-          },
-          {
-            $inc: {
-              "androidDeploymentDetails.lastDeploymentDetails.buildNumber":
-                target === "android" ? 1 : 0,
-              "iosDeploymentDetails.lastDeploymentDetails.buildNumber":
-                target === "ios" ? 1 : 0,
-            },
-          },
-        );
+      let currentVersionName = releaseDetails.versionName;
+      let currentBuildNumber = releaseDetails.buildNumber;
 
-        updatedBuildNumber = lastDeploymentBuildNumber + 1;
+      if (
+        lastDeploymentVersionName &&
+        lastDeploymentBuildNumber &&
+        lastDeploymentVersionName === currentVersionName
+      ) {
+        currentBuildNumber = lastDeploymentBuildNumber + 1;
       }
-
+      const updateQuery =
+        target === "android"
+          ? {
+              "androidDeploymentDetails.lastDeploymentDetails.buildNumber":
+                currentBuildNumber,
+              "androidDeploymentDetails.lastDeploymentDetails.versionName":
+                currentVersionName,
+            }
+          : {
+              "iosDeploymentDetails.lastDeploymentDetails.buildNumber":
+                currentBuildNumber,
+              "iosDeploymentDetails.lastDeploymentDetails.versionName":
+                currentVersionName,
+            };
+      await Mongo.metadata.updateOne(
+        {
+          host: new ObjectId(customHostId),
+        },
+        {
+          $set: {
+            ...updateQuery,
+          },
+        },
+      );
       // populating the tasks with name and id
       const tasks = generateDeploymentTasks({
         bundle:
           target === "android"
-            ? customhost.androidDeploymentDetails.bundleId
-            : customhost.iosDeploymentDetails.bundleId,
-        formatedAppName: customhost.appName.replace(/ /g, ""),
+            ? metadata.androidDeploymentDetails.bundleId
+            : metadata.iosDeploymentDetails.bundleId,
+        formatedAppName: (target === "android"
+          ? metadata.androidStoreSettings.title
+          : metadata.iosStoreSettings.name
+        ).replace(/ /g, ""),
         platform: target,
       });
       // creating a new deployment
-      const createdDeployment = await DeploymentModel.create({
-        host: new mongoose.Types.ObjectId(customHostId),
-        user: new mongoose.Types.ObjectId(payload.id),
+      const createdDeployment = await Mongo.deployment.insertOne({
+        host: new ObjectId(customHostId),
+        user: new ObjectId(payload.id),
         platform: target,
-        versionName: lastDeploymentVersionName,
-        buildNumber: updatedBuildNumber,
+        versionName: currentVersionName,
+        buildNumber: currentBuildNumber,
         tasks,
+        status: Status.PENDING,
+        cancelledBy: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       });
 
-      // populating the user details
-      await createdDeployment.populate({
-        path: "user",
-        select: "name",
-      });
-
+      // TODO: can't create another job if the job already exists and processing
       // creating a new job for deployment
+
+      let androidDeveloperAccount: WithId<IDeveloperAccountAndroid> | null =
+        null;
+
+      if (target === "android" && metadata.androidDeveloperAccount) {
+        androidDeveloperAccount =
+          await Mongo.developer_accounts_android.findOne({
+            _id: metadata.androidDeveloperAccount,
+          });
+      }
+
       await buildQueue.add(
-        `${createdDeployment._id}-${target}-${lastDeploymentVersionName}`,
+        `${createdDeployment.insertedId.toString()}-${target}-${currentVersionName}`,
         {
-          deploymentId: createdDeployment._id.toString(),
+          deploymentId: createdDeployment.insertedId.toString(),
           hostId: customHostId,
-          name: customhost.appName,
+          name:
+            (target === "android"
+              ? metadata.androidStoreSettings.title
+              : metadata.iosStoreSettings.name) ?? customhost.appName,
           bundle:
             target === "android"
-              ? customhost.androidDeploymentDetails.bundleId
-              : customhost.iosDeploymentDetails.bundleId,
+              ? metadata.androidDeploymentDetails.bundleId
+              : metadata.iosDeploymentDetails.bundleId,
           domain: customhost.host,
           color: customhost.colors.PRIMARY,
-          bgColor: customhost.colors.LAUNCH_BG,
+          bgColor: metadata.backgroundStartColor,
           onesignal_id: customhost.onesignalAppId || "",
           platform: target,
+          versionName: currentVersionName,
+          buildNumber: currentBuildNumber,
+
+          androidStoreSettings: metadata.androidStoreSettings,
+          androidScreenshots: metadata.androidScreenshots,
+          androidFeatureGraphic: metadata.androidFeatureGraphic,
+
+          iosStoreSettings: metadata.iosStoreSettings,
+          iosInfoSettings: metadata.iosInfoSettings,
+          iosReviewSettings: metadata.iosReviewSettings,
+          iosScreenshots: metadata.iosScreenshots,
+
+          androidDeveloperAccount,
         },
         {
           attempts: 0,
         },
       );
-
       return c.json(
         {
-          message: "Created New Deployment and added new job",
+          message: "Created new deployment job",
           result: {
-            _id: createdDeployment._id,
-            user: createdDeployment.user,
+            _id: createdDeployment.insertedId.toString(),
+            user,
             platform: target,
-            versionName: createdDeployment.versionName,
-            buildNumber: createdDeployment.buildNumber,
-            status: createdDeployment.status,
-            createdAt: (createdDeployment as any).createdAt,
-            updatedAt: (createdDeployment as any).updatedAt,
+            versionName: currentVersionName,
+            buildNumber: currentBuildNumber,
+            status: Status.PENDING,
+            createdAt: new Date(),
+            updatedAt: new Date(),
           },
         },
-        {
-          status: 201,
-          statusText: "Created",
-        },
+        Response.CREATED,
       );
     } catch (error) {
       return c.json(
         { message: "Internal Server Error" },
-        {
-          status: 500,
-          statusText: "Internal Server Error",
-        },
+        Response.INTERNAL_SERVER_ERROR,
       );
     }
   },
@@ -305,69 +489,79 @@ const createNewDeploymentHandler = factory.createHandlers(
 const getDeploymentDetailsById = factory.createHandlers(async (c) => {
   try {
     const { id, deploymentId } = c.req.param();
-    const deployments = await DeploymentModel.aggregate([
-      {
-        $match: {
-          _id: new mongoose.Types.ObjectId(deploymentId),
-          host: new mongoose.Types.ObjectId(id),
+    const deployments = await Mongo.deployment
+      .aggregate([
+        {
+          $match: {
+            _id: new ObjectId(deploymentId),
+            host: new ObjectId(id),
+          },
         },
-      },
-      {
-        $lookup: {
-          from: "adminusers",
-          localField: "user",
-          foreignField: "_id",
-          as: "user",
+        {
+          $lookup: {
+            from: "adminusers",
+            localField: "user",
+            foreignField: "_id",
+            as: "user",
+          },
         },
-      },
-      {
-        $unwind: "$user",
-      },
-      {
-        $project: {
-          "user.name": 1,
-          platform: 1,
-          status: 1,
-          createdAt: 1,
-          updatedAt: 1,
-          versionName: 1,
-          buildNumber: 1,
-          tasks: {
-            $map: {
-              input: "$tasks",
-              as: "task",
-              in: {
-                id: "$$task.id",
-                name: "$$task.name",
-                status: "$$task.status",
-                duration: "$$task.duration",
+        {
+          $unwind: "$user",
+        },
+        {
+          $project: {
+            "user.name": 1,
+            platform: 1,
+            status: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            versionName: 1,
+            buildNumber: 1,
+            host: 1,
+            tasks: {
+              $map: {
+                input: "$tasks",
+                as: "task",
+                in: {
+                  id: "$$task.id",
+                  name: "$$task.name",
+                  status: "$$task.status",
+                  duration: "$$task.duration",
+                },
               },
             },
           },
         },
-      },
-    ]);
+      ])
+      .toArray();
 
     const deployment = deployments[0];
 
     if (!deployment) {
-      return c.json(
-        { message: "Deployment not found" },
-        { status: 404, statusText: "Not Found" },
-      );
+      return c.json({ message: "Deployment not found" }, Response.NOT_FOUND);
     }
 
+    const androidAABDetails = await readFile(
+      "./data/android-aab.json",
+      "utf-8",
+    );
+    const parsedAndroidAABDetails = JSON.parse(androidAABDetails);
+
+    const isAndroidBundleAvailable = parsedAndroidAABDetails[deployment.host]
+      ? true
+      : false;
+
     return c.json(
-      { message: "Fetched Deployment Details", result: deployment },
-      { status: 200, statusText: "OK" },
+      {
+        message: "Fetched Deployment Details",
+        result: { ...deployment, isAndroidBundleAvailable },
+      },
+      Response.OK,
     );
   } catch (error) {
     return c.json(
       { message: "Internal Server Error" },
-      {
-        status: 500,
-        statusText: "Internal Server Error",
-      },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });
@@ -375,58 +569,402 @@ const getDeploymentDetailsById = factory.createHandlers(async (c) => {
 const getDeploymentTaskLogsByTaskId = factory.createHandlers(async (c) => {
   try {
     const { deploymentId, taskId } = c.req.param();
-    const deploymentLogs = await DeploymentModel.aggregate([
-      {
-        $match: {
-          _id: new mongoose.Types.ObjectId(deploymentId),
+    const deploymentLogs = await Mongo.deployment
+      .aggregate([
+        {
+          $match: {
+            _id: new ObjectId(deploymentId),
+          },
         },
-      },
-      {
-        $unwind: {
-          path: "$tasks",
+        {
+          $unwind: {
+            path: "$tasks",
+          },
         },
-      },
-      {
-        $match: {
-          "tasks.id": taskId,
+        {
+          $match: {
+            "tasks.id": taskId,
+          },
         },
-      },
-      {
-        $project: {
-          _id: 0,
-          logs: "$tasks.logs",
+        {
+          $project: {
+            _id: 0,
+            logs: "$tasks.logs",
+          },
         },
-      },
-    ]);
+      ])
+      .toArray();
 
     const logs = deploymentLogs[0];
 
     if (!logs) {
       return c.json(
         { message: "Deployment logs not found" },
-        { status: 404, statusText: "Not Found" },
+        Response.NOT_FOUND,
       );
     }
 
     return c.json(
       { message: "Fetched Deployment logs", result: logs },
-      { status: 200, statusText: "OK" },
+      Response.OK,
     );
   } catch (error) {
     return c.json(
       { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
+const restartDeploymentTaskByDeploymentId = factory.createHandlers(
+  async (c) => {
+    try {
+      const { deploymentId } = c.req.param();
+
+      const deployment = await Mongo.deployment.findOne({
+        _id: new ObjectId(deploymentId),
+      });
+
+      if (!deployment) {
+        return c.json({ message: "Deployment not found" }, Response.NOT_FOUND);
+      }
+
+      const customhost = await Mongo.customhost.findOne({
+        _id: deployment?.host,
+      });
+
+      const metadata = await Mongo.metadata.findOne({
+        host: deployment?.host,
+      });
+
+      if (!customhost) {
+        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
+      }
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      const releaseBuffer = await fs.promises.readFile(
+        `./data/release.json`,
+        "utf-8",
+      );
+      const releaseDetails = JSON.parse(releaseBuffer) as {
+        versionName: string;
+        buildNumber: number;
+      };
+
+      let androidDeveloperAccount: WithId<IDeveloperAccountAndroid> | null =
+        null;
+
+      if (
+        deployment.platform === "android" &&
+        metadata.androidDeveloperAccount
+      ) {
+        androidDeveloperAccount =
+          await Mongo.developer_accounts_android.findOne({
+            _id: metadata.androidDeveloperAccount,
+          });
+      }
+
+      await buildQueue.add(
+        `${deploymentId}-${deployment.platform}-${releaseDetails.versionName}`,
+        {
+          deploymentId,
+          hostId: deployment.host.toString(),
+          name:
+            (deployment.platform === "android"
+              ? metadata.androidStoreSettings.title
+              : metadata.iosStoreSettings.name) ?? customhost.appName,
+          bundle:
+            deployment.platform === "android"
+              ? metadata.androidDeploymentDetails.bundleId
+              : metadata.iosDeploymentDetails.bundleId,
+          domain: customhost.host,
+          color: customhost.colors.PRIMARY,
+          bgColor: metadata.backgroundStartColor,
+          onesignal_id: customhost.onesignalAppId || "",
+          platform: deployment.platform,
+          versionName: releaseDetails.versionName,
+          buildNumber: releaseDetails.buildNumber,
+
+          androidStoreSettings: metadata.androidStoreSettings,
+          androidScreenshots: metadata.androidScreenshots,
+          androidFeatureGraphic: metadata.androidFeatureGraphic,
+
+          iosStoreSettings: metadata.iosStoreSettings,
+          iosInfoSettings: metadata.iosInfoSettings,
+          iosReviewSettings: metadata.iosReviewSettings,
+          iosScreenshots: metadata.iosScreenshots,
+
+          androidDeveloperAccount,
+        },
+        {
+          attempts: 0,
+        },
+      );
+      return c.json(
+        {
+          message: "Restarted deployment job with last failed task",
+          result: {},
+        },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
+const cancelDeploymentJobByDeploymentId = factory.createHandlers(async (c) => {
+  try {
+    const { deploymentId, target, version } = c.req.param();
+
+    const jobNameTobeDeleted = `${deploymentId}-${target}-${version}`;
+
+    const allJobs = await buildQueue.getJobs(["waiting", "active"]);
+
+    const job = allJobs.find((job) => job.name === jobNameTobeDeleted);
+
+    const payload: JWTPayloadType = c.get("jwtPayload");
+
+    if (!job) {
+      return c.json({ message: "Job not found" }, Response.NOT_FOUND);
+    }
+    const jobStatus = await job.getState();
+
+    if (jobStatus !== "active") {
+      await job.remove();
+    }
+
+    const deployment = await Mongo.deployment.updateOne(
       {
-        status: 500,
-        statusText: "Internal Server Error",
+        _id: new ObjectId(deploymentId),
       },
+      {
+        $set: {
+          status: "cancelled",
+          cancelledBy: new ObjectId(payload.id),
+          updatedAt: new Date(),
+        },
+      },
+    );
+
+    if (!deployment.acknowledged) {
+      return c.json({ message: "Deployment not found" }, Response.NOT_FOUND);
+    }
+
+    return c.json({ message: "Job removed successfully" }, Response.OK);
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
+const getRecentDeploymentsHandler = factory.createHandlers(async (c) => {
+  try {
+    const { target, status } = c.req.query();
+    const deployments = await Mongo.deployment
+      .aggregate([
+        {
+          $match: {
+            platform: target ?? { $in: ["android", "ios"] },
+            status: status ?? { $ne: "cancelled" },
+          },
+        },
+        {
+          $sort: { updatedAt: -1 },
+        },
+        {
+          $limit: 10,
+        },
+        {
+          $lookup: {
+            from: "customhosts",
+            localField: "host",
+            foreignField: "_id",
+            as: "host",
+          },
+        },
+        {
+          $unwind: "$host",
+        },
+        {
+          $project: {
+            platform: 1,
+            appName: "$host.appName",
+            appId: "$host._id",
+            logo: "$host.logo",
+            versionName: 1,
+            buildNumber: 1,
+            status: 1,
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        },
+      ])
+      .toArray();
+    return c.json(
+      {
+        message: "Recent Deployments",
+        result: deployments,
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
+const updateFailedAndroidDeploymentStatus = factory.createHandlers(
+  zValidator("json", updateFailedAndroidDeploymentSchema),
+  async (c) => {
+    try {
+      const { deploymentId } = c.req.valid("json");
+
+      // updating the deployment status to success
+      await Mongo.deployment.updateOne(
+        {
+          _id: new ObjectId(deploymentId),
+        },
+        {
+          $set: {
+            status: Status.SUCCESS,
+            updatedAt: new Date(),
+          },
+        },
+      );
+
+      // picking version name and bunild number from the deployment
+      const deploymentDetails = await Mongo.deployment.findOne(
+        {
+          _id: new ObjectId(deploymentId),
+        },
+        {
+          projection: {
+            versionName: 1,
+            buildNumber: 1,
+            host: 1,
+          },
+        },
+      );
+
+      if (!deploymentDetails) {
+        return c.json({ message: "Deployment not found" }, Response.NOT_FOUND);
+      }
+
+      // updating the metadata with the new version name and build number
+      await Mongo.metadata.updateOne(
+        {
+          host: new ObjectId(deploymentDetails.host),
+        },
+        {
+          $set: {
+            "androidDeploymentDetails.versionName":
+              deploymentDetails.versionName,
+            "androidDeploymentDetails.buildNumber":
+              deploymentDetails.buildNumber,
+          },
+        },
+      );
+
+      return c.json(
+        { message: "Updated Deployment Status to Success" },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
+const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
+  try {
+    const { id: appId, creatorId } = c.req.param();
+
+    const data = await Promise.all([
+      Mongo.metadata.findOne({
+        host: new ObjectId(appId),
+        "androidStoreSettings.title": {
+          $exists: true,
+        },
+        "iosStoreSettings.name": {
+          $exists: true,
+        },
+      }),
+      Mongo.metadata.findOne({
+        logo: {
+          $exists: true,
+        },
+      }),
+      Mongo.customhost.findOne({
+        _id: new ObjectId(appId),
+        onesignalAppId: {
+          $exists: true,
+        },
+      }),
+      Mongo.mango.findOne({
+        creator: new ObjectId(creatorId),
+        isHidden: { $ne: true },
+        isStopTakingPayment: { $ne: true },
+        $or: [{ end: { $gte: new Date() } }, { end: undefined }],
+        isPublic: { $ne: true },
+        isDeleted: { $ne: true },
+        iapProductId: { $exists: true },
+      }),
+    ]);
+
+    return c.json(
+      {
+        message: "Fetched Deployment Requirements Checklist",
+        result: [
+          {
+            name: DEPLOYMENT_REQUIREMENTS[0],
+            isCompleted: data[0] ? true : false,
+          },
+          {
+            name: DEPLOYMENT_REQUIREMENTS[1],
+            isCompleted: data[1] ? true : false,
+          },
+          {
+            name: DEPLOYMENT_REQUIREMENTS[2],
+            isCompleted: data[2] ? true : false,
+          },
+          {
+            name: DEPLOYMENT_REQUIREMENTS[3],
+            isCompleted: data[3] ? true : false,
+          },
+        ],
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });
 
 export {
+  cancelDeploymentJobByDeploymentId,
   createNewDeploymentHandler,
   getAllDeploymentsHandler,
   getDeploymentDetails,
   getDeploymentDetailsById,
+  restartDeploymentTaskByDeploymentId,
+  getDeploymentRequirementsChecklist,
   getDeploymentTaskLogsByTaskId,
+  getRecentDeploymentsHandler,
+  updateFailedAndroidDeploymentStatus,
 };

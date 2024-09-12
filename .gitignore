@@ -5,3 +5,12 @@ root/
 uploads/
 WLApps/
 .DS_Store
+assets/
+outputs/
+data/
+dist/
+ecosystem.config.js
+dump.rdb
+data.ms
+developer_accounts/*
+forms/*

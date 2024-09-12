@@ -1,23 +1,28 @@
-import { Hono } from "hono";
+import { Hono } from 'hono';
+
 import {
   getAllCustomHostsHandler,
   getCustomHostByIdHandler,
   patchCustomHostByIdHandler,
-  uploadAssetHandler,
-} from "src/controllers/customhost";
+} from '../../src/controllers/customhost';
 import {
+  cancelDeploymentJobByDeploymentId,
   createNewDeploymentHandler,
   getAllDeploymentsHandler,
   getDeploymentDetails,
   getDeploymentDetailsById,
+  restartDeploymentTaskByDeploymentId,
+  getDeploymentRequirementsChecklist,
   getDeploymentTaskLogsByTaskId,
-} from "src/controllers/deployment";
+  getRecentDeploymentsHandler,
+  updateFailedAndroidDeploymentStatus,
+} from '../../src/controllers/deployment';
 
 const router = new Hono();
 
-/**
+/**https://www.postman.com/lively-spaceship-273497/workspace/tagmango/request/22586029-73920c1e-9c46-4045-ad5c-559dbdb94234
 *! Protected Routes
-** App Router 
+** App Router
 /wl/apps/
 /wl/apps/{:id} [ GET PATCH ]
 /wl/apps/{:id}/deploy/{:android|ios} [ GET ]  [sse]  [ fetching all the required data for the build process  from database without passing it through query params ]
@@ -25,16 +30,29 @@ const router = new Hono();
 */
 
 router.get("/", ...getAllCustomHostsHandler);
+router.get("/recent-deployments", ...getRecentDeploymentsHandler);
 router.get("/:id", ...getCustomHostByIdHandler);
 router.patch("/:id", ...patchCustomHostByIdHandler);
-router.post("/:id/upload/asset", ...uploadAssetHandler);
 router.get("/:id/deployment-details/:target", ...getDeploymentDetails);
 router.get("/:id/deployments", ...getAllDeploymentsHandler);
 router.get("/:id/deployments/:deploymentId", ...getDeploymentDetailsById);
+router.get("/:id/deployments/:deploymentId/restart", ...restartDeploymentTaskByDeploymentId);
 router.post("/:id/deployments", ...createNewDeploymentHandler);
 router.get(
   "/:id/deployments/:deploymentId/logs/:taskId",
   ...getDeploymentTaskLogsByTaskId,
+);
+router.delete(
+  "/deployment/cancel-job/:deploymentId/:target/:version",
+  ...cancelDeploymentJobByDeploymentId,
+);
+router.post(
+  "/deployments/failed-android-status",
+  ...updateFailedAndroidDeploymentStatus,
+);
+router.get(
+  "/:id/deployments/requirements/:creatorId",
+  ...getDeploymentRequirementsChecklist,
 );
 
 export default router;

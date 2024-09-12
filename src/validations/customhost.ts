@@ -1,5 +1,6 @@
-import { RoutingConfig } from "src/models/customHost.model";
 import { z } from "zod";
+
+import { RoutingConfig } from "../../src/types/database";
 
 export const createNewDeploymentSchema = z.object({
   target: z.enum(["android", "ios"]),
@@ -62,6 +63,7 @@ export const patchCustomHostByIdSchema = z.object({
     })
     .optional(),
   onesignalAppId: z.string().optional(),
+  customOneSignalApiKey: z.string().optional(),
   enableSupportWidget: z.boolean().optional(),
   supportWidget: z
     .array(
@@ -72,31 +74,4 @@ export const patchCustomHostByIdSchema = z.object({
     )
     .optional(),
   routingConfig: z.custom<RoutingConfig>().optional(),
-  androidDeploymentDetails: z
-    .object({
-      bundleId: z.string().optional(),
-      versionName: z.string().optional(),
-      buildNumber: z.number().optional(),
-      lastDeploymentDetails: z
-        .object({
-          versionName: z.string().optional(),
-          buildNumber: z.number().optional(),
-        })
-        .optional(),
-    })
-    .optional(),
-  iosDeploymentDetails: z
-    .object({
-      bundleId: z.string().optional(),
-      versionName: z.string().optional(),
-      buildNumber: z.number().optional(),
-      isUnderReview: z.boolean().optional(),
-      lastDeploymentDetails: z
-        .object({
-          versionName: z.string().optional(),
-          buildNumber: z.number().optional(),
-        })
-        .optional(),
-    })
-    .optional(),
 });

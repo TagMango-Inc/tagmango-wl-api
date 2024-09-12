@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 import { Hono } from "hono";
+
 import {
   createNewDashboardUser,
   deleteDashboardUser,
@@ -9,7 +10,7 @@ import {
   resendEmailVerification,
   updateDashboardUser,
   updateDashboardUserPassword,
-} from "src/controllers/usermangement";
+} from "../../src/controllers/usermangement";
 
 const router = new Hono();
 

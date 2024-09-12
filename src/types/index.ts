@@ -1,4 +1,14 @@
 import { Response } from "express";
+import { WithId } from "mongodb";
+
+import {
+  IAndroidStoreSettings,
+  IDeveloperAccountAndroid,
+  IIosInfoSettings,
+  IIosReviewSettings,
+  IIosScreenshots,
+  IIosStoreSettings,
+} from "./database";
 
 export type ClientType = {
   id: number;
@@ -17,6 +27,19 @@ export type BuildConfigType = {
   color: string;
   bgColor: string;
   onesignal_id: string;
+  buildNumber: number;
+  versionName: string;
+
+  androidStoreSettings: IAndroidStoreSettings;
+  androidScreenshots: string[];
+  androidFeatureGraphic: string;
+
+  iosStoreSettings: IIosStoreSettings;
+  iosInfoSettings: IIosInfoSettings;
+  iosReviewSettings: IIosReviewSettings;
+  iosScreenshots: IIosScreenshots;
+
+  androidDeveloperAccount?: null | WithId<IDeveloperAccountAndroid>;
 };
 
 export type BuildJobPayloadType = {
@@ -36,3 +59,12 @@ export type JobProgressType = {
   message: string;
   timestamp: Date;
 };
+
+export type AABDetailsType = Record<
+  string,
+  {
+    versionName: string;
+    buildNumber: number;
+    createdAt: Date;
+  }
+>;

@@ -1,12 +1,13 @@
-import fs from "fs";
 import { createFactory } from "hono/factory";
-import CustomHostModel from "src/models/customHost.model";
-import { patchCustomHostByIdSchema } from "src/validations/customhost";
+import { ObjectId } from "mongodb";
 
 import { zValidator } from "@hono/zod-validator";
 
-const factory = createFactory();
+import Mongo from "../../src/database";
+import { patchCustomHostByIdSchema } from "../../src/validations/customhost";
+import { Response } from "../utils/statuscode";
 
+const factory = createFactory();
 /**
     /wl/apps/
     GET
@@ -22,76 +23,72 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
     let LIMIT = limit ? parseInt(limit as string) : 10;
     let SEARCH = search ? (search as string) : "";
 
-    const totalCustomHosts = await CustomHostModel.countDocuments();
-    const customHosts = await CustomHostModel.aggregate([
-      {
-        $match: {
-          $or: [
-            { appName: { $regex: new RegExp(SEARCH, "i") } },
-            { host: { $regex: new RegExp(SEARCH, "i") } },
-            { brandname: { $regex: new RegExp(SEARCH, "i") } },
-          ],
-          whitelableStatus: { $ne: "drafted" },
+    const searchedCustomhostsArray = await Mongo.customhost
+      .aggregate([
+        {
+          $match: {
+            $or: [
+              { appName: { $regex: new RegExp(SEARCH, "i") } },
+              { host: { $regex: new RegExp(SEARCH, "i") } },
+              { brandname: { $regex: new RegExp(SEARCH, "i") } },
+            ],
+            whitelableStatus: { $ne: "drafted" },
+          },
         },
-      },
-      {
-        $project: {
-          appName: 1,
-          host: 1,
-          logo: 1,
-          createdAt: 1,
-          updatedAt: 1,
-          deploymentDetails: 1,
-          androidVersionName: "$androidDeploymentDetails.versionName",
-          iosVersionName: "$iosDeploymentDetails.versionName",
+        {
+          $lookup: {
+            from: "customhostmetadatas",
+            localField: "deploymentMetadata",
+            foreignField: "_id",
+            as: "deploymentDetails",
+          },
         },
-      },
-      {
-        $sort: { updatedAt: -1 },
-      },
-      {
-        $skip: (PAGE - 1) * LIMIT,
-      },
-      {
-        $limit: LIMIT,
-      },
-    ]);
-
-    const totalSearchResults = await CustomHostModel.find({
-      $or: [
-        { appName: { $regex: new RegExp(SEARCH, "i") } },
-        { host: { $regex: new RegExp(SEARCH, "i") } },
-        { brandname: { $regex: new RegExp(SEARCH, "i") } },
-      ],
-    }).countDocuments();
-
-    const hasNextPage = totalSearchResults > PAGE * LIMIT;
+        {
+          $unwind: {
+            path: "$deploymentDetails",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            appName: 1,
+            host: 1,
+            logo: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            androidVersionName:
+              "$deploymentDetails.androidDeploymentDetails.versionName",
+            iosVersionName:
+              "$deploymentDetails.iosDeploymentDetails.versionName",
+            iosUnderReview:
+              "$deploymentDetails.iosDeploymentDetails.isUnderReview",
+          },
+        },
+        {
+          $sort: { updatedAt: -1 },
+        },
+        {
+          $skip: (PAGE - 1) * LIMIT,
+        },
+        {
+          $limit: LIMIT,
+        },
+      ])
+      .toArray();
 
     return c.json(
       {
         message: "All Custom Hosts",
         result: {
-          customHosts,
-          totalSearchResults,
-          totalCustomHosts,
-          currentPage: PAGE,
-          nextPage: hasNextPage ? PAGE + 1 : -1,
-          limit: LIMIT,
-          hasNext: hasNextPage,
+          customHosts: searchedCustomhostsArray,
         },
       },
-      {
-        status: 200,
-        statusText: "OK",
-      },
+      Response.OK,
     );
   } catch (error) {
     return c.json(
       { message: "Internal Server Error" },
-      {
-        status: 500,
-        statusText: "Internal Server Error",
-      },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });
@@ -105,25 +102,23 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
 const getCustomHostByIdHandler = factory.createHandlers(async (c) => {
   try {
     const { id } = c.req.param();
-    const customHost = await CustomHostModel.findById(id);
+    const customHost = await Mongo.customhost.findOne({
+      _id: new ObjectId(id),
+    });
     if (!customHost) {
-      return c.json(
-        { message: "Custom Host not found" },
-        { status: 404, statusText: "Not Found" },
-      );
+      return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
     }
     return c.json(
       { message: "Fetched Custom Host", result: customHost },
-      { status: 200, statusText: "OK" },
+      Response.OK,
     );
   } catch (error) {
     return c.json(
       { message: "Internal Server Error" },
-      { status: 500, statusText: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
     );
   }
 });
-
 /**
  * /wl/apps/{:id}
  * PATCH
@@ -137,98 +132,41 @@ const patchCustomHostByIdHandler = factory.createHandlers(
   async (c) => {
     try {
       const { id } = c.req.param();
-      const { domain, ...update } = c.req.valid("json");
-
-      const customHost = await CustomHostModel.findById(id);
+      const body = c.req.valid("json");
+      const customHost = await Mongo.customhost.findOne({
+        _id: new ObjectId(id),
+      });
       if (!customHost) {
-        return c.json(
-          { message: "Custom Host not found" },
-          { status: 404, statusText: "Not Found" },
-        );
+        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
       }
-
-      const updatedCustomHost = await CustomHostModel.findByIdAndUpdate(
-        id,
-        update,
+      const updatedCustomHost = await Mongo.customhost.findOneAndUpdate(
         {
-          new: true,
+          _id: new ObjectId(id),
+        },
+        {
+          $set: {
+            ...(body as any),
+          },
+        },
+        {
+          returnDocument: "after",
         },
       );
-
       return c.json(
         { message: "Custom Host Updated", result: updatedCustomHost },
-        { status: 200, statusText: "OK" },
+        Response.OK,
       );
     } catch (error) {
       return c.json(
         { message: "Internal Server Error" },
-        { status: 500, statusText: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
       );
     }
   },
 );
 
-/**
-    /wl/apps/{:id}/upload/asset
-    POST
-    Protected Route
-*/
-
-const uploadAssetHandler = factory.createHandlers(async (c) => {
-  try {
-    const body = await c.req.parseBody({
-      all: true,
-    });
-    const file = body["file"];
-    const uploadPath = "./uploads";
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, {
-        recursive: true,
-      });
-    }
-
-    if (file instanceof File) {
-      const filePath = `${uploadPath}/${file.name}`;
-      const buffer = await file.arrayBuffer();
-      fs.writeFileSync(filePath, Buffer.from(buffer));
-      return c.json(
-        {
-          message: "File uploaded successfully",
-          result: {
-            path: filePath,
-          },
-        },
-        {
-          status: 200,
-          statusText: "OK",
-        },
-      );
-    } else {
-      return c.json(
-        {
-          message: "Invalid file",
-          result: null,
-        },
-        {
-          status: 400,
-          statusText: "Bad Request",
-        },
-      );
-    }
-  } catch (error) {
-    return c.json(
-      { message: "Internal Server Error" },
-      {
-        status: 500,
-        statusText: "Internal Server Error",
-      },
-    );
-  }
-});
-
 export {
   getAllCustomHostsHandler,
   getCustomHostByIdHandler,
   patchCustomHostByIdHandler,
-  uploadAssetHandler,
 };

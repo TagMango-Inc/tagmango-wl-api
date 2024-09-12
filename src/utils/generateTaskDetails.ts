@@ -1,6 +1,7 @@
 import { v4 as uuid } from "uuid";
 
-import { customhostDeploymentDir, rootBranch } from "../constants";
+import { IDeploymentTask } from "../../src/types/database";
+import { customhostDeploymentDir } from "../constants";
 
 export function generateTaskNames({
   bundle,
@@ -12,11 +13,14 @@ export function generateTaskNames({
   platform: "android" | "ios";
 }) {
   const tasks = [
-    `Fetching latest changes from origin ${rootBranch}`,
+    `Fetching latest changes from root branch`,
     `Copying root project to ${customhostDeploymentDir}/${bundle} directory`,
-    `Copying WLApps/${formatedAppName} to ${customhostDeploymentDir}/${bundle}/WLApps/${formatedAppName}`,
+    // `Copying WLApps/${formatedAppName} to ${customhostDeploymentDir}/${bundle}/WLApps/${formatedAppName}`,
+    `Generating assets for android and ios and Copying to ${customhostDeploymentDir}/${bundle}/assets`,
+    `Generating metadata files for android and ios`,
     `Running pre deployment and bundle script`,
-    `Running the fastlane build for ${platform} platform`,
+    `Running fastlane bundle for ${platform} platform`,
+    `Running fastlane deploy for ${platform} platform`,
     // `Deploying the project`,
     // `Pushing changes to the Repository Branch`,
     `Removing the ${customhostDeploymentDir}/${bundle} folder`,
@@ -42,7 +46,7 @@ export function generateDeploymentTasks({
       status: "pending",
       logs: [],
       duration: 0,
-    };
+    } as IDeploymentTask;
   });
   return generatedTasks;
 }

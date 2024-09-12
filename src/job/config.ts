@@ -1,5 +1,6 @@
 import { Queue, QueueEvents } from "bullmq";
-import { BuildJobPayloadType } from "src/types";
+
+import { BuildJobPayloadType } from "../../src/types";
 
 const queueRedisOptions = { host: "localhost", port: 6379 };
 
