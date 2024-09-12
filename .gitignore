@@ -14,3 +14,8 @@ dump.rdb
 data.ms
 developer_accounts/*
 forms/*
+
+config.toml
+android-aab.json
+release.json
+remove-bundles.js
