@@ -212,13 +212,13 @@ const { readFile, writeFile } = fs.promises;
                   ]
                 : [
                     `cd ${customHostAppDir}`,
-                    `bundle exec fastlane ${platform} build`,
+                    `source ~/.zshrc && bundle exec fastlane ${platform} build`,
                   ],
             // step 6: Running the fastlane upload for specific targer platform
             // TODO
             [taskNames[6].id]: [
               `cd ${customHostAppDir}`,
-              `bundle exec fastlane ${platform} upload`,
+              `source ~/.zshrc && bundle exec fastlane ${platform} upload`,
             ],
             // step 7: Removing the deployment/{bundleId} folder after successful deployment
             [taskNames[7].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
