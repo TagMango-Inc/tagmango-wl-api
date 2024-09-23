@@ -206,7 +206,7 @@ const { readFile, writeFile } = fs.promises;
               platform === "android"
                 ? [
                     `cd ${customHostAppDir}`,
-                    `fastlane ${platform} build`,
+                    `source ~/.zshrc && bundle exec fastlane ${platform} build`,
                     `cp -r android/app/build/outputs/bundle/release/app-release.aab ../../../outputs/android/${hostId}.aab`,
                     `node ../../../scripts/android-aab.js ${JSON.stringify({ hostId, versionName, buildNumber })}`,
                   ]
