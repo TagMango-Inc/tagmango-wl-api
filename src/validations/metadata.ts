@@ -11,6 +11,7 @@ const FileSchema = z.instanceof(File);
 
 const updateMetadataLogoSchema = z.object({
   logo: z.string().optional(),
+  customOneSignalIcon: z.string().optional(),
   icon: z.string(),
   background: z.string(),
   foreground: z.string(),
