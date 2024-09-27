@@ -149,6 +149,7 @@ export interface IMetaData {
 
   //   assetDomain: string;
   logo: string;
+  customOneSignalIcon?: string;
 
   backgroundType: "color" | "gradient";
   backgroundStartColor: string;

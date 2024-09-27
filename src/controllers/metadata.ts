@@ -200,6 +200,7 @@ const uploadMetadataLogo = factory.createHandlers(
 
       // saving assets
       const logo = body.logo;
+      const customOneSignalIcon = body.customOneSignalIcon;
       const icon = body.icon;
       const background = body.background;
       const foreground = body.foreground;
@@ -215,6 +216,11 @@ const uploadMetadataLogo = factory.createHandlers(
 
       await Promise.all([
         logo && base64ToImage(logo, `${logoPath}/logo.png`),
+        customOneSignalIcon &&
+          base64ToImage(
+            customOneSignalIcon,
+            `${logoPath}/customOneSignalIcon.png`,
+          ),
         base64ToImage(icon, `${logoPath}/icon.png`),
         base64ToImage(background, `${logoPath}/background.png`),
         base64ToImage(foreground, `${logoPath}/foreground.png`),
@@ -227,6 +233,7 @@ const uploadMetadataLogo = factory.createHandlers(
         {
           $set: {
             logo: `logo.png`,
+            customOneSignalIcon: `customOneSignalIcon.png`,
             backgroundType: body.backgroundType || metadata.backgroundType,
             backgroundStartColor:
               body.backgroundStartColor || metadata.backgroundStartColor,
