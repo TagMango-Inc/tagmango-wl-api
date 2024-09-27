@@ -229,11 +229,19 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
       ])
       .toArray();
 
-    const androidAABDetails = await readFile(
-      "./data/android-aab.json",
-      "utf-8",
-    );
-    const parsedAndroidAABDetails = JSON.parse(androidAABDetails);
+    let parsedAndroidAABDetails = {} as Record<
+      string,
+      { versionName: string; buildNumber: number }
+    >;
+    try {
+      const androidAABDetails = await readFile(
+        "./data/android-aab.json",
+        "utf-8",
+      );
+      parsedAndroidAABDetails = JSON.parse(androidAABDetails);
+    } catch (error) {
+      console.log(error);
+    }
 
     const modifiedResults =
       searchedDeployments.length > 0 && searchedDeployments[0].deployments
@@ -541,15 +549,17 @@ const getDeploymentDetailsById = factory.createHandlers(async (c) => {
       return c.json({ message: "Deployment not found" }, Response.NOT_FOUND);
     }
 
-    const androidAABDetails = await readFile(
-      "./data/android-aab.json",
-      "utf-8",
-    );
-    const parsedAndroidAABDetails = JSON.parse(androidAABDetails);
-
-    const isAndroidBundleAvailable = parsedAndroidAABDetails[deployment.host]
-      ? true
-      : false;
+    let isAndroidBundleAvailable = false;
+    if (deployment.platform === "android") {
+      const androidAABDetails = await readFile(
+        "./data/android-aab.json",
+        "utf-8",
+      );
+      const parsedAndroidAABDetails = JSON.parse(androidAABDetails);
+      isAndroidBundleAvailable = parsedAndroidAABDetails[deployment.host]
+        ? true
+        : false;
+    }
 
     return c.json(
       {
@@ -962,9 +972,9 @@ export {
   getAllDeploymentsHandler,
   getDeploymentDetails,
   getDeploymentDetailsById,
-  restartDeploymentTaskByDeploymentId,
   getDeploymentRequirementsChecklist,
   getDeploymentTaskLogsByTaskId,
   getRecentDeploymentsHandler,
+  restartDeploymentTaskByDeploymentId,
   updateFailedAndroidDeploymentStatus,
 };
