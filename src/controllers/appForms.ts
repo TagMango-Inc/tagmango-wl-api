@@ -887,6 +887,45 @@ const rejectFormHandler = factory.createHandlers(
 );
 
 /**
+ * PATCH wl/forms/:formId/mark-in-store-review
+ * Mark the form as in-store-review by formId
+ * Protected Route
+ */
+const markFormInStoreReviewHandler = factory.createHandlers(
+  authenticationMiddleware,
+  async (c) => {
+    try {
+      const { hostId } = c.req.param();
+
+      const customHost = await Mongo.customhost.findOne({
+        _id: new ObjectId(hostId),
+      });
+
+      if (!customHost) {
+        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
+      }
+
+      const result = await Mongo.app_forms.updateOne(
+        { host: new ObjectId(hostId) },
+        { $set: { status: AppFormStatus.IN_STORE_REVIEW } },
+      );
+      if (result.modifiedCount === 0) {
+        return c.json({ message: "Form not found" }, Response.NOT_FOUND);
+      }
+      return c.json(
+        { message: "Form marked as in-store-review successfully" },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
+/**
  * PATCH wl/forms/:formId/mark-deployed
  * Mark the form as deployed by formId
  * Protected Route
@@ -1159,6 +1198,7 @@ export {
   getFormByIdHandler,
   getFormOverviewByHostIdHandler,
   markFormDeployedHandler,
+  markFormInStoreReviewHandler,
   rejectFormHandler,
   submitFormHandler,
   updateInfoIosSettings,

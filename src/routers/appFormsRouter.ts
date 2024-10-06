@@ -10,6 +10,7 @@ import {
   getFormByIdHandler,
   getFormOverviewByHostIdHandler,
   markFormDeployedHandler,
+  markFormInStoreReviewHandler,
   rejectFormHandler,
   submitFormHandler,
   updateInfoIosSettings,
@@ -26,6 +27,10 @@ router.get("/:formId", ...getFormByIdHandler);
 router.get("/host/:hostId/overview", ...getFormOverviewByHostIdHandler);
 router.get("/host/:hostId", ...getFormByHostIdHandler);
 
+router.patch(
+  "/host/:hostId/mark-in-store-review",
+  ...markFormInStoreReviewHandler,
+);
 router.patch("/host/:hostId/mark-deployed", ...markFormDeployedHandler);
 
 router.post("/:formId/generate", ...generateFormValuesAIHandler);
