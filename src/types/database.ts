@@ -545,12 +545,11 @@ export interface IDeveloperAccountAndroid {
 }
 
 export enum AppFormStatus {
-  NOT_SENT = "not-sent",
-  PENDING = "pending",
   IN_PROGRESS = "in-progress",
   IN_REVIEW = "in-review",
   APPROVED = "approved",
   REJECTED = "rejected",
+  IN_STORE_REVIEW = "in-store-review",
   DEPLOYED = "deployed",
 }
 

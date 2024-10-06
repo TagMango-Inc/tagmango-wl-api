@@ -38,7 +38,7 @@ const writeFile = fs.promises.writeFile;
  * @param page: number
  * @param limit: number
  * @param search: string
- * @param status: 'not-sent' | 'pending' | 'in-progress' | 'in-review' | 'approved' | 'rejected' | 'deployed'
+ * @param status: 'in-progress' | 'in-review' | 'approved' | 'rejected' | 'in-store-review' |  'deployed'
  * @returns { message: string, result: { customHosts: Array } }
  */
 const getAllFormsHandler = factory.createHandlers(async (c) => {
@@ -57,7 +57,7 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
           $or: [
             {
               appFormDetails: { $exists: false },
-              $expr: { $eq: [STATUS, "not-sent"] },
+              $expr: { $eq: [STATUS, AppFormStatus.IN_PROGRESS] },
             },
             {
               appFormDetails: { $exists: true },
@@ -138,7 +138,7 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
         createdAt: customHost.createdAt,
         status: customHost.appFormDetails
           ? customHost.appFormDetails.status
-          : "not-sent",
+          : AppFormStatus.IN_PROGRESS,
         formId: customHost.appFormDetails
           ? customHost.appFormDetails._id
           : null,
@@ -418,7 +418,7 @@ const createFormRequestHandler = factory.createHandlers(
       const appForm: IAppForm = {
         host: customHost._id,
 
-        status: AppFormStatus.PENDING,
+        status: AppFormStatus.IN_PROGRESS,
 
         logo: "",
 
@@ -458,7 +458,7 @@ const createFormRequestHandler = factory.createHandlers(
           message: "Form request created successfully",
           result: {
             formId: result.insertedId,
-            status: AppFormStatus.PENDING,
+            status: AppFormStatus.IN_PROGRESS,
           },
         },
         Response.OK,
@@ -522,11 +522,9 @@ const uploadFormLogo = factory.createHandlers(
       }
 
       if (
-        ![
-          AppFormStatus.PENDING,
-          AppFormStatus.IN_PROGRESS,
-          AppFormStatus.REJECTED,
-        ].includes(form.status)
+        ![AppFormStatus.IN_PROGRESS, AppFormStatus.REJECTED].includes(
+          form.status,
+        )
       ) {
         return c.json(
           {
@@ -615,11 +613,9 @@ const updateStoreAndroidSettings = factory.createHandlers(
       }
 
       if (
-        ![
-          AppFormStatus.PENDING,
-          AppFormStatus.IN_PROGRESS,
-          AppFormStatus.REJECTED,
-        ].includes(form.status)
+        ![AppFormStatus.IN_PROGRESS, AppFormStatus.REJECTED].includes(
+          form.status,
+        )
       ) {
         return c.json(
           {
@@ -676,11 +672,7 @@ const uploadAndroidFeatureGraphic = factory.createHandlers(async (c) => {
     }
 
     if (
-      ![
-        AppFormStatus.PENDING,
-        AppFormStatus.IN_PROGRESS,
-        AppFormStatus.REJECTED,
-      ].includes(form.status)
+      ![AppFormStatus.IN_PROGRESS, AppFormStatus.REJECTED].includes(form.status)
     ) {
       return c.json(
         {
@@ -756,11 +748,9 @@ const updateStoreIosSettings = factory.createHandlers(
       }
 
       if (
-        ![
-          AppFormStatus.PENDING,
-          AppFormStatus.IN_PROGRESS,
-          AppFormStatus.REJECTED,
-        ].includes(form.status)
+        ![AppFormStatus.IN_PROGRESS, AppFormStatus.REJECTED].includes(
+          form.status,
+        )
       ) {
         return c.json(
           {
@@ -817,11 +807,9 @@ const updateInfoIosSettings = factory.createHandlers(
       }
 
       if (
-        ![
-          AppFormStatus.PENDING,
-          AppFormStatus.IN_PROGRESS,
-          AppFormStatus.REJECTED,
-        ].includes(form.status)
+        ![AppFormStatus.IN_PROGRESS, AppFormStatus.REJECTED].includes(
+          form.status,
+        )
       ) {
         return c.json(
           {
