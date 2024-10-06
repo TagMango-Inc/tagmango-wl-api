@@ -944,6 +944,16 @@ const markFormDeployedHandler = factory.createHandlers(
         return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
       }
 
+      if (!customHost.androidShareLink && !customHost.iosShareLink) {
+        return c.json(
+          {
+            message:
+              "Both Android and iOS share links are required for this action",
+          },
+          Response.BAD_REQUEST,
+        );
+      }
+
       const result = await Mongo.app_forms.updateOne(
         { host: new ObjectId(hostId) },
         { $set: { status: AppFormStatus.DEPLOYED } },

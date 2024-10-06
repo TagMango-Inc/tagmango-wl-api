@@ -5,6 +5,7 @@ import { zValidator } from "@hono/zod-validator";
 
 import Mongo from "../../src/database";
 import { patchCustomHostByIdSchema } from "../../src/validations/customhost";
+import { AppFormStatus } from "../types/database";
 import { Response } from "../utils/statuscode";
 
 const factory = createFactory();
@@ -152,6 +153,31 @@ const patchCustomHostByIdHandler = factory.createHandlers(
           returnDocument: "after",
         },
       );
+
+      // if the updatedCustomHost contains both androidShareLink and iosShareLink
+      // then find the app_form and update the status of the app_form to DEPLOYED if it is not already DEPLOYED
+      if (
+        updatedCustomHost &&
+        updatedCustomHost.androidShareLink &&
+        updatedCustomHost.iosShareLink
+      ) {
+        const appForm = await Mongo.app_forms.findOne({
+          host: new ObjectId(id),
+        });
+        if (appForm && appForm.status !== AppFormStatus.DEPLOYED) {
+          await Mongo.app_forms.findOneAndUpdate(
+            {
+              host: new ObjectId(id),
+            },
+            {
+              $set: {
+                status: AppFormStatus.DEPLOYED,
+              },
+            },
+          );
+        }
+      }
+
       return c.json(
         { message: "Custom Host Updated", result: updatedCustomHost },
         Response.OK,
