@@ -557,6 +557,7 @@ export interface IAppForm {
   host: ObjectId;
 
   logo: string;
+  customOneSignalIcon: string;
 
   backgroundType: "color" | "gradient";
   backgroundStartColor: string;
@@ -565,7 +566,6 @@ export interface IAppForm {
   logoPadding: number;
 
   androidStoreSettings: IAndroidStoreSettings;
-  androidFeatureGraphic: string;
 
   iosStoreSettings: IIosStoreSettings;
   iosInfoSettings: IIosInfoSettings;

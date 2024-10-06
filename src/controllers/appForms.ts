@@ -386,6 +386,7 @@ const getFormByHostIdHandler = factory.createHandlers(async (c) => {
 });
 
 /**
+ * TODO: delete this route
  * POST wl/forms/host/:hostId/request
  * Create a new form request for the customhost with placeholder data
  * Protected Route
@@ -421,6 +422,7 @@ const createFormRequestHandler = factory.createHandlers(
         status: AppFormStatus.IN_PROGRESS,
 
         logo: "",
+        customOneSignalIcon: "",
 
         backgroundType: "color",
         backgroundStartColor: "#ffffff",
@@ -448,7 +450,6 @@ const createFormRequestHandler = factory.createHandlers(
           copyright: "©2021 TagMango, Inc.",
           primary_category: "EDUCATION",
         },
-        androidFeatureGraphic: "",
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -536,6 +537,7 @@ const uploadFormLogo = factory.createHandlers(
 
       // saving assets
       const logo = body.logo;
+      const customOneSignalIcon = body.customOneSignalIcon;
       const icon = body.icon;
       const background = body.background;
       const foreground = body.foreground;
@@ -551,6 +553,11 @@ const uploadFormLogo = factory.createHandlers(
 
       await Promise.all([
         logo && base64ToImage(logo, `${logoPath}/logo.png`),
+        customOneSignalIcon &&
+          base64ToImage(
+            customOneSignalIcon,
+            `${logoPath}/customOneSignalIcon.png`,
+          ),
         base64ToImage(icon, `${logoPath}/icon.png`),
         base64ToImage(background, `${logoPath}/background.png`),
         base64ToImage(foreground, `${logoPath}/foreground.png`),
@@ -563,6 +570,7 @@ const uploadFormLogo = factory.createHandlers(
         {
           $set: {
             logo: `logo.png`,
+            customOneSignalIcon: `customOneSignalIcon.png`,
             backgroundType: body.backgroundType || form.backgroundType,
             backgroundStartColor:
               body.backgroundStartColor || form.backgroundStartColor,
