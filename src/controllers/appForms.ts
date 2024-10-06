@@ -349,6 +349,10 @@ const getFormByHostIdHandler = factory.createHandlers(async (c) => {
         result: {
           form: {
             ...appForm,
+            store: {
+              playStoreLink: customHost.androidShareLink,
+              appStoreLink: customHost.iosShareLink,
+            },
             rejectionDetails:
               appForm.rejectionDetails && reviewer
                 ? {
