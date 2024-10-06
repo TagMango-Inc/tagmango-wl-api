@@ -728,6 +728,79 @@ const approveFormHandler = factory.createHandlers(
         );
       }
 
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(form.host),
+      });
+
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      const currentLogoPath = `./forms/${form._id}`;
+      const newLogoPath = `./assets/${form.host}`;
+
+      // create directory if not exists
+      if (!fs.existsSync(newLogoPath)) {
+        fs.mkdirSync(newLogoPath, {
+          recursive: true,
+        });
+      }
+
+      const files = [
+        "logo.png",
+        "customOneSignalIcon.png",
+        "icon.png",
+        "background.png",
+        "foreground.png",
+      ];
+
+      let allImageFilesExists = true;
+      files.forEach(async (file) => {
+        if (fs.existsSync(`${currentLogoPath}/${file}`)) {
+          fs.copyFileSync(
+            `${currentLogoPath}/${file}`,
+            `${newLogoPath}/${file}`,
+          );
+        }
+        {
+          allImageFilesExists = false;
+        }
+      });
+
+      if (!allImageFilesExists) {
+        return c.json(
+          { message: "Some app logo files are not found" },
+          Response.BAD_REQUEST,
+        );
+      }
+
+      const newMetadata = await Mongo.metadata.updateOne(
+        { host: new ObjectId(form.host) },
+        {
+          $set: {
+            logo: form.logo,
+            customOneSignalIcon: form.customOneSignalIcon,
+            backgroundType: form.backgroundType,
+            backgroundStartColor: form.backgroundStartColor,
+            backgroundEndColor: form.backgroundEndColor,
+            backgroundGradientAngle: form.backgroundGradientAngle,
+            logoPadding: form.logoPadding,
+            androidStoreSettings: form.androidStoreSettings,
+            iosStoreSettings: form.iosStoreSettings,
+            iosInfoSettings: form.iosInfoSettings,
+
+            isFormImported: true,
+          },
+        },
+      );
+
+      if (newMetadata.modifiedCount === 0) {
+        return c.json(
+          { message: "Metadata not updated" },
+          Response.INTERNAL_SERVER_ERROR,
+        );
+      }
+
       const result = await Mongo.app_forms.updateOne(
         { _id: new ObjectId(formId) },
         {
