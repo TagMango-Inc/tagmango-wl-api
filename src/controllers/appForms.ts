@@ -206,6 +206,10 @@ const getFormByIdHandler = factory.createHandlers(async (c) => {
         result: {
           form: {
             ...appForm,
+            store: {
+              playStoreLink: customHost.androidShareLink,
+              appStoreLink: customHost.iosShareLink,
+            },
             rejectionDetails:
               appForm.rejectionDetails && reviewer
                 ? {
@@ -948,7 +952,7 @@ const markFormDeployedHandler = factory.createHandlers(
         return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
       }
 
-      if (!customHost.androidShareLink && !customHost.iosShareLink) {
+      if (!customHost.androidShareLink || !customHost.iosShareLink) {
         return c.json(
           {
             message:
