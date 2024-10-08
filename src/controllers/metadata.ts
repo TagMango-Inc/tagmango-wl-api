@@ -956,116 +956,11 @@ const deleteIosScreenshots = factory.createHandlers(
   },
 );
 
-const importMetadataFromAppForm = factory.createHandlers(async (c) => {
-  try {
-    const { appId } = c.req.param();
-
-    const metadata = await Mongo.metadata.findOne({
-      host: new ObjectId(appId),
-    });
-
-    if (!metadata) {
-      return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
-    }
-
-    const form = await Mongo.app_forms.findOne({
-      host: new ObjectId(appId),
-    });
-
-    if (!form) {
-      return c.json({ message: "Form not found" }, Response.NOT_FOUND);
-    }
-
-    if (form.status !== AppFormStatus.APPROVED || !form.isFormSubmitted) {
-      return c.json(
-        { message: "Form is not approved or not submitted" },
-        Response.BAD_REQUEST,
-      );
-    }
-
-    if (metadata.isFormImported) {
-      return c.json(
-        { message: "Metadata already imported" },
-        Response.BAD_REQUEST,
-      );
-    }
-
-    const currentLogoPath = `./forms/${form._id}`;
-    const newLogoPath = `./assets/${appId}`;
-
-    // create directory if not exists
-    if (!fs.existsSync(newLogoPath)) {
-      fs.mkdirSync(newLogoPath, {
-        recursive: true,
-      });
-    }
-
-    if (!fs.existsSync(`${newLogoPath}/android`)) {
-      fs.mkdirSync(`${newLogoPath}/android`, {
-        recursive: true,
-      });
-    }
-
-    // copy currentLogoPath/logo.png, icon.png, background.png, foreground.png to newLogoPath
-    // copy currentLogoPath/android/featureGraphic.png to newLogoPath/android/featureGraphic.png
-    // overwrite if exists
-
-    const files = [
-      "logo.png",
-      "icon.png",
-      "background.png",
-      "foreground.png",
-      "android/featureGraphic.png",
-    ];
-
-    files.forEach(async (file) => {
-      if (fs.existsSync(`${currentLogoPath}/${file}`)) {
-        fs.copyFileSync(`${currentLogoPath}/${file}`, `${newLogoPath}/${file}`);
-      }
-    });
-
-    const newMetadata = await Mongo.metadata.updateOne(
-      { host: new ObjectId(appId) },
-      {
-        $set: {
-          logo: form.logo,
-          backgroundType: form.backgroundType,
-          backgroundStartColor: form.backgroundStartColor,
-          backgroundEndColor: form.backgroundEndColor,
-          backgroundGradientAngle: form.backgroundGradientAngle,
-          logoPadding: form.logoPadding,
-          androidStoreSettings: form.androidStoreSettings,
-          iosStoreSettings: form.iosStoreSettings,
-          iosInfoSettings: form.iosInfoSettings,
-          androidFeatureGraphic:
-            form.androidFeatureGraphic ?? metadata.androidFeatureGraphic,
-
-          isFormImported: true,
-        },
-      },
-    );
-
-    return c.json(
-      {
-        message: "Metadata imported successfully",
-        result: newMetadata,
-      },
-      Response.OK,
-    );
-  } catch (error) {
-    return c.json(
-      { message: "Internal Server Error" },
-      Response.INTERNAL_SERVER_ERROR,
-    );
-  }
-});
-
 export {
   createMetadata,
   deleteAndroidScreenshots,
   deleteIosScreenshots,
   getAppMetadata,
-  importMetadataFromAppForm,
   reorderAndroidScreenshots,
   reorderIosScreenshots,
   updateAndroidDeveloperAccountForApp,

@@ -1,17 +1,13 @@
 import fs from 'fs-extra';
 import { createFactory } from 'hono/factory';
 import { ObjectId } from 'mongodb';
-import path from 'path';
 
 import { zValidator } from '@hono/zod-validator';
 
 import Mongo from '../database';
 import authenticationMiddleware from '../middleware/authentication';
 import { JWTPayloadType } from '../types';
-import {
-  AppFormStatus,
-  IAppForm,
-} from '../types/database';
+import { AppFormStatus } from '../types/database';
 import { base64ToImage } from '../utils/image';
 import { Response } from '../utils/statuscode';
 import {
@@ -38,7 +34,7 @@ const writeFile = fs.promises.writeFile;
  * @param page: number
  * @param limit: number
  * @param search: string
- * @param status: 'not-sent' | 'pending' | 'in-progress' | 'in-review' | 'approved' | 'rejected' | 'deployed'
+ * @param status: 'in-progress' | 'in-review' | 'approved' | 'rejected' | 'in-store-review' |  'deployed'
  * @returns { message: string, result: { customHosts: Array } }
  */
 const getAllFormsHandler = factory.createHandlers(async (c) => {
@@ -57,7 +53,7 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
           $or: [
             {
               appFormDetails: { $exists: false },
-              $expr: { $eq: [STATUS, "not-sent"] },
+              $expr: { $eq: [STATUS, AppFormStatus.IN_PROGRESS] },
             },
             {
               appFormDetails: { $exists: true },
@@ -75,7 +71,6 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
             { host: { $regex: new RegExp(SEARCH, "i") } },
             { brandname: { $regex: new RegExp(SEARCH, "i") } },
           ],
-          whitelableStatus: { $ne: "drafted" },
         },
       },
       {
@@ -102,7 +97,6 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
       {
         $unwind: {
           path: "$appFormDetails",
-          preserveNullAndEmptyArrays: true,
         },
       },
       {
@@ -138,7 +132,7 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
         createdAt: customHost.createdAt,
         status: customHost.appFormDetails
           ? customHost.appFormDetails.status
-          : "not-sent",
+          : AppFormStatus.IN_PROGRESS,
         formId: customHost.appFormDetails
           ? customHost.appFormDetails._id
           : null,
@@ -210,6 +204,10 @@ const getFormByIdHandler = factory.createHandlers(async (c) => {
         result: {
           form: {
             ...appForm,
+            store: {
+              playStoreLink: customHost.androidShareLink,
+              appStoreLink: customHost.iosShareLink,
+            },
             rejectionDetails:
               appForm.rejectionDetails && reviewer
                 ? {
@@ -353,6 +351,10 @@ const getFormByHostIdHandler = factory.createHandlers(async (c) => {
         result: {
           form: {
             ...appForm,
+            store: {
+              playStoreLink: customHost.androidShareLink,
+              appStoreLink: customHost.iosShareLink,
+            },
             rejectionDetails:
               appForm.rejectionDetails && reviewer
                 ? {
@@ -386,122 +388,6 @@ const getFormByHostIdHandler = factory.createHandlers(async (c) => {
 });
 
 /**
- * POST wl/forms/host/:hostId/request
- * Create a new form request for the customhost with placeholder data
- * Protected Route
- */
-const createFormRequestHandler = factory.createHandlers(
-  authenticationMiddleware,
-  async (c) => {
-    try {
-      const { hostId } = c.req.param();
-      const customHost = await Mongo.customhost.findOne({
-        _id: new ObjectId(hostId),
-      });
-      if (!customHost) {
-        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
-      }
-
-      const appFormExists = await Mongo.app_forms.findOne({
-        host: new ObjectId(hostId),
-      });
-
-      if (appFormExists) {
-        return c.json(
-          { message: "Form request already exists" },
-          Response.BAD_REQUEST,
-        );
-      }
-
-      const appName = customHost.appName || customHost.brandname || "";
-
-      const appForm: IAppForm = {
-        host: customHost._id,
-
-        status: AppFormStatus.PENDING,
-
-        logo: "",
-
-        backgroundType: "color",
-        backgroundStartColor: "#ffffff",
-        backgroundEndColor: "#ffffff",
-        backgroundGradientAngle: 45,
-        logoPadding: 15,
-
-        androidStoreSettings: {
-          title: appName,
-          short_description: ``,
-          full_description: ``,
-          video: "",
-        },
-        iosStoreSettings: {
-          description: ``,
-          keywords: "",
-          marketing_url: "",
-          name: appName,
-          privacy_url: "",
-          promotional_text: ``,
-          subtitle: "",
-          support_url: "https://help.tagmango.com",
-        },
-        iosInfoSettings: {
-          copyright: "©2021 TagMango, Inc.",
-          primary_category: "EDUCATION",
-        },
-        androidFeatureGraphic: "",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      const result = await Mongo.app_forms.insertOne(appForm);
-      return c.json(
-        {
-          message: "Form request created successfully",
-          result: {
-            formId: result.insertedId,
-            status: AppFormStatus.PENDING,
-          },
-        },
-        Response.OK,
-      );
-    } catch (error) {
-      return c.json(
-        { message: "Internal Server Error" },
-        Response.INTERNAL_SERVER_ERROR,
-      );
-    }
-  },
-);
-
-/**
- * PATCH wl/forms/:formId
- * Update the form data by formId
- * Protected Route
- */
-// const patchFormByIdHandler = factory.createHandlers(
-//   zValidator("json", patchFormByIdSchema),
-//   async (c) => {
-//     try {
-//       const { formId } = c.req.param();
-//       const body = c.req.valid("json");
-
-//       const result = await Mongo.app_forms.updateOne(
-//         { _id: new ObjectId(formId) },
-//         { $set: { ...body, updatedAt: new Date(), isFormSubmitted: true } },
-//       );
-//       if (result.modifiedCount === 0) {
-//         return c.json({ message: "Form not found" }, Response.NOT_FOUND);
-//       }
-//       return c.json({ message: "Form updated successfully" }, Response.OK);
-//     } catch (error) {
-//       return c.json(
-//         { message: "Internal Server Error" },
-//         Response.INTERNAL_SERVER_ERROR,
-//       );
-//     }
-//   },
-// );
-
-/**
  * PATCH wl.forms/:formId/logo/upload
  * Upload the logo for the form by formId
  * Protected Route
@@ -522,11 +408,9 @@ const uploadFormLogo = factory.createHandlers(
       }
 
       if (
-        ![
-          AppFormStatus.PENDING,
-          AppFormStatus.IN_PROGRESS,
-          AppFormStatus.REJECTED,
-        ].includes(form.status)
+        ![AppFormStatus.IN_PROGRESS, AppFormStatus.REJECTED].includes(
+          form.status,
+        )
       ) {
         return c.json(
           {
@@ -538,6 +422,7 @@ const uploadFormLogo = factory.createHandlers(
 
       // saving assets
       const logo = body.logo;
+      const customOneSignalIcon = body.customOneSignalIcon;
       const icon = body.icon;
       const background = body.background;
       const foreground = body.foreground;
@@ -553,6 +438,11 @@ const uploadFormLogo = factory.createHandlers(
 
       await Promise.all([
         logo && base64ToImage(logo, `${logoPath}/logo.png`),
+        customOneSignalIcon &&
+          base64ToImage(
+            customOneSignalIcon,
+            `${logoPath}/customOneSignalIcon.png`,
+          ),
         base64ToImage(icon, `${logoPath}/icon.png`),
         base64ToImage(background, `${logoPath}/background.png`),
         base64ToImage(foreground, `${logoPath}/foreground.png`),
@@ -565,6 +455,7 @@ const uploadFormLogo = factory.createHandlers(
         {
           $set: {
             logo: `logo.png`,
+            customOneSignalIcon: `customOneSignalIcon.png`,
             backgroundType: body.backgroundType || form.backgroundType,
             backgroundStartColor:
               body.backgroundStartColor || form.backgroundStartColor,
@@ -615,11 +506,9 @@ const updateStoreAndroidSettings = factory.createHandlers(
       }
 
       if (
-        ![
-          AppFormStatus.PENDING,
-          AppFormStatus.IN_PROGRESS,
-          AppFormStatus.REJECTED,
-        ].includes(form.status)
+        ![AppFormStatus.IN_PROGRESS, AppFormStatus.REJECTED].includes(
+          form.status,
+        )
       ) {
         return c.json(
           {
@@ -656,86 +545,6 @@ const updateStoreAndroidSettings = factory.createHandlers(
 );
 
 /**
- * PATCH wl/forms/:formId/android/feature-graphic
- * Upload the android feature graphic for the form by formId
- * Protected Route
- */
-const uploadAndroidFeatureGraphic = factory.createHandlers(async (c) => {
-  try {
-    const { formId } = c.req.param();
-    const body = await c.req.parseBody();
-
-    const featureGraphic = body.featureGraphic;
-
-    const form = await Mongo.app_forms.findOne({
-      _id: new ObjectId(formId),
-    });
-
-    if (!form) {
-      return c.json({ message: "Form not found" }, Response.NOT_FOUND);
-    }
-
-    if (
-      ![
-        AppFormStatus.PENDING,
-        AppFormStatus.IN_PROGRESS,
-        AppFormStatus.REJECTED,
-      ].includes(form.status)
-    ) {
-      return c.json(
-        {
-          message: "Cannot update info settings for this form",
-        },
-        Response.BAD_REQUEST,
-      );
-    }
-
-    const fileSavePath = `./forms/${formId}/`;
-
-    // Creating directory if it does not exist
-    if (!fs.existsSync(`${fileSavePath}/android`)) {
-      fs.mkdirSync(`${fileSavePath}/android`, {
-        recursive: true,
-      });
-    }
-
-    const name = `android/featureGraphic.png`;
-    const filePath = path.join(fileSavePath, name);
-    const buffer = await (featureGraphic as File).arrayBuffer();
-    const file = Buffer.from(buffer);
-    await writeFile(filePath, file);
-
-    await Mongo.app_forms.updateOne(
-      {
-        _id: new ObjectId(formId),
-      },
-      {
-        $set: {
-          androidFeatureGraphic: name,
-          status: AppFormStatus.IN_PROGRESS,
-          updatedAt: new Date(),
-        },
-      },
-    );
-
-    return c.json(
-      {
-        message: "Feature Graphic updated successfully",
-        result: {
-          featureGraphic: name,
-        },
-      },
-      Response.OK,
-    );
-  } catch (error) {
-    return c.json(
-      { message: "Internal Server Error" },
-      Response.INTERNAL_SERVER_ERROR,
-    );
-  }
-});
-
-/**
  * PATCH wl/forms/:formId/ios/store
  * Update the ios store settings for the form by formId
  * Protected Route
@@ -756,11 +565,9 @@ const updateStoreIosSettings = factory.createHandlers(
       }
 
       if (
-        ![
-          AppFormStatus.PENDING,
-          AppFormStatus.IN_PROGRESS,
-          AppFormStatus.REJECTED,
-        ].includes(form.status)
+        ![AppFormStatus.IN_PROGRESS, AppFormStatus.REJECTED].includes(
+          form.status,
+        )
       ) {
         return c.json(
           {
@@ -817,11 +624,9 @@ const updateInfoIosSettings = factory.createHandlers(
       }
 
       if (
-        ![
-          AppFormStatus.PENDING,
-          AppFormStatus.IN_PROGRESS,
-          AppFormStatus.REJECTED,
-        ].includes(form.status)
+        ![AppFormStatus.IN_PROGRESS, AppFormStatus.REJECTED].includes(
+          form.status,
+        )
       ) {
         return c.json(
           {
@@ -929,6 +734,79 @@ const approveFormHandler = factory.createHandlers(
         );
       }
 
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(form.host),
+      });
+
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      const currentLogoPath = `./forms/${form._id}`;
+      const newLogoPath = `./assets/${form.host}`;
+
+      // create directory if not exists
+      if (!fs.existsSync(newLogoPath)) {
+        fs.mkdirSync(newLogoPath, {
+          recursive: true,
+        });
+      }
+
+      const files = [
+        "logo.png",
+        "customOneSignalIcon.png",
+        "icon.png",
+        "background.png",
+        "foreground.png",
+      ];
+
+      let allImageFilesExists = true;
+      files.forEach(async (file) => {
+        if (fs.existsSync(`${currentLogoPath}/${file}`)) {
+          fs.copyFileSync(
+            `${currentLogoPath}/${file}`,
+            `${newLogoPath}/${file}`,
+          );
+        }
+        {
+          allImageFilesExists = false;
+        }
+      });
+
+      if (!allImageFilesExists) {
+        return c.json(
+          { message: "Some app logo files are not found" },
+          Response.BAD_REQUEST,
+        );
+      }
+
+      const newMetadata = await Mongo.metadata.updateOne(
+        { host: new ObjectId(form.host) },
+        {
+          $set: {
+            logo: form.logo,
+            customOneSignalIcon: form.customOneSignalIcon,
+            backgroundType: form.backgroundType,
+            backgroundStartColor: form.backgroundStartColor,
+            backgroundEndColor: form.backgroundEndColor,
+            backgroundGradientAngle: form.backgroundGradientAngle,
+            logoPadding: form.logoPadding,
+            androidStoreSettings: form.androidStoreSettings,
+            iosStoreSettings: form.iosStoreSettings,
+            iosInfoSettings: form.iosInfoSettings,
+
+            isFormImported: true,
+          },
+        },
+      );
+
+      if (newMetadata.modifiedCount === 0) {
+        return c.json(
+          { message: "Metadata not updated" },
+          Response.INTERNAL_SERVER_ERROR,
+        );
+      }
+
       const result = await Mongo.app_forms.updateOne(
         { _id: new ObjectId(formId) },
         {
@@ -1015,6 +893,45 @@ const rejectFormHandler = factory.createHandlers(
 );
 
 /**
+ * PATCH wl/forms/:formId/mark-in-store-review
+ * Mark the form as in-store-review by formId
+ * Protected Route
+ */
+const markFormInStoreReviewHandler = factory.createHandlers(
+  authenticationMiddleware,
+  async (c) => {
+    try {
+      const { hostId } = c.req.param();
+
+      const customHost = await Mongo.customhost.findOne({
+        _id: new ObjectId(hostId),
+      });
+
+      if (!customHost) {
+        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
+      }
+
+      const result = await Mongo.app_forms.updateOne(
+        { host: new ObjectId(hostId) },
+        { $set: { status: AppFormStatus.IN_STORE_REVIEW } },
+      );
+      if (result.modifiedCount === 0) {
+        return c.json({ message: "Form not found" }, Response.NOT_FOUND);
+      }
+      return c.json(
+        { message: "Form marked as in-store-review successfully" },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
+/**
  * PATCH wl/forms/:formId/mark-deployed
  * Mark the form as deployed by formId
  * Protected Route
@@ -1031,6 +948,16 @@ const markFormDeployedHandler = factory.createHandlers(
 
       if (!customHost) {
         return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
+      }
+
+      if (!customHost.androidShareLink || !customHost.iosShareLink) {
+        return c.json(
+          {
+            message:
+              "Both Android and iOS share links are required for this action",
+          },
+          Response.BAD_REQUEST,
+        );
       }
 
       const result = await Mongo.app_forms.updateOne(
@@ -1279,7 +1206,6 @@ const fetchPreRequisitesForApp = factory.createHandlers(async (c) => {
 
 export {
   approveFormHandler,
-  createFormRequestHandler,
   deleteFormByIdHandler,
   fetchPreRequisitesForApp,
   generateFormValuesAIHandler,
@@ -1288,11 +1214,11 @@ export {
   getFormByIdHandler,
   getFormOverviewByHostIdHandler,
   markFormDeployedHandler,
+  markFormInStoreReviewHandler,
   rejectFormHandler,
   submitFormHandler,
   updateInfoIosSettings,
   updateStoreAndroidSettings,
   updateStoreIosSettings,
-  uploadAndroidFeatureGraphic,
   uploadFormLogo,
 };

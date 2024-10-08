@@ -5,7 +5,6 @@ import {
   deleteAndroidScreenshots,
   deleteIosScreenshots,
   getAppMetadata,
-  importMetadataFromAppForm,
   reorderAndroidScreenshots,
   reorderIosScreenshots,
   updateAndroidDeveloperAccountForApp,
@@ -71,7 +70,5 @@ router.patch(
   "/:appId/settings/ios/screenshots/delete",
   ...deleteIosScreenshots,
 );
-
-router.patch("/:appId/settings/import", ...importMetadataFromAppForm);
 
 export default router;
