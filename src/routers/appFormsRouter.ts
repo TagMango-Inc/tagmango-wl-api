@@ -9,6 +9,7 @@ import {
   getFormByHostIdHandler,
   getFormByIdHandler,
   getFormOverviewByHostIdHandler,
+  markFormApprovedHandler,
   markFormDeployedHandler,
   markFormInStoreReviewHandler,
   rejectFormHandler,
@@ -31,6 +32,7 @@ router.patch(
   "/host/:hostId/mark-in-store-review",
   ...markFormInStoreReviewHandler,
 );
+router.patch("/host/:hostId/mark-approved", ...markFormApprovedHandler);
 router.patch("/host/:hostId/mark-deployed", ...markFormDeployedHandler);
 
 router.post("/:formId/generate", ...generateFormValuesAIHandler);

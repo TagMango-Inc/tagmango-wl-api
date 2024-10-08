@@ -142,6 +142,10 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
         isFormSubmitted: customHost.appFormDetails
           ? customHost.appFormDetails.isFormSubmitted ?? false
           : false,
+        store: {
+          playStoreLink: customHost.androidShareLink || "",
+          appStoreLink: customHost.iosShareLink || "",
+        },
       };
     });
 
@@ -893,8 +897,8 @@ const rejectFormHandler = factory.createHandlers(
 );
 
 /**
- * PATCH wl/forms/:formId/mark-in-store-review
- * Mark the form as in-store-review by formId
+ * PATCH wl/forms/:appId/mark-in-store-review
+ * Mark the form as in-store-review by app id
  * Protected Route
  */
 const markFormInStoreReviewHandler = factory.createHandlers(
@@ -932,8 +936,115 @@ const markFormInStoreReviewHandler = factory.createHandlers(
 );
 
 /**
- * PATCH wl/forms/:formId/mark-deployed
- * Mark the form as deployed by formId
+ * PATCH wl/forms/:appId/mark-approved
+ * Mark the form as deployed by app id
+ * Used when app is in progress and reviewer wants to approve bypassing review
+ * Protected Route
+ */
+const markFormApprovedHandler = factory.createHandlers(
+  authenticationMiddleware,
+  async (c) => {
+    try {
+      const { hostId } = c.req.param();
+
+      const customHost = await Mongo.customhost.findOne({
+        _id: new ObjectId(hostId),
+      });
+
+      if (!customHost) {
+        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
+      }
+
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(hostId),
+      });
+
+      if (
+        !metadata ||
+        !metadata.logo ||
+        !metadata.androidStoreSettings.title ||
+        !metadata.androidStoreSettings.short_description ||
+        !metadata.androidStoreSettings.full_description ||
+        !metadata.iosStoreSettings.name ||
+        !metadata.iosStoreSettings.description ||
+        !metadata.iosStoreSettings.keywords ||
+        !metadata.iosStoreSettings.promotional_text
+      ) {
+        return c.json(
+          {
+            message:
+              "Metadata is not complete for this form, cannot mark as approved",
+          },
+          Response.BAD_REQUEST,
+        );
+      }
+
+      const result = await Mongo.app_forms.updateOne(
+        { host: new ObjectId(hostId) },
+        {
+          $set: {
+            // Use $set to update the fields
+            host: customHost._id,
+            status: AppFormStatus.APPROVED,
+            logo: metadata.logo,
+            customOneSignalIcon: metadata.customOneSignalIcon || "",
+
+            backgroundType: metadata.backgroundType || "color",
+            backgroundStartColor: metadata.backgroundStartColor || "#ffffff",
+            backgroundEndColor: metadata.backgroundEndColor || "#ffffff",
+            backgroundGradientAngle: metadata.backgroundGradientAngle || 45,
+            logoPadding: metadata.logoPadding || 15,
+
+            androidStoreSettings: {
+              title: metadata.androidStoreSettings?.title || "",
+              short_description:
+                metadata.androidStoreSettings?.short_description || "",
+              full_description:
+                metadata.androidStoreSettings?.full_description || "",
+              video: "",
+            },
+            iosStoreSettings: {
+              description: metadata.iosStoreSettings?.description || "",
+              keywords: metadata.iosStoreSettings?.keywords || "",
+              marketing_url: "",
+              name: metadata.iosStoreSettings?.name || "",
+              privacy_url:
+                metadata.iosStoreSettings?.privacy_url ||
+                `https://${customHost.host}/privacy`,
+              promotional_text:
+                metadata.iosStoreSettings?.promotional_text || "",
+              subtitle: "",
+              support_url: "https://help.tagmango.com",
+            },
+            iosInfoSettings: {
+              copyright: "©2021 TagMango, Inc.",
+              primary_category: "EDUCATION",
+            },
+            isFormSubmitted: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+      );
+      if (result.modifiedCount === 0) {
+        return c.json({ message: "Form not found" }, Response.NOT_FOUND);
+      }
+      return c.json(
+        { message: "Form marked as approved successfully" },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
+/**
+ * PATCH wl/forms/:appId/mark-deployed
+ * Mark the form as deployed by app id
  * Protected Route
  */
 const markFormDeployedHandler = factory.createHandlers(
@@ -1213,6 +1324,7 @@ export {
   getFormByHostIdHandler,
   getFormByIdHandler,
   getFormOverviewByHostIdHandler,
+  markFormApprovedHandler,
   markFormDeployedHandler,
   markFormInStoreReviewHandler,
   rejectFormHandler,
