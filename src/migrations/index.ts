@@ -1,10 +1,11 @@
-import Mongo from "../database";
-import { populateMeilisearch } from "./populate-meilisearch";
+import Mongo from '../database';
+import { populateAppForms } from './populateAppForms';
 
 const runMigration = async () => {
   // Run your migration here
+  // await populateMeilisearch();
+  await populateAppForms();
   console.log("Migration ran successfully");
-  await populateMeilisearch();
 };
 
 Mongo.connect().then(() => {

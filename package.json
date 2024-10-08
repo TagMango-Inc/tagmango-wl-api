@@ -1,6 +1,7 @@
 {
   "scripts": {
     "start": "tsx src/index.ts",
+    "migration": "tsx src/migrations/index.ts",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "vercel-build": "echo hello",
