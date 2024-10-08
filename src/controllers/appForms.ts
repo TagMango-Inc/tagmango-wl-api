@@ -71,7 +71,6 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
             { host: { $regex: new RegExp(SEARCH, "i") } },
             { brandname: { $regex: new RegExp(SEARCH, "i") } },
           ],
-          whitelableStatus: { $ne: "drafted" },
         },
       },
       {
@@ -98,7 +97,6 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
       {
         $unwind: {
           path: "$appFormDetails",
-          preserveNullAndEmptyArrays: true,
         },
       },
       {
