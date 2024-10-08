@@ -442,6 +442,7 @@ const createNewDeploymentHandler = factory.createHandlers(
             (target === "android"
               ? metadata.androidStoreSettings.title
               : metadata.iosStoreSettings.name) ?? customhost.appName,
+          appName: customhost.appName || customhost.brandname,
           bundle:
             target === "android"
               ? metadata.androidDeploymentDetails.bundleId
@@ -685,6 +686,7 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
             (deployment.platform === "android"
               ? metadata.androidStoreSettings.title
               : metadata.iosStoreSettings.name) ?? customhost.appName,
+          appName: customhost.appName || customhost.brandname,
           bundle:
             deployment.platform === "android"
               ? metadata.androidDeploymentDetails.bundleId

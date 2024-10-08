@@ -62,6 +62,7 @@ const { readFile, writeFile } = fs.promises;
             hostId,
             platform,
             name,
+            appName,
             bundle,
             domain,
             color,
@@ -165,7 +166,17 @@ const { readFile, writeFile } = fs.promises;
               `mkdir -p android ios`,
               `npx icon-set-creator create`,
             ],
+            // Generating screenshots
             [taskNames[3].id]: [
+              `cd ${customHostAppDir}`,
+              `node ./scripts/app-screenshots.js ${JSON.stringify({
+                hostId,
+                domain,
+                appName,
+                waitTime: 5000,
+              })}`,
+            ],
+            [taskNames[4].id]: [
               `node ./scripts/create-metadata.js ${JSON.stringify({
                 hostId,
                 rootPath: `${customHostAppDir}`,
@@ -184,7 +195,7 @@ const { readFile, writeFile } = fs.promises;
             ],
             //TODO
             // step: 4: Running the pre deployment and bundle script for the deployment/{bundleId} folder
-            [taskNames[4].id]: [
+            [taskNames[5].id]: [
               `cd ${customHostAppDir}`,
               `npm install`,
               `node ./scripts/app-build.js ${JSON.stringify({
@@ -202,7 +213,7 @@ const { readFile, writeFile } = fs.promises;
             ],
 
             // step 5: Running the fastlane build for specific targer platform
-            [taskNames[5].id]:
+            [taskNames[6].id]:
               platform === "android"
                 ? [
                     `cd ${customHostAppDir}`,
@@ -216,12 +227,12 @@ const { readFile, writeFile } = fs.promises;
                   ],
             // step 6: Running the fastlane upload for specific targer platform
             // TODO
-            [taskNames[6].id]: [
+            [taskNames[7].id]: [
               `cd ${customHostAppDir}`,
               `source ~/.zshrc && bundle exec fastlane ${platform} upload`,
             ],
             // step 7: Removing the deployment/{bundleId} folder after successful deployment
-            [taskNames[7].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
+            [taskNames[8].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
             // [taskNames[6].id]: [],
           };
 

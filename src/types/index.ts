@@ -22,6 +22,7 @@ export type JWTPayloadType = {
 
 export type BuildConfigType = {
   name: string;
+  appName: string;
   bundle: string;
   domain: string;
   color: string;
