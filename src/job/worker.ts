@@ -169,6 +169,7 @@ const { readFile, writeFile } = fs.promises;
             // Generating screenshots
             [taskNames[3].id]: [
               `cd ${customHostAppDir}`,
+              `npm install`,
               `node ./scripts/app-screenshots.js ${JSON.stringify({
                 hostId,
                 domain,
