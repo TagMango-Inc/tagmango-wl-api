@@ -174,6 +174,9 @@ const { readFile, writeFile } = fs.promises;
                 domain,
                 appName,
                 waitTime: 5000,
+                androidScreenshots: JSON.stringify(androidScreenshots),
+                iosScreenshots: JSON.stringify(iosScreenshots),
+                androidFeatureGraphic: androidFeatureGraphic,
               })}`,
             ],
             [taskNames[4].id]: [
