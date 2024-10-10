@@ -166,6 +166,61 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
   }
 });
 
+const getAllFormsCount = factory.createHandlers(async (c) => {
+  try {
+    const allStatusCounts = await Mongo.app_forms
+      .aggregate([
+        {
+          $group: {
+            _id: "$status", // Group by the 'status' field
+            count: { $sum: 1 }, // Count each occurrence
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            statuses: {
+              $push: { k: "$_id", v: "$count" }, // Create key-value pairs
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            statuses: { $arrayToObject: "$statuses" }, // Convert the array to an object
+          },
+        },
+      ])
+      .toArray();
+
+    return c.json(
+      {
+        message: "All forms count",
+        result: {
+          count:
+            allStatusCounts.length > 0
+              ? allStatusCounts[0].statuses
+              : {
+                  [AppFormStatus.IN_PROGRESS]: 0,
+                  [AppFormStatus.IN_REVIEW]: 0,
+                  [AppFormStatus.APPROVED]: 0,
+                  [AppFormStatus.REJECTED]: 0,
+                  [AppFormStatus.IN_STORE_REVIEW]: 0,
+                  [AppFormStatus.DEPLOYED]: 0,
+                },
+        },
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    console.log(error);
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
 /**
  * GET wl/forms/:formId
  * Get the form data by formId
@@ -1324,6 +1379,7 @@ export {
   deleteFormByIdHandler,
   fetchPreRequisitesForApp,
   generateFormValuesAIHandler,
+  getAllFormsCount,
   getAllFormsHandler,
   getFormByHostIdHandler,
   getFormByIdHandler,

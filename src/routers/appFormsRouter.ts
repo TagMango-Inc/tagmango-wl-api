@@ -5,6 +5,7 @@ import {
   deleteFormByIdHandler,
   fetchPreRequisitesForApp,
   generateFormValuesAIHandler,
+  getAllFormsCount,
   getAllFormsHandler,
   getFormByHostIdHandler,
   getFormByIdHandler,
@@ -23,6 +24,7 @@ import {
 const router = new Hono();
 
 router.get("/", ...getAllFormsHandler);
+router.get("/count", ...getAllFormsCount);
 router.get("/:formId", ...getFormByIdHandler);
 
 router.get("/host/:hostId/overview", ...getFormOverviewByHostIdHandler);
