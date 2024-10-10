@@ -24,14 +24,21 @@ export const populateAppForms = async () => {
 
   const pipeline = [
     {
-      // match android and ios share link
       $match: {
         $and: [
           {
-            iosShareLink: { $exists: false },
+            $and: [
+              { androidShareLink: { $exists: true } },
+              { androidShareLink: { $ne: "" } },
+              { androidShareLink: { $ne: null } },
+            ],
           },
           {
-            androidShareLink: { $exists: false },
+            $and: [
+              { iosShareLink: { $exists: true } },
+              { iosShareLink: { $ne: "" } },
+              { iosShareLink: { $ne: null } },
+            ],
           },
         ],
       },
@@ -52,78 +59,78 @@ export const populateAppForms = async () => {
     {
       $lookup: {
         from: "customhostmetadatas",
-        localField: "_id", // Assuming customhosts and customhostmetadatas have a relation by "_id"
-        foreignField: "host", // Assuming customhostmetadatas has a field "customHostId"
+        localField: "_id",
+        foreignField: "host",
         as: "metadataDetails",
       },
     },
 
     {
       $match: {
-        $or: [
-          { "metadataDetails.logo": { $exists: false } },
-          { "metadataDetails.logo": { $eq: null } },
-          { "metadataDetails.logo": { $eq: "" } },
+        $and: [
+          { "metadataDetails.logo": { $exists: true } },
+          { "metadataDetails.logo": { $ne: null } },
+          { "metadataDetails.logo": { $ne: "" } },
 
-          { "metadataDetails.androidStoreSettings.title": { $exists: false } },
-          { "metadataDetails.androidStoreSettings.title": { $eq: null } },
-          { "metadataDetails.androidStoreSettings.title": { $eq: "" } },
+          { "metadataDetails.androidStoreSettings.title": { $exists: true } },
+          { "metadataDetails.androidStoreSettings.title": { $ne: null } },
+          { "metadataDetails.androidStoreSettings.title": { $ne: "" } },
 
           {
             "metadataDetails.androidStoreSettings.short_description": {
-              $exists: false,
+              $exists: true,
             },
           },
           {
             "metadataDetails.androidStoreSettings.short_description": {
-              $eq: null,
+              $ne: null,
             },
           },
           {
             "metadataDetails.androidStoreSettings.short_description": {
-              $eq: "",
+              $ne: "",
             },
           },
 
           {
             "metadataDetails.androidStoreSettings.full_description": {
-              $exists: false,
+              $exists: true,
             },
           },
           {
             "metadataDetails.androidStoreSettings.full_description": {
-              $eq: null,
+              $ne: null,
             },
           },
           {
             "metadataDetails.androidStoreSettings.full_description": {
-              $eq: "",
+              $ne: "",
             },
           },
 
           {
-            "metadataDetails.iosStoreSettings.description": { $exists: false },
+            "metadataDetails.iosStoreSettings.description": { $exists: true },
           },
-          { "metadataDetails.iosStoreSettings.description": { $eq: null } },
-          { "metadataDetails.iosStoreSettings.description": { $eq: "" } },
+          { "metadataDetails.iosStoreSettings.description": { $ne: null } },
+          { "metadataDetails.iosStoreSettings.description": { $ne: "" } },
 
-          { "metadataDetails.iosStoreSettings.keywords": { $exists: false } },
-          { "metadataDetails.iosStoreSettings.keywords": { $eq: null } },
-          { "metadataDetails.iosStoreSettings.keywords": { $eq: "" } },
+          { "metadataDetails.iosStoreSettings.keywords": { $exists: true } },
+          { "metadataDetails.iosStoreSettings.keywords": { $ne: null } },
+          { "metadataDetails.iosStoreSettings.keywords": { $ne: "" } },
 
-          { "metadataDetails.iosStoreSettings.name": { $exists: false } },
-          { "metadataDetails.iosStoreSettings.name": { $eq: null } },
-          { "metadataDetails.iosStoreSettings.name": { $eq: "" } },
+          { "metadataDetails.iosStoreSettings.name": { $exists: true } },
+          { "metadataDetails.iosStoreSettings.name": { $ne: null } },
+          { "metadataDetails.iosStoreSettings.name": { $ne: "" } },
 
           {
             "metadataDetails.iosStoreSettings.promotional_text": {
-              $exists: false,
+              $exists: true,
             },
           },
           {
-            "metadataDetails.iosStoreSettings.promotional_text": { $eq: null },
+            "metadataDetails.iosStoreSettings.promotional_text": { $ne: null },
           },
-          { "metadataDetails.iosStoreSettings.promotional_text": { $eq: "" } },
+          { "metadataDetails.iosStoreSettings.promotional_text": { $ne: "" } },
         ],
       },
     },
@@ -131,32 +138,94 @@ export const populateAppForms = async () => {
 
   const customHostsArr = await Mongo.customhost.aggregate(pipeline).toArray();
 
-  console.log(customHostsArr.length);
-  // console.log(customHostsArr[0].host);
+  const hostids = customHostsArr.map((customHost) => customHost._id);
+  const appFormsArr = await Mongo.app_forms
+    .find({ host: { $in: hostids } })
+    .toArray();
 
-  //save the ids in text file
+  const appFormHostId = appFormsArr.map((appForm) => String(appForm.host));
+  // find the appForm that does not have a host from hostIds array
+  const appFormsWithoutHost = customHostsArr.filter(
+    (customHost) => !appFormHostId.includes(String(customHost._id)),
+  );
+  console.log(customHostsArr.length, appFormsArr.length, appFormsWithoutHost);
 
-  // const filePath = path.join(
-  //   __dirname,
-  //   "customHostsWithNoLinksAndIncompleteMetaData.txt",
-  // );
-
-  // let data = "";
-  // for (const customHost of customHostsArr) {
-  //   data += customHost._id + "\n";
-  // }
-
-  // fs.writeFileSync(filePath, data);
-
-  // return;
+  return; // guard
   for (const customHost of customHostsArr) {
     const metadata = await Mongo.metadata.findOne({
       host: customHost._id,
     });
 
+    let newMetadata = null;
     if (!metadata) {
       console.log("metadata not found for customHost", customHost._id);
-      continue;
+
+      // create metadata
+
+      const appName = customHost.appName ?? customHost.brandname ?? "";
+      const formattedName = appName.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+
+      const result = await Mongo.metadata.insertOne({
+        host: customHost._id,
+        logo: "",
+        backgroundType: "color",
+        backgroundStartColor: "#ffffff",
+        backgroundEndColor: "#ffffff",
+        backgroundGradientAngle: 45,
+        logoPadding: 15,
+        iosDeploymentDetails: {
+          bundleId: `com.tagmango.${formattedName}`,
+          lastDeploymentDetails: {
+            versionName: "3.0.7",
+            buildNumber: 450,
+          },
+          isUnderReview: false,
+        },
+        androidDeploymentDetails: {
+          bundleId: `com.tagmango.${formattedName}`,
+          lastDeploymentDetails: {
+            versionName: "3.0.7",
+            buildNumber: 450,
+          },
+          isUnderReview: false,
+        },
+        androidStoreSettings: {
+          title: appName,
+          short_description: `Get access to all premium content by ${appName}!`,
+          full_description: `Get access to all premium content in ${appName}. Access pre-recorded courses, enrol for live workshops, get certified and a lot more! Be a part of the awesome community that you always wanted to be in!`,
+          video: "",
+        },
+        iosStoreSettings: {
+          description: `Get access to all premium content in ${appName}. Access pre-recorded courses, enrol for live workshops, get certified and a lot more! Be a part of the awesome community that you always wanted to be in!`,
+          keywords: "EdTech, Education",
+          marketing_url: "",
+          name: appName,
+          privacy_url: "",
+          promotional_text: `Get access to all premium content by ${appName}!`,
+          subtitle: "",
+          support_url: "https://help.tagmango.com",
+        },
+        iosInfoSettings: {
+          copyright: "©2021 TagMango, Inc.",
+          primary_category: "EDUCATION",
+        },
+        iosReviewSettings: {
+          demo_password: "123456",
+          demo_user: "1223334444",
+          email_address: "hasan@tagmango.com",
+          first_name: "Mohammad",
+          last_name: "Hasan",
+          notes:
+            'The App requires OTP to login. Please use the password as OTP to login.\n\nIf the app is expecting email id to login please use below credentials:\nemail:\ntest.review@tagmango.com\npassword(OTP):\n123456\n\nIf on entering the OTP it shows "Login Limit Exceeded" on a modal press on "Continue" button to enter the app.',
+          phone_number: "+919748286867",
+        },
+
+        isFormImported: false,
+      } as any);
+
+      newMetadata = await Mongo.metadata.findOne({
+        _id: result.insertedId,
+      });
     }
 
     // attach app form with the metadata and deployed status
@@ -168,32 +237,54 @@ export const populateAppForms = async () => {
           // Use $set to update the fields
           host: customHost._id,
           status: AppFormStatus.IN_PROGRESS,
-          logo: metadata?.logo || "",
+          logo: metadata ? metadata?.logo || "" : newMetadata?.logo || "",
           customOneSignalIcon: "",
 
-          backgroundType: metadata.backgroundType || "color",
-          backgroundStartColor: metadata.backgroundStartColor || "#ffffff",
-          backgroundEndColor: metadata.backgroundEndColor || "#ffffff",
-          backgroundGradientAngle: metadata.backgroundGradientAngle || 45,
-          logoPadding: metadata.logoPadding || 15,
+          backgroundType: metadata
+            ? metadata.backgroundType || "color"
+            : newMetadata?.backgroundType,
+          backgroundStartColor: metadata
+            ? metadata.backgroundStartColor || "#ffffff"
+            : newMetadata?.backgroundStartColor,
+          backgroundEndColor: metadata
+            ? metadata.backgroundEndColor || "#ffffff"
+            : newMetadata?.backgroundEndColor,
+          backgroundGradientAngle: metadata
+            ? metadata.backgroundGradientAngle || 45
+            : newMetadata?.backgroundGradientAngle,
+          logoPadding: metadata
+            ? metadata.logoPadding || 15
+            : newMetadata?.logoPadding,
 
           androidStoreSettings: {
-            title: metadata.androidStoreSettings?.title || "",
-            short_description:
-              metadata.androidStoreSettings?.short_description || "",
-            full_description:
-              metadata.androidStoreSettings?.full_description || "",
+            title: metadata
+              ? metadata.androidStoreSettings?.title || ""
+              : newMetadata?.androidStoreSettings?.title || "",
+            short_description: metadata
+              ? metadata.androidStoreSettings?.short_description || ""
+              : newMetadata?.androidStoreSettings?.short_description || "",
+            full_description: metadata
+              ? metadata.androidStoreSettings?.full_description || ""
+              : newMetadata?.androidStoreSettings?.full_description || "",
             video: "",
           },
           iosStoreSettings: {
-            description: metadata.iosStoreSettings?.description || "",
-            keywords: metadata.iosStoreSettings?.keywords || "",
+            description: metadata
+              ? metadata.iosStoreSettings?.description || ""
+              : newMetadata?.iosStoreSettings?.description || "",
+            keywords: metadata
+              ? metadata.iosStoreSettings?.keywords || ""
+              : newMetadata?.iosStoreSettings?.keywords || "",
             marketing_url: "",
-            name: metadata.iosStoreSettings?.name || "",
-            privacy_url:
-              metadata.iosStoreSettings?.privacy_url ||
-              `https://${customHost.host}/privacy`,
-            promotional_text: metadata.iosStoreSettings?.promotional_text || "",
+            name: metadata
+              ? metadata.iosStoreSettings?.name || ""
+              : newMetadata?.iosStoreSettings?.name || "",
+            privacy_url: metadata
+              ? metadata.iosStoreSettings?.privacy_url
+              : `https://${customHost.host}/privacy`,
+            promotional_text: metadata
+              ? metadata.iosStoreSettings?.promotional_text || ""
+              : newMetadata?.iosStoreSettings?.promotional_text || "",
             subtitle: "",
             support_url: "https://help.tagmango.com",
           },
