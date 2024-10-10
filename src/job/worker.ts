@@ -1,31 +1,16 @@
-import 'dotenv/config';
+import "dotenv/config";
 
-import {
-  Job,
-  Worker,
-} from 'bullmq';
-import { exec } from 'child_process';
-import fs from 'fs-extra';
-import {
-  ObjectId,
-  UpdateFilter,
-} from 'mongodb';
-import pino from 'pino';
+import { Job, Worker } from "bullmq";
+import { exec } from "child_process";
+import fs from "fs-extra";
+import { ObjectId, UpdateFilter } from "mongodb";
+import pino from "pino";
 
-import Mongo from '../../src/database';
-import {
-  IDeploymentTask,
-  IMetaData,
-} from '../../src/types/database';
-import {
-  customhostDeploymentDir,
-  githubrepo,
-} from '../constants';
-import {
-  BuildJobPayloadType,
-  JobProgressType,
-} from '../types';
-import { queueRedisOptions } from './config';
+import Mongo from "../../src/database";
+import { IDeploymentTask, IMetaData } from "../../src/types/database";
+import { customhostDeploymentDir, githubrepo } from "../constants";
+import { BuildJobPayloadType, JobProgressType } from "../types";
+import { queueRedisOptions } from "./config";
 
 const logger = pino({
   level: "debug",
@@ -169,7 +154,29 @@ const { readFile, writeFile } = fs.promises;
             // Generating screenshots
             [taskNames[3].id]: [
               `cd ${customHostAppDir}`,
-              `npm install`,
+              `echo "Removing node_modules"`,
+              `rm -rf node_modules`,
+              `echo "Using Node Version"`,
+              `node -v`,
+              `echo "Reinstalling node_modules"`,
+              `npm install --reset-cache`,
+              `echo "Using ruby version"`,
+              `source ~/.zshrc && ruby -v`,
+              `echo "Using bundle version"`,
+              `source ~/.zshrc && bundle --version`,
+              `echo "Installing bundle"`,
+              `source ~/.zshrc && bundle install`,
+              `echo "Using pod version"`,
+              `source ~/.zshrc && bundle exec pod --version`,
+              `echo "Installing pods"`,
+              `source ~/.zshrc && bundle exec "NO_FLIPPER=1 pod install --project-directory=ios"`,
+              `echo "Building app for e2e testing"`,
+              `detox build --configuration ios.sim.release`,
+              `echo "Removing artifacts"`,
+              `rm -rf artifacts`,
+              `echo "Running e2e tests"`,
+              `detox test --configuration ios.sim.release --cleanup --headless --artifacts-location artifacts/`,
+              `echo "Generating screenshots"`,
               `node ./scripts/app-screenshots.js ${JSON.stringify({
                 hostId,
                 domain,
