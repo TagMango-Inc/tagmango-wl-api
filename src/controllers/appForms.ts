@@ -860,7 +860,7 @@ const approveFormHandler = factory.createHandlers(
         },
       );
 
-      if (newMetadata.modifiedCount === 0) {
+      if (newMetadata.matchedCount === 0) {
         return c.json(
           { message: "Metadata not updated" },
           Response.INTERNAL_SERVER_ERROR,
