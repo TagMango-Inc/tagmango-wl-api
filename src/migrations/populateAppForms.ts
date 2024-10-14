@@ -1,5 +1,5 @@
-import Mongo from '../database';
-import { AppFormStatus } from '../types/database';
+import Mongo from "../database";
+import { AppFormStatus } from "../types/database";
 
 const fs = require("fs");
 const path = require("path");
@@ -230,74 +230,74 @@ export const populateAppForms = async () => {
 
     // attach app form with the metadata and deployed status
 
-    await Mongo.app_forms.findOneAndUpdate(
-      { host: customHost._id }, // Filter to find the document
-      {
-        $set: {
-          // Use $set to update the fields
-          host: customHost._id,
-          status: AppFormStatus.IN_PROGRESS,
-          logo: metadata ? metadata?.logo || "" : newMetadata?.logo || "",
-          customOneSignalIcon: "",
+    // await Mongo.app_forms.findOneAndUpdate(
+    //   { host: customHost._id }, // Filter to find the document
+    //   {
+    //     $set: {
+    //       // Use $set to update the fields
+    //       host: customHost._id,
+    //       status: AppFormStatus.IN_PROGRESS,
+    //       logo: metadata ? metadata?.logo || "" : newMetadata?.logo || "",
+    //       customOneSignalIcon: "",
 
-          backgroundType: metadata
-            ? metadata.backgroundType || "color"
-            : newMetadata?.backgroundType,
-          backgroundStartColor: metadata
-            ? metadata.backgroundStartColor || "#ffffff"
-            : newMetadata?.backgroundStartColor,
-          backgroundEndColor: metadata
-            ? metadata.backgroundEndColor || "#ffffff"
-            : newMetadata?.backgroundEndColor,
-          backgroundGradientAngle: metadata
-            ? metadata.backgroundGradientAngle || 45
-            : newMetadata?.backgroundGradientAngle,
-          logoPadding: metadata
-            ? metadata.logoPadding || 15
-            : newMetadata?.logoPadding,
+    //       backgroundType: metadata
+    //         ? metadata.backgroundType || "color"
+    //         : newMetadata?.backgroundType,
+    //       backgroundStartColor: metadata
+    //         ? metadata.backgroundStartColor || "#ffffff"
+    //         : newMetadata?.backgroundStartColor,
+    //       backgroundEndColor: metadata
+    //         ? metadata.backgroundEndColor || "#ffffff"
+    //         : newMetadata?.backgroundEndColor,
+    //       backgroundGradientAngle: metadata
+    //         ? metadata.backgroundGradientAngle || 45
+    //         : newMetadata?.backgroundGradientAngle,
+    //       logoPadding: metadata
+    //         ? metadata.logoPadding || 15
+    //         : newMetadata?.logoPadding,
 
-          androidStoreSettings: {
-            title: metadata
-              ? metadata.androidStoreSettings?.title || ""
-              : newMetadata?.androidStoreSettings?.title || "",
-            short_description: metadata
-              ? metadata.androidStoreSettings?.short_description || ""
-              : newMetadata?.androidStoreSettings?.short_description || "",
-            full_description: metadata
-              ? metadata.androidStoreSettings?.full_description || ""
-              : newMetadata?.androidStoreSettings?.full_description || "",
-            video: "",
-          },
-          iosStoreSettings: {
-            description: metadata
-              ? metadata.iosStoreSettings?.description || ""
-              : newMetadata?.iosStoreSettings?.description || "",
-            keywords: metadata
-              ? metadata.iosStoreSettings?.keywords || ""
-              : newMetadata?.iosStoreSettings?.keywords || "",
-            marketing_url: "",
-            name: metadata
-              ? metadata.iosStoreSettings?.name || ""
-              : newMetadata?.iosStoreSettings?.name || "",
-            privacy_url: metadata
-              ? metadata.iosStoreSettings?.privacy_url
-              : `https://${customHost.host}/privacy`,
-            promotional_text: metadata
-              ? metadata.iosStoreSettings?.promotional_text || ""
-              : newMetadata?.iosStoreSettings?.promotional_text || "",
-            subtitle: "",
-            support_url: "https://help.tagmango.com",
-          },
-          iosInfoSettings: {
-            copyright: "©2021 TagMango, Inc.",
-            primary_category: "EDUCATION",
-          },
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      },
-      { upsert: true }, // Enable upsert
-    );
+    //       androidStoreSettings: {
+    //         title: metadata
+    //           ? metadata.androidStoreSettings?.title || ""
+    //           : newMetadata?.androidStoreSettings?.title || "",
+    //         short_description: metadata
+    //           ? metadata.androidStoreSettings?.short_description || ""
+    //           : newMetadata?.androidStoreSettings?.short_description || "",
+    //         full_description: metadata
+    //           ? metadata.androidStoreSettings?.full_description || ""
+    //           : newMetadata?.androidStoreSettings?.full_description || "",
+    //         video: "",
+    //       },
+    //       iosStoreSettings: {
+    //         description: metadata
+    //           ? metadata.iosStoreSettings?.description || ""
+    //           : newMetadata?.iosStoreSettings?.description || "",
+    //         keywords: metadata
+    //           ? metadata.iosStoreSettings?.keywords || ""
+    //           : newMetadata?.iosStoreSettings?.keywords || "",
+    //         marketing_url: "",
+    //         name: metadata
+    //           ? metadata.iosStoreSettings?.name || ""
+    //           : newMetadata?.iosStoreSettings?.name || "",
+    //         privacy_url: metadata
+    //           ? metadata.iosStoreSettings?.privacy_url
+    //           : `https://${customHost.host}/privacy`,
+    //         promotional_text: metadata
+    //           ? metadata.iosStoreSettings?.promotional_text || ""
+    //           : newMetadata?.iosStoreSettings?.promotional_text || "",
+    //         subtitle: "",
+    //         support_url: "https://help.tagmango.com",
+    //       },
+    //       iosInfoSettings: {
+    //         copyright: "©2021 TagMango, Inc.",
+    //         primary_category: "EDUCATION",
+    //       },
+    //       createdAt: new Date(),
+    //       updatedAt: new Date(),
+    //     },
+    //   },
+    //   { upsert: true }, // Enable upsert
+    // );
   }
 
   // if sharelinks == 2
