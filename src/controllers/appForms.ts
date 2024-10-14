@@ -830,8 +830,7 @@ const approveFormHandler = factory.createHandlers(
             `${currentLogoPath}/${file}`,
             `${newLogoPath}/${file}`,
           );
-        }
-        {
+        } else {
           allImageFilesExists = false;
         }
       });
@@ -857,8 +856,6 @@ const approveFormHandler = factory.createHandlers(
             androidStoreSettings: form.androidStoreSettings,
             iosStoreSettings: form.iosStoreSettings,
             iosInfoSettings: form.iosInfoSettings,
-
-            isFormImported: true,
           },
         },
       );
