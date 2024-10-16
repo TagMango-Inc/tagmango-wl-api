@@ -70,6 +70,11 @@ const { readFile, writeFile } = fs.promises;
 
           const formatedAppName = name.replace(/ /g, "");
 
+          const isAndroidScreenshotsAvailable = androidScreenshots?.length > 0;
+          const isIosScreenshotsAvailable =
+            iosScreenshots?.iphone_65?.length > 0;
+          const isFeatureGraphicAvailable = androidFeatureGraphic?.length > 0;
+
           logger.info("Fetching Deployment Details");
 
           const releaseBuffer = await fs.promises.readFile(
@@ -152,41 +157,46 @@ const { readFile, writeFile } = fs.promises;
               `npx icon-set-creator create`,
             ],
             // Generating screenshots
-            [taskNames[3].id]: [
-              `cd ${customHostAppDir}`,
-              `echo "Removing node_modules"`,
-              `rm -rf node_modules`,
-              `echo "Using Node Version"`,
-              `node -v`,
-              `echo "Reinstalling node_modules"`,
-              `npm install --reset-cache`,
-              `echo "Using ruby version"`,
-              `source ~/.zshrc && ruby -v`,
-              `echo "Using bundle version"`,
-              `source ~/.zshrc && bundle --version`,
-              `echo "Installing bundle"`,
-              `source ~/.zshrc && bundle install`,
-              `echo "Using pod version"`,
-              `source ~/.zshrc && bundle exec pod --version`,
-              `echo "Installing pods"`,
-              `source ~/.zshrc && bundle exec "NO_FLIPPER=1 pod install --project-directory=ios"`,
-              `echo "Building app for e2e testing"`,
-              `detox build --configuration ios.sim.release`,
-              `echo "Removing artifacts"`,
-              `rm -rf artifacts`,
-              `echo "Running e2e tests"`,
-              `detox test --configuration ios.sim.release --cleanup --headless --artifacts-location artifacts/`,
-              `echo "Generating screenshots"`,
-              `node ./scripts/app-screenshots.js ${JSON.stringify({
-                hostId,
-                domain,
-                appName,
-                waitTime: 5000,
-                androidScreenshots: JSON.stringify(androidScreenshots),
-                iosScreenshots: JSON.stringify(iosScreenshots),
-                androidFeatureGraphic: androidFeatureGraphic,
-              })}`,
-            ],
+            [taskNames[3].id]:
+              isAndroidScreenshotsAvailable &&
+              isIosScreenshotsAvailable &&
+              isFeatureGraphicAvailable
+                ? [`echo "Screenshots are available"`]
+                : [
+                    `cd ${customHostAppDir}`,
+                    `echo "Removing node_modules"`,
+                    `rm -rf node_modules`,
+                    `echo "Using Node Version"`,
+                    `node -v`,
+                    `echo "Reinstalling node_modules"`,
+                    `npm install --reset-cache`,
+                    `echo "Using ruby version"`,
+                    `source ~/.zshrc && ruby -v`,
+                    `echo "Using bundle version"`,
+                    `source ~/.zshrc && bundle --version`,
+                    `echo "Installing bundle"`,
+                    `source ~/.zshrc && bundle install`,
+                    `echo "Using pod version"`,
+                    `source ~/.zshrc && bundle exec pod --version`,
+                    `echo "Installing pods"`,
+                    `source ~/.zshrc && bundle exec "NO_FLIPPER=1 pod install --project-directory=ios"`,
+                    `echo "Building app for e2e testing"`,
+                    `detox build --configuration ios.sim.release`,
+                    `echo "Removing artifacts"`,
+                    `rm -rf artifacts`,
+                    `echo "Running e2e tests"`,
+                    `detox test --configuration ios.sim.release --cleanup --headless --artifacts-location artifacts/`,
+                    `echo "Generating screenshots"`,
+                    `node ./scripts/app-screenshots.js ${JSON.stringify({
+                      hostId,
+                      domain,
+                      appName,
+                      waitTime: 5000,
+                      androidScreenshots: JSON.stringify(androidScreenshots),
+                      iosScreenshots: JSON.stringify(iosScreenshots),
+                      androidFeatureGraphic: androidFeatureGraphic,
+                    })}`,
+                  ],
             [taskNames[4].id]: [
               `node ./scripts/create-metadata.js ${JSON.stringify({
                 hostId,
