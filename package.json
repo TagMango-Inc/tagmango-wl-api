@@ -3,6 +3,7 @@
     "start": "tsx src/index.ts",
     "migration": "tsx src/migrations/index.ts",
     "dev": "tsx watch src/index.ts",
+    "dev:worker": "tsx watch src/job/worker.ts",
     "build": "tsc",
     "vercel-build": "echo hello",
     "start:prod": "pm2 start ecosystem.config.js",

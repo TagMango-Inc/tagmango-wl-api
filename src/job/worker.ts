@@ -274,6 +274,7 @@ const { readFile, writeFile } = fs.promises;
 
           logger.info("Deployment Status Changed to Processing");
 
+          let isFailedDeployment = false;
           for (const task of taskNames) {
             if (task.status === "success" || task.status === "processing") {
               continue;
@@ -324,7 +325,7 @@ const { readFile, writeFile } = fs.promises;
               // adding only this error to logs because something else has failed
               // inside the executeTask function
               curentTaskLogs.push({
-                message: JSON.stringify(error),
+                message: error instanceof Error ? error.message : String(error),
                 type: "failed",
                 timestamp: new Date(),
               });
@@ -345,8 +346,12 @@ const { readFile, writeFile } = fs.promises;
               );
 
               logger.info("Deployment Status Changed to Failed");
+              isFailedDeployment = true;
+              break;
             }
+          }
 
+          if (!isFailedDeployment) {
             await updateVersionDetails({ deploymentId, hostId, platform });
           }
           logger.info("Deployment Process Completed");
@@ -464,7 +469,31 @@ const executeTask = async ({
   if (stderr) {
     stderr.on("data", (data) => {
       const warningRegex = /\b(?:warn(?:ing)?|deprecated)\b/i;
-      logger.error(data);
+
+      // create an error regex that checks words like failed, exit, error, etc
+      const errorRegex = /\b(?:fail(?:ed|ure)?|exit|error|abort)\b/i;
+
+      const type = errorRegex.test(data)
+        ? "error"
+        : warningRegex.test(data)
+          ? "warning"
+          : "info";
+
+      if (type === "error") {
+        logger.error(data);
+        errorLogs.push({
+          message: data,
+          type: "failed",
+          timestamp: new Date(),
+        });
+      } else {
+        logger.info(data);
+        outputLogs.push({
+          message: data,
+          type: "success",
+          timestamp: new Date(),
+        });
+      }
       // updating the progress of the job so i can listen to the progress of the job through queue events
       // can be listen using queue events on progress listener
       job.updateProgress({
@@ -474,17 +503,14 @@ const executeTask = async ({
           type: "processing",
           duration: Date.now() - startTime,
         },
-        type: warningRegex.test(data) ? "warning" : "failed",
+        type: errorRegex.test(data)
+          ? "failed"
+          : warningRegex.test(data)
+            ? "warning"
+            : "success",
         message: data,
         timestamp: new Date(),
       } as JobProgressType);
-
-      // adding logs to the task
-      errorLogs.push({
-        message: data,
-        type: "failed",
-        timestamp: new Date(),
-      });
     });
   }
 
@@ -576,7 +602,7 @@ const executeTask = async ({
 
   // after all updates (success or failed) are done in the database then we can return error
   if (code !== 0) {
-    throw new Error(`Failed to execute task [ ${taskName} ]`);
+    throw new Error(`[ ${taskName} ] task failed with code -> ${code}`);
   }
 
   return code;
