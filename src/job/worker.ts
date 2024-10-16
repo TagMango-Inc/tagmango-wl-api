@@ -259,30 +259,27 @@ const { readFile, writeFile } = fs.promises;
 
           logger.info("Initiated Deployment Process");
 
-          try {
-            // Changing deployment status to processing from pending
-            await Mongo.deployment.updateOne(
-              {
-                _id: new ObjectId(deploymentId),
+          // Changing deployment status to processing from pending
+          await Mongo.deployment.updateOne(
+            {
+              _id: new ObjectId(deploymentId),
+            },
+            {
+              $set: {
+                status: "processing",
+                updatedAt: new Date(),
               },
-              {
-                $set: {
-                  status: "processing",
-                  updatedAt: new Date(),
-                },
-              },
-            );
+            },
+          );
 
-            logger.info("Deployment Status Changed to Processing");
+          logger.info("Deployment Status Changed to Processing");
 
-            // executing the tasks
-            for (const task of taskNames) {
-              // don't execute the last task which have success/processing status
-              if (task.status === "success" || task.status === "processing") {
-                continue;
-              }
-
-              // executing the task which are either failed or pending
+          for (const task of taskNames) {
+            if (task.status === "success" || task.status === "processing") {
+              continue;
+            }
+            try {
+              // executing the tasks
               await executeTask({
                 commands: commands[task.id],
                 taskId: task.id,
@@ -291,42 +288,67 @@ const { readFile, writeFile } = fs.promises;
                 deploymentId,
                 hostId,
               });
+
+              // updating the version details for the target platform after successful deployment
+            } catch (error) {
+              logger.error(error, `Failed to execute task -> ${task.name}`);
+
+              // commenting this for now
+              // adding a new command in the beginning of the task
+              // to remove the deployment / { bundleId } folder when new deployment is started
+              // // if we are getting any erro (throw error) then we need to remove the deployment/{bundleId} folder
+              // const task = taskNames.slice(-1)[0];
+              // await executeTask({
+              //   commands: commands[task.id],
+              //   taskId: task.id,
+              //   taskName: task.name,
+              //   job,
+              //   deploymentId,
+              //   hostId,
+              // });
+              // updating the deployment status to failed
+              const currentDeployment = await Mongo.deployment.findOne({
+                _id: new ObjectId(deploymentId),
+              });
+
+              const currentTask = currentDeployment?.tasks?.find(
+                (t) => t.id === task.id,
+              );
+
+              // add the logs to the task
+              let curentTaskLogs =
+                currentTask?.logs && currentTask?.logs.length > 0
+                  ? currentTask.logs
+                  : [];
+
+              // adding only this error to logs because something else has failed
+              // inside the executeTask function
+              curentTaskLogs.push({
+                message: JSON.stringify(error),
+                type: "failed",
+                timestamp: new Date(),
+              });
+
+              await Mongo.deployment.updateOne(
+                {
+                  _id: new ObjectId(deploymentId),
+                  "tasks.id": task.id,
+                },
+                {
+                  $set: {
+                    status: "failed",
+                    updatedAt: new Date(),
+                    "tasks.$.status": "failed",
+                    "tasks.$.logs": curentTaskLogs,
+                  },
+                },
+              );
+
+              logger.info("Deployment Status Changed to Failed");
             }
 
-            // updating the version details for the target platform after successful deployment
             await updateVersionDetails({ deploymentId, hostId, platform });
-          } catch (error) {
-            logger.error(error, "Failed to execute Deployment Process");
-
-            // commenting this for now
-            // adding a new command in the beginning of the task
-            // to remove the deployment / { bundleId } folder when new deployment is started
-            // // if we are getting any erro (throw error) then we need to remove the deployment/{bundleId} folder
-            // const task = taskNames.slice(-1)[0];
-            // await executeTask({
-            //   commands: commands[task.id],
-            //   taskId: task.id,
-            //   taskName: task.name,
-            //   job,
-            //   deploymentId,
-            //   hostId,
-            // });
-            // updating the deployment status to failed
-            await Mongo.deployment.updateOne(
-              {
-                _id: new ObjectId(deploymentId),
-              },
-              {
-                $set: {
-                  status: "failed",
-                  updatedAt: new Date(),
-                },
-              },
-            );
-
-            logger.info("Deployment Status Changed to Failed");
           }
-
           logger.info("Deployment Process Completed");
         },
         {
@@ -488,6 +510,9 @@ const executeTask = async ({
       timestamp: new Date(),
     } as JobProgressType);
 
+    // shrink the outpuLogs array since mongo has a limit of 16mb per document
+    outputLogs = outputLogs.slice(-20);
+
     // update the task status to success and add logs to the task
     await Mongo.deployment.updateOne(
       {
@@ -527,6 +552,9 @@ const executeTask = async ({
       timestamp: new Date(),
     } as JobProgressType);
 
+    // shrink the outpuLogs array since mongo has a limit of 16mb per document
+    const combinedLogs = [...outputLogs, ...errorLogs].slice(-20);
+
     // update the task status to failed and add logs to the task
     await Mongo.deployment.updateOne(
       {
@@ -536,7 +564,7 @@ const executeTask = async ({
       {
         $set: {
           "tasks.$.status": "failed",
-          "tasks.$.logs": [...outputLogs, ...errorLogs],
+          "tasks.$.logs": combinedLogs,
           "tasks.$.duration": Date.now() - startTime,
           updatedAt: new Date(),
         },
