@@ -174,6 +174,19 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
     const allStatusCounts = await Mongo.app_forms
       .aggregate([
         {
+          $lookup: {
+            from: "customhosts",
+            localField: "host",
+            foreignField: "_id",
+            as: "hostDetails",
+          },
+        },
+        {
+          $match: {
+            "hostDetails.platformSuspended": { $ne: true },
+          },
+        },
+        {
           $group: {
             _id: "$status", // Group by the 'status' field
             count: { $sum: 1 }, // Count each occurrence
@@ -196,13 +209,41 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
       ])
       .toArray();
 
+    const customHosts = await Mongo.customhost
+      .aggregate([
+        {
+          $lookup: {
+            from: "users",
+            localField: "creator",
+            foreignField: "_id",
+            as: "creatorDetails",
+          },
+        },
+        {
+          $match: {
+            "creatorDetails.whitelabelPlanType": "enterprise-plan",
+            platformSuspended: true,
+          },
+        },
+        {
+          $count: "suspendedPlatformCount",
+        },
+      ])
+      .toArray();
+
     return c.json(
       {
         message: "All forms count",
         result: {
           count:
             allStatusCounts.length > 0
-              ? allStatusCounts[0].statuses
+              ? {
+                  ...allStatusCounts[0].statuses,
+                  suspended:
+                    customHosts?.length > 0
+                      ? customHosts[0].suspendedPlatformCount
+                      : 0,
+                }
               : {
                   [AppFormStatus.IN_PROGRESS]: 0,
                   [AppFormStatus.IN_REVIEW]: 0,
@@ -210,6 +251,10 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
                   [AppFormStatus.REJECTED]: 0,
                   [AppFormStatus.IN_STORE_REVIEW]: 0,
                   [AppFormStatus.DEPLOYED]: 0,
+                  suspended:
+                    customHosts?.length > 0
+                      ? customHosts[0].suspendedPlatformCount
+                      : 0,
                 },
         },
       },
