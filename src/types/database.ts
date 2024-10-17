@@ -107,12 +107,12 @@ export interface IIosDeploymentDetails {
 
 export interface IIosStoreSettings {
   name: string;
-  subtitle?: string;
   description: string;
-  keywords: string;
-  promotional_text: string;
-  privacy_url: string;
-  support_url: string;
+  subtitle?: string;
+  keywords?: string;
+  promotional_text?: string;
+  privacy_url?: string;
+  support_url?: string;
   marketing_url?: string;
   apple_tv_privacy_policy?: string;
 }
@@ -551,6 +551,7 @@ export enum AppFormStatus {
   REJECTED = "rejected",
   IN_STORE_REVIEW = "in-store-review",
   DEPLOYED = "deployed",
+  UNPUBLISHED = "unpublished",
 }
 
 export interface IAppForm {

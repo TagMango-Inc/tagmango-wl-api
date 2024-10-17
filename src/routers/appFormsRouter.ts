@@ -13,9 +13,9 @@ import {
   markFormApprovedHandler,
   markFormDeployedHandler,
   markFormInStoreReviewHandler,
+  markFormUnpublished,
   rejectFormHandler,
   submitFormHandler,
-  updateInfoIosSettings,
   updateStoreAndroidSettings,
   updateStoreIosSettings,
   uploadFormLogo,
@@ -35,6 +35,7 @@ router.patch(
   ...markFormInStoreReviewHandler,
 );
 router.patch("/host/:hostId/mark-approved", ...markFormApprovedHandler);
+router.patch("/host/:hostId/mark-unpublished", ...markFormUnpublished);
 router.patch("/host/:hostId/mark-deployed", ...markFormDeployedHandler);
 
 router.post("/:formId/generate", ...generateFormValuesAIHandler);
@@ -43,7 +44,6 @@ router.patch("/:formId/logo/upload", ...uploadFormLogo);
 router.patch("/:formId/android/store", ...updateStoreAndroidSettings);
 
 router.patch("/:formId/ios/store", ...updateStoreIosSettings);
-router.patch("/:formId/ios/info", ...updateInfoIosSettings);
 
 router.patch("/:formId/submit", ...submitFormHandler);
 

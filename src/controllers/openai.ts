@@ -24,16 +24,8 @@ const generateAppFormDescriptions = async (appDetails: {
       prompt: `Generate a long description for the Android Play Store for an app with the following details:\n\nApp Name: ${name}\nApp Category: ${category}\nTarget Audience: ${audience}\nPurpose: ${purpose}\nKey Features: ${features}\n\nLong Description (max 4000 characters):`,
     },
     {
-      type: "iosStoreSettings.promotional_text",
-      prompt: `Generate a promotional text for the iOS App Store for an app with the following details:\n\nApp Name: ${name}\nApp Category: ${category}\nTarget Audience: ${audience}\nPurpose: ${purpose}\nKey Features: ${features}\n\nPromotional Text (max 170 characters):`,
-    },
-    {
       type: "iosStoreSettings.description",
       prompt: `Generate a description for the iOS App Store for an app with the following details:\n\nApp Name: ${name}\nApp Category: ${category}\nTarget Audience: ${audience}\nPurpose: ${purpose}\nKey Features: ${features}\n\nDescription (max 4000 characters):`,
-    },
-    {
-      type: "iosStoreSettings.keywords",
-      prompt: `Generate comma separated keywords for the iOS App Store for an app with the following details:\n\nApp Name: ${name}\nApp Category: ${category}\nTarget Audience: ${audience}\nPurpose: ${purpose}\nKey Features: ${features}\n\nComma Separated Keywords (max 100 characters):`,
     },
   ];
 

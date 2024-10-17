@@ -16,7 +16,6 @@ import {
 } from '../validations/appForms';
 import {
   updateAndroidStoreMetadataSchema,
-  updateIosInfoMetadataSchema,
   updateIosStoreMetadataSchema,
   updateMetadataLogoSchema,
 } from '../validations/metadata';
@@ -35,11 +34,12 @@ const writeFile = fs.promises.writeFile;
  * @param limit: number
  * @param search: string
  * @param status: 'in-progress' | 'in-review' | 'approved' | 'rejected' | 'in-store-review' |  'deployed'
+ * @param isSuspended: boolean
  * @returns { message: string, result: { customHosts: Array } }
  */
 const getAllFormsHandler = factory.createHandlers(async (c) => {
   try {
-    const { page, limit, search, status } = c.req.query();
+    const { page, limit, search, status, isSuspended } = c.req.query();
     let PAGE = page ? parseInt(page as string) : 1;
     let LIMIT = limit ? parseInt(limit as string) : 10;
     let SEARCH = search ? (search as string) : "";
@@ -71,6 +71,7 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
             { host: { $regex: new RegExp(SEARCH, "i") } },
             { brandname: { $regex: new RegExp(SEARCH, "i") } },
           ],
+          ...(isSuspended ? { platformSuspended: true } : {}),
         },
       },
       {
@@ -146,6 +147,7 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
           playStoreLink: customHost.androidShareLink || "",
           appStoreLink: customHost.iosShareLink || "",
         },
+        platformSuspended: customHost.platformSuspended,
       };
     });
 
@@ -171,6 +173,19 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
     const allStatusCounts = await Mongo.app_forms
       .aggregate([
         {
+          $lookup: {
+            from: "customhosts",
+            localField: "host",
+            foreignField: "_id",
+            as: "hostDetails",
+          },
+        },
+        {
+          $match: {
+            "hostDetails.platformSuspended": { $ne: true },
+          },
+        },
+        {
           $group: {
             _id: "$status", // Group by the 'status' field
             count: { $sum: 1 }, // Count each occurrence
@@ -193,13 +208,41 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
       ])
       .toArray();
 
+    const customHosts = await Mongo.customhost
+      .aggregate([
+        {
+          $lookup: {
+            from: "users",
+            localField: "creator",
+            foreignField: "_id",
+            as: "creatorDetails",
+          },
+        },
+        {
+          $match: {
+            "creatorDetails.whitelabelPlanType": "enterprise-plan",
+            platformSuspended: true,
+          },
+        },
+        {
+          $count: "suspendedPlatformCount",
+        },
+      ])
+      .toArray();
+
     return c.json(
       {
         message: "All forms count",
         result: {
           count:
             allStatusCounts.length > 0
-              ? allStatusCounts[0].statuses
+              ? {
+                  ...allStatusCounts[0].statuses,
+                  suspended:
+                    customHosts?.length > 0
+                      ? customHosts[0].suspendedPlatformCount
+                      : 0,
+                }
               : {
                   [AppFormStatus.IN_PROGRESS]: 0,
                   [AppFormStatus.IN_REVIEW]: 0,
@@ -207,6 +250,10 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
                   [AppFormStatus.REJECTED]: 0,
                   [AppFormStatus.IN_STORE_REVIEW]: 0,
                   [AppFormStatus.DEPLOYED]: 0,
+                  suspended:
+                    customHosts?.length > 0
+                      ? customHosts[0].suspendedPlatformCount
+                      : 0,
                 },
         },
       },
@@ -644,7 +691,18 @@ const updateStoreIosSettings = factory.createHandlers(
         { _id: new ObjectId(formId) },
         {
           $set: {
-            iosStoreSettings: body,
+            iosStoreSettings: {
+              name: body.name,
+              description: body.description,
+              keywords: form.iosStoreSettings.keywords,
+              marketing_url: form.iosStoreSettings.marketing_url,
+              privacy_url: form.iosStoreSettings.privacy_url,
+              support_url: form.iosStoreSettings.support_url,
+              promotional_text: form.iosStoreSettings.promotional_text,
+              subtitle: form.iosStoreSettings.subtitle,
+              apple_tv_privacy_policy:
+                form.iosStoreSettings.apple_tv_privacy_policy,
+            },
             status: AppFormStatus.IN_PROGRESS,
             updatedAt: new Date(),
           },
@@ -655,65 +713,6 @@ const updateStoreIosSettings = factory.createHandlers(
       }
       return c.json(
         { message: "iOS Store Settings updated successfully" },
-        Response.OK,
-      );
-    } catch (error) {
-      return c.json(
-        { message: "Internal Server Error" },
-        Response.INTERNAL_SERVER_ERROR,
-      );
-    }
-  },
-);
-
-/**
- * PATCH wl/forms/:formId/ios/info
- * Update the ios info settings for the form by formId
- * Protected Route
- */
-const updateInfoIosSettings = factory.createHandlers(
-  zValidator("json", updateIosInfoMetadataSchema),
-  async (c) => {
-    try {
-      const { formId } = c.req.param();
-      const body = c.req.valid("json");
-
-      const form = await Mongo.app_forms.findOne({
-        _id: new ObjectId(formId),
-      });
-
-      if (!form) {
-        return c.json({ message: "Form not found" }, Response.NOT_FOUND);
-      }
-
-      if (
-        ![AppFormStatus.IN_PROGRESS, AppFormStatus.REJECTED].includes(
-          form.status,
-        )
-      ) {
-        return c.json(
-          {
-            message: "Cannot update info settings for this form",
-          },
-          Response.BAD_REQUEST,
-        );
-      }
-
-      const result = await Mongo.app_forms.updateOne(
-        { _id: new ObjectId(formId) },
-        {
-          $set: {
-            iosInfoSettings: body,
-            status: AppFormStatus.IN_PROGRESS,
-            updatedAt: new Date(),
-          },
-        },
-      );
-      if (result.modifiedCount === 0) {
-        return c.json({ message: "Form not found" }, Response.NOT_FOUND);
-      }
-      return c.json(
-        { message: "iOS Info Settings updated successfully" },
         Response.OK,
       );
     } catch (error) {
@@ -953,6 +952,45 @@ const rejectFormHandler = factory.createHandlers(
 );
 
 /**
+ * PATCH wl/forms/:appId/mark-unpublished
+ * Mark the form as unpublished by app id
+ * Protected Route
+ */
+const markFormUnpublished = factory.createHandlers(
+  authenticationMiddleware,
+  async (c) => {
+    try {
+      const { hostId } = c.req.param();
+
+      const customHost = await Mongo.customhost.findOne({
+        _id: new ObjectId(hostId),
+      });
+
+      if (!customHost) {
+        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
+      }
+
+      const result = await Mongo.app_forms.updateOne(
+        { host: new ObjectId(hostId) },
+        { $set: { status: AppFormStatus.UNPUBLISHED } },
+      );
+      if (result.modifiedCount === 0) {
+        return c.json({ message: "Form not found" }, Response.NOT_FOUND);
+      }
+      return c.json(
+        { message: "Form marked as unpublished successfully" },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
+/**
  * PATCH wl/forms/:appId/mark-in-store-review
  * Mark the form as in-store-review by app id
  * Protected Route
@@ -1024,7 +1062,8 @@ const markFormApprovedHandler = factory.createHandlers(
         !metadata.iosStoreSettings.name ||
         !metadata.iosStoreSettings.description ||
         !metadata.iosStoreSettings.keywords ||
-        !metadata.iosStoreSettings.promotional_text
+        !metadata.iosStoreSettings.privacy_url ||
+        !metadata.iosStoreSettings.support_url
       ) {
         return c.json(
           {
@@ -1061,7 +1100,8 @@ const markFormApprovedHandler = factory.createHandlers(
             },
             iosStoreSettings: {
               description: metadata.iosStoreSettings?.description || "",
-              keywords: metadata.iosStoreSettings?.keywords || "",
+              keywords:
+                metadata.iosStoreSettings?.keywords || "Edtech, Education",
               marketing_url: "",
               name: metadata.iosStoreSettings?.name || "",
               privacy_url:
@@ -1384,9 +1424,9 @@ export {
   markFormApprovedHandler,
   markFormDeployedHandler,
   markFormInStoreReviewHandler,
+  markFormUnpublished,
   rejectFormHandler,
   submitFormHandler,
-  updateInfoIosSettings,
   updateStoreAndroidSettings,
   updateStoreIosSettings,
   uploadFormLogo,
