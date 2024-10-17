@@ -551,6 +551,7 @@ export enum AppFormStatus {
   REJECTED = "rejected",
   IN_STORE_REVIEW = "in-store-review",
   DEPLOYED = "deployed",
+  UNPUBLISHED = "unpublished",
 }
 
 export interface IAppForm {
