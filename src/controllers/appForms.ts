@@ -71,7 +71,9 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
             { host: { $regex: new RegExp(SEARCH, "i") } },
             { brandname: { $regex: new RegExp(SEARCH, "i") } },
           ],
-          ...(isSuspended ? { platformSuspended: true } : {}),
+          ...(isSuspended
+            ? { platformSuspended: true }
+            : { platformSuspended: { $ne: true } }),
         },
       },
       {
