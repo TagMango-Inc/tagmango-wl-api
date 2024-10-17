@@ -676,6 +676,14 @@ const updateStoreIosSettings = factory.createHandlers(
         return c.json({ message: "Form not found" }, Response.NOT_FOUND);
       }
 
+      const customHost = await Mongo.customhost.findOne({
+        _id: new ObjectId(form.host),
+      });
+
+      if (!customHost) {
+        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
+      }
+
       if (
         ![AppFormStatus.IN_PROGRESS, AppFormStatus.REJECTED].includes(
           form.status,
@@ -696,14 +704,12 @@ const updateStoreIosSettings = factory.createHandlers(
             iosStoreSettings: {
               name: body.name,
               description: body.description,
-              keywords: form.iosStoreSettings.keywords,
-              marketing_url: form.iosStoreSettings.marketing_url,
-              privacy_url: form.iosStoreSettings.privacy_url,
-              support_url: form.iosStoreSettings.support_url,
-              promotional_text: form.iosStoreSettings.promotional_text,
-              subtitle: form.iosStoreSettings.subtitle,
-              apple_tv_privacy_policy:
-                form.iosStoreSettings.apple_tv_privacy_policy,
+              keywords: "Edtech, Education",
+              marketing_url: form?.iosStoreSettings?.marketing_url || "",
+              privacy_url: `https://${customHost.host}/privacy`,
+              support_url: "https://help.tagmango.com",
+              promotional_text: form?.iosStoreSettings?.promotional_text || "",
+              subtitle: form?.iosStoreSettings?.subtitle || "",
             },
             status: AppFormStatus.IN_PROGRESS,
             updatedAt: new Date(),
