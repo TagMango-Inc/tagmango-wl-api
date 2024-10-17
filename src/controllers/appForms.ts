@@ -691,7 +691,18 @@ const updateStoreIosSettings = factory.createHandlers(
         { _id: new ObjectId(formId) },
         {
           $set: {
-            iosStoreSettings: body,
+            iosStoreSettings: {
+              name: body.name,
+              description: body.description,
+              keywords: form.iosStoreSettings.keywords,
+              marketing_url: form.iosStoreSettings.marketing_url,
+              privacy_url: form.iosStoreSettings.privacy_url,
+              support_url: form.iosStoreSettings.support_url,
+              promotional_text: form.iosStoreSettings.promotional_text,
+              subtitle: form.iosStoreSettings.subtitle,
+              apple_tv_privacy_policy:
+                form.iosStoreSettings.apple_tv_privacy_policy,
+            },
             status: AppFormStatus.IN_PROGRESS,
             updatedAt: new Date(),
           },
