@@ -35,11 +35,12 @@ const writeFile = fs.promises.writeFile;
  * @param limit: number
  * @param search: string
  * @param status: 'in-progress' | 'in-review' | 'approved' | 'rejected' | 'in-store-review' |  'deployed'
+ * @param isSuspended: boolean
  * @returns { message: string, result: { customHosts: Array } }
  */
 const getAllFormsHandler = factory.createHandlers(async (c) => {
   try {
-    const { page, limit, search, status } = c.req.query();
+    const { page, limit, search, status, isSuspended } = c.req.query();
     let PAGE = page ? parseInt(page as string) : 1;
     let LIMIT = limit ? parseInt(limit as string) : 10;
     let SEARCH = search ? (search as string) : "";
@@ -71,6 +72,7 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
             { host: { $regex: new RegExp(SEARCH, "i") } },
             { brandname: { $regex: new RegExp(SEARCH, "i") } },
           ],
+          ...(isSuspended ? { platformSuspended: true } : {}),
         },
       },
       {
@@ -146,6 +148,7 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
           playStoreLink: customHost.androidShareLink || "",
           appStoreLink: customHost.iosShareLink || "",
         },
+        platformSuspended: customHost.platformSuspended,
       };
     });
 
