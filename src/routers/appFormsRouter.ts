@@ -15,7 +15,6 @@ import {
   markFormInStoreReviewHandler,
   rejectFormHandler,
   submitFormHandler,
-  updateInfoIosSettings,
   updateStoreAndroidSettings,
   updateStoreIosSettings,
   uploadFormLogo,
@@ -43,7 +42,6 @@ router.patch("/:formId/logo/upload", ...uploadFormLogo);
 router.patch("/:formId/android/store", ...updateStoreAndroidSettings);
 
 router.patch("/:formId/ios/store", ...updateStoreIosSettings);
-router.patch("/:formId/ios/info", ...updateInfoIosSettings);
 
 router.patch("/:formId/submit", ...submitFormHandler);
 

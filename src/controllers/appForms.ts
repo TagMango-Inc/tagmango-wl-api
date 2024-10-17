@@ -16,7 +16,6 @@ import {
 } from '../validations/appForms';
 import {
   updateAndroidStoreMetadataSchema,
-  updateIosInfoMetadataSchema,
   updateIosStoreMetadataSchema,
   updateMetadataLogoSchema,
 } from '../validations/metadata';
@@ -715,65 +714,6 @@ const updateStoreIosSettings = factory.createHandlers(
 );
 
 /**
- * PATCH wl/forms/:formId/ios/info
- * Update the ios info settings for the form by formId
- * Protected Route
- */
-const updateInfoIosSettings = factory.createHandlers(
-  zValidator("json", updateIosInfoMetadataSchema),
-  async (c) => {
-    try {
-      const { formId } = c.req.param();
-      const body = c.req.valid("json");
-
-      const form = await Mongo.app_forms.findOne({
-        _id: new ObjectId(formId),
-      });
-
-      if (!form) {
-        return c.json({ message: "Form not found" }, Response.NOT_FOUND);
-      }
-
-      if (
-        ![AppFormStatus.IN_PROGRESS, AppFormStatus.REJECTED].includes(
-          form.status,
-        )
-      ) {
-        return c.json(
-          {
-            message: "Cannot update info settings for this form",
-          },
-          Response.BAD_REQUEST,
-        );
-      }
-
-      const result = await Mongo.app_forms.updateOne(
-        { _id: new ObjectId(formId) },
-        {
-          $set: {
-            iosInfoSettings: body,
-            status: AppFormStatus.IN_PROGRESS,
-            updatedAt: new Date(),
-          },
-        },
-      );
-      if (result.modifiedCount === 0) {
-        return c.json({ message: "Form not found" }, Response.NOT_FOUND);
-      }
-      return c.json(
-        { message: "iOS Info Settings updated successfully" },
-        Response.OK,
-      );
-    } catch (error) {
-      return c.json(
-        { message: "Internal Server Error" },
-        Response.INTERNAL_SERVER_ERROR,
-      );
-    }
-  },
-);
-
-/**
  * PATCH wl/forms/:formId/submit
  * Submit the form request by formId
  * Protected Route
@@ -1072,7 +1012,8 @@ const markFormApprovedHandler = factory.createHandlers(
         !metadata.iosStoreSettings.name ||
         !metadata.iosStoreSettings.description ||
         !metadata.iosStoreSettings.keywords ||
-        !metadata.iosStoreSettings.promotional_text
+        !metadata.iosStoreSettings.privacy_url ||
+        !metadata.iosStoreSettings.support_url
       ) {
         return c.json(
           {
@@ -1109,7 +1050,8 @@ const markFormApprovedHandler = factory.createHandlers(
             },
             iosStoreSettings: {
               description: metadata.iosStoreSettings?.description || "",
-              keywords: metadata.iosStoreSettings?.keywords || "",
+              keywords:
+                metadata.iosStoreSettings?.keywords || "Edtech, Education",
               marketing_url: "",
               name: metadata.iosStoreSettings?.name || "",
               privacy_url:
@@ -1434,7 +1376,6 @@ export {
   markFormInStoreReviewHandler,
   rejectFormHandler,
   submitFormHandler,
-  updateInfoIosSettings,
   updateStoreAndroidSettings,
   updateStoreIosSettings,
   uploadFormLogo,
