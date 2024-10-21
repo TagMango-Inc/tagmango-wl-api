@@ -35,50 +35,8 @@ const getAllMangoesByCreator = factory.createHandlers(async (c) => {
       host,
     });
 
-    const mangoes = await Mongo.mango
-      .find(
-        {
-          creator: new ObjectId(creatorId),
-          isHidden: { $ne: true },
-          isStopTakingPayment: { $ne: true },
-          $or: [{ end: { $gte: new Date() } }, { end: undefined }],
-          isPublic: { $ne: true },
-          isDeleted: { $ne: true },
-        },
-        {
-          sort: { createdAt: -1 },
-          projection: {
-            title: 1,
-            description: 1,
-            price: 1,
-            inrAmount: 1,
-            usdAmount: 1,
-            eurAmount: 1,
-            recurringType: 1,
-            currency: 1,
-            iapProductId: 1,
-            createdAt: 1,
-            iapDescription: 1,
-            iapPrice: 1,
-          },
-        },
-      )
-      .toArray();
-
     // Aggregate posts, courses, and subscriptions
-    const [allPosts, allCourses, allSubscriptions] = await Promise.all([
-      Mongo.post
-        .find(
-          { creator: new ObjectId(creatorId) },
-          { projection: { mangoArr: 1 } },
-        )
-        .toArray(),
-      Mongo.course
-        .find(
-          { creator: new ObjectId(creatorId), isPublished: true },
-          { projection: { mangoArr: 1 } },
-        )
-        .toArray(),
+    const [allSubscriptions] = await Promise.all([
       demoUser
         ? Mongo.subscription
             .find(
@@ -93,23 +51,171 @@ const getAllMangoesByCreator = factory.createHandlers(async (c) => {
         : Promise.resolve([]),
     ]);
 
-    // Use Set for unique processing and simpler inclusion checks
-    const postMangoes = new Set(
-      allPosts.flatMap((post) => post.mangoArr.map((mng) => mng.toHexString())),
-    );
-    const courseMangoes = new Set(
-      allCourses.flatMap((course) =>
-        course.mangoArr.map((mng) => mng.toHexString()),
-      ),
-    );
     const subscriptionMangoes = new Set(
       allSubscriptions.map((subscription) => subscription.mango.toHexString()),
     );
 
-    const mangoesToSend = mangoes.map((mango) => ({
+    const mangoAggregation = await Mongo.mango
+      .aggregate([
+        {
+          $match: {
+            creator: new ObjectId(creatorId),
+            isHidden: {
+              $ne: true,
+            },
+            isStopTakingPayment: {
+              $ne: true,
+            },
+            $or: [
+              {
+                end: {
+                  $gte: new Date(),
+                },
+              },
+              {
+                end: undefined,
+              },
+            ],
+            isPublic: {
+              $ne: true,
+            },
+            isDeleted: {
+              $ne: true,
+            },
+            recurringType: "onetime",
+          },
+        },
+        {
+          $lookup: {
+            from: "posts",
+            localField: "_id",
+            foreignField: "mangoArr",
+            as: "relatedPosts",
+          },
+        },
+        {
+          $addFields: {
+            relatedPosts: {
+              $filter: {
+                input: "$relatedPosts",
+                as: "post",
+                cond: { $ne: ["$$post.isDeleted", true] }, // Check if isDeleted is not true
+              },
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "rooms",
+            localField: "_id",
+            foreignField: "mango",
+            as: "relatedRooms",
+          },
+        },
+        {
+          $addFields: {
+            relatedRooms: {
+              $filter: {
+                input: "$relatedRooms",
+                as: "room",
+                cond: { $ne: ["$$room.isDeleted", true] }, // Check if isDeleted is not true
+              },
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "courses",
+            localField: "_id",
+            foreignField: "mangoArr",
+            as: "relatedCourses",
+          },
+        },
+        {
+          $addFields: {
+            relatedCourses: {
+              $filter: {
+                input: "$relatedCourses", // Array of related courses
+                as: "course",
+                cond: {
+                  $and: [
+                    { $eq: ["$$course.isPublished", true] },
+                    { $eq: ["$$course.isDripped", false] },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          $unwind: "$relatedCourses",
+        },
+        {
+          $lookup: {
+            from: "chapters",
+            localField: "relatedCourses._id", // Use the course ID to lookup chapters
+            foreignField: "course", // Assuming each chapter has a `courseId` field to link to the course
+            as: "relatedChapters",
+          },
+        },
+        {
+          $addFields: {
+            relatedCourses: {
+              $cond: {
+                if: {
+                  $gt: [
+                    {
+                      $size: {
+                        $filter: {
+                          input: "$relatedChapters", // Array of chapters related to the course
+                          as: "chapter",
+                          cond: {
+                            $eq: ["$$chapter.contentType", "video"], // Check if contentType is video
+                          },
+                        },
+                      },
+                    },
+                    0,
+                  ], // Ensure that at least one chapter with contentType=video exists
+                },
+                then: "$relatedCourses", // Keep course if at least one video chapter exists
+                else: null, // Exclude the course otherwise
+              },
+            },
+          },
+        },
+        {
+          $match: { relatedCourses: { $ne: null } },
+        },
+
+        {
+          $group: {
+            _id: "$_id",
+            hasPosts: { $first: "$relatedPosts" }, // Preserve posts
+            hasCourses: { $push: "$relatedCourses" }, // Collect filtered courses
+            hasRooms: { $first: "$relatedRooms" }, // Preserve rooms
+            title: { $first: "$title" },
+            description: { $first: "$description" },
+            price: { $first: "$price" },
+            inrAmount: { $first: "$inrAmount" },
+            usdAmount: { $first: "$usdAmount" },
+            eurAmount: { $first: "$eurAmount" },
+            recurringType: { $first: "$recurringType" },
+            currency: { $first: "$currency" },
+            iapProductId: { $first: "$iapProductId" },
+            createdAt: { $first: "$createdAt" },
+            iapDescription: { $first: "$iapDescription" },
+            iapPrice: { $first: "$iapPrice" },
+          },
+        },
+      ])
+      .toArray();
+
+    const mangoesToSend = mangoAggregation.map((mango) => ({
       ...mango,
-      hasPosts: postMangoes.has(mango._id.toHexString()),
-      hasCourses: courseMangoes.has(mango._id.toHexString()),
+      hasPosts: mango.hasPosts.length > 0,
+      hasCourses: mango.hasCourses.length > 0,
+      hasRooms: mango.hasRooms.length > 0,
       isSubscribed: subscriptionMangoes.has(mango._id.toHexString()),
     }));
 

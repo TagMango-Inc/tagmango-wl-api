@@ -1403,55 +1403,172 @@ const fetchPreRequisitesForApp = factory.createHandlers(async (c) => {
 
     const creatorId = customHost.creator;
 
-    const [mangoes, allPosts, allCourses, allMangoRooms] = await Promise.all([
-      Mongo.mango
-        .find(
-          {
+    const mango = await Mongo.mango.findOne({
+      creator: new ObjectId(creatorId),
+      isHidden: { $ne: true },
+      isStopTakingPayment: { $ne: true },
+      $or: [{ end: { $gte: new Date() } }, { end: undefined }],
+      isPublic: { $ne: true },
+      isDeleted: { $ne: true },
+      recurringType: "onetime",
+    });
+
+    const mangoAggregation = await Mongo.mango
+      .aggregate([
+        {
+          $match: {
             creator: new ObjectId(creatorId),
-            isHidden: { $ne: true },
-            isStopTakingPayment: { $ne: true },
-            $or: [{ end: { $gte: new Date() } }, { end: undefined }],
-            isPublic: { $ne: true },
-            isDeleted: { $ne: true },
+            isHidden: {
+              $ne: true,
+            },
+            isStopTakingPayment: {
+              $ne: true,
+            },
+            $or: [
+              {
+                end: {
+                  $gte: new Date(),
+                },
+              },
+              {
+                end: undefined,
+              },
+            ],
+            isPublic: {
+              $ne: true,
+            },
+            isDeleted: {
+              $ne: true,
+            },
+            recurringType: "onetime",
           },
-          {
-            sort: { createdAt: -1 },
-            projection: {
-              title: 1,
-              description: 1,
-              price: 1,
-              inrAmount: 1,
-              usdAmount: 1,
-              eurAmount: 1,
-              recurringType: 1,
-              currency: 1,
-              iapProductId: 1,
-              createdAt: 1,
-              iapDescription: 1,
-              iapPrice: 1,
+        },
+        {
+          $lookup: {
+            from: "posts",
+            localField: "_id",
+            foreignField: "mangoArr",
+            as: "relatedPosts",
+          },
+        },
+        {
+          $addFields: {
+            relatedPosts: {
+              $filter: {
+                input: "$relatedPosts",
+                as: "post",
+                cond: { $ne: ["$$post.isDeleted", true] }, // Check if isDeleted is not true
+              },
             },
           },
-        )
-        .toArray(),
-      Mongo.post
-        .find(
-          { creator: new ObjectId(creatorId) },
-          { projection: { mangoArr: 1 } },
-        )
-        .toArray(),
-      Mongo.course
-        .find(
-          { creator: new ObjectId(creatorId), isPublished: true },
-          { projection: { mangoArr: 1 } },
-        )
-        .toArray(),
-      Mongo.mango_rooms
-        .find(
-          { creator: new ObjectId(creatorId) },
-          { projection: { mango: 1 } },
-        )
-        .toArray(),
-    ]);
+        },
+        {
+          $lookup: {
+            from: "rooms",
+            localField: "_id",
+            foreignField: "mango",
+            as: "relatedRooms",
+          },
+        },
+        {
+          $addFields: {
+            relatedRooms: {
+              $filter: {
+                input: "$relatedRooms",
+                as: "room",
+                cond: { $ne: ["$$room.isDeleted", true] }, // Check if isDeleted is not true
+              },
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "courses",
+            localField: "_id",
+            foreignField: "mangoArr",
+            as: "relatedCourses",
+          },
+        },
+        {
+          $addFields: {
+            relatedCourses: {
+              $filter: {
+                input: "$relatedCourses", // Array of related courses
+                as: "course",
+                cond: {
+                  $and: [
+                    { $eq: ["$$course.isPublished", true] },
+                    { $eq: ["$$course.isDripped", false] },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          $unwind: "$relatedCourses",
+        },
+        {
+          $lookup: {
+            from: "chapters",
+            localField: "relatedCourses._id", // Use the course ID to lookup chapters
+            foreignField: "course", // Assuming each chapter has a `courseId` field to link to the course
+            as: "relatedChapters",
+          },
+        },
+        {
+          $addFields: {
+            relatedCourses: {
+              $cond: {
+                if: {
+                  $gt: [
+                    {
+                      $size: {
+                        $filter: {
+                          input: "$relatedChapters", // Array of chapters related to the course
+                          as: "chapter",
+                          cond: {
+                            $eq: ["$$chapter.contentType", "video"], // Check if contentType is video
+                          },
+                        },
+                      },
+                    },
+                    0,
+                  ], // Ensure that at least one chapter with contentType=video exists
+                },
+                then: "$relatedCourses", // Keep course if at least one video chapter exists
+                else: null, // Exclude the course otherwise
+              },
+            },
+          },
+        },
+        {
+          $match: { relatedCourses: { $ne: null } },
+        },
+
+        {
+          $group: {
+            _id: "$_id",
+            relatedPosts: { $first: "$relatedPosts" }, // Preserve posts
+            relatedCourses: { $push: "$relatedCourses" }, // Collect filtered courses
+            relatedRooms: { $first: "$relatedRooms" }, // Preserve rooms
+          },
+        },
+        {
+          $match: {
+            "relatedPosts.0": {
+              $exists: true,
+            },
+            "relatedCourses.0": {
+              $exists: true,
+            },
+            "relatedRooms.0": {
+              $exists: true,
+            },
+          },
+        },
+      ])
+      .toArray();
 
     return c.json(
       {
@@ -1459,22 +1576,26 @@ const fetchPreRequisitesForApp = factory.createHandlers(async (c) => {
         result: [
           {
             title: "Create a service",
-            isCompleted: mangoes.length > 0,
+            description: "You need to create an offering to proceed",
+            isCompleted: mango ? true : false,
             url: "/dashboard/mango-overview?newMangoform=true",
           },
           {
             title: "Create a post in a service",
-            isCompleted: allPosts.length > 0,
+            description: `Make sure you create alteast one post ${mango ? "in the same offering you created above" : ""}`,
+            isCompleted: mangoAggregation.length > 0,
             url: "/activity",
           },
           {
             title: "Create a course in a service",
-            isCompleted: allCourses.length > 0,
+            description: `Make sure you create alteast one course ${mango ? "in the same offering you created above" : ""}. Also the course should be published, should have alteast one video chapter and should have drip system disabled`,
+            isCompleted: mangoAggregation.length > 0,
             url: "/courses",
           },
           {
             title: "Create a room in a service",
-            isCompleted: allMangoRooms.length > 0,
+            description: `Make sure you create alteast one room ${mango ? "in the same offering you created above" : ""}`,
+            isCompleted: mangoAggregation.length > 0,
             url: "/messages",
           },
         ],
