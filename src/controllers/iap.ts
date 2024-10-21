@@ -423,14 +423,56 @@ const createOrRevokeSubscription = factory.createHandlers(
         host,
       });
 
-      if (!demoUser)
+      let newUser;
+      if (!demoUser) {
+        // fint
+        // create a new user
+        newUser = await Mongo.platform_users.insertOne({
+          phone: 1223334444,
+          host,
+          onboarding: "fan_completed",
+          country: "IN",
+          currency: "INR",
+          name: "John Doe",
+          email: "test.review@tagmango.com",
+          profilePicUrl:
+            "https://tagmango.com/staticassets/avatar-placeholder.png-1612857612139.png",
+          isEmailVerified: false,
+          mangoes: [],
+          showtwitter: false,
+          showfacebook: false,
+          showinstagram: false,
+          showyoutube: false,
+          showlinkedin: false,
+          isDeactivated: false,
+          fanCompleted: false,
+          otp: "",
+          expireIn: "",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          userSlug: "",
+          firebaseSync: 0,
+          syncFirebase: false,
+          refreshTokens: [],
+          isHiddenFromDiscovery: false,
+          showSubscriberCount: false,
+          isAssetsMigrated: false,
+          videoUploadEnabled: false,
+          convenienceFee: 0,
+          mangoCreditsAvailable: 0,
+          drmEnabled: false,
+        });
+      }
+
+      if (!demoUser && !newUser) {
         return c.json(
-          { message: "Demo user not found" },
+          { message: "Cannot create demo user" },
           {
-            status: 404,
-            statusText: "Not Found",
+            status: 500,
+            statusText: "Internal Server Error",
           },
         );
+      }
 
       const mango = await Mongo.mango.findOne({
         _id: new ObjectId(mangoId),
@@ -447,7 +489,11 @@ const createOrRevokeSubscription = factory.createHandlers(
       if (action === "create") {
         const subscription = await Mongo.subscription.insertOne({
           creator: mango.creator,
-          fan: new ObjectId(demoUser._id),
+          fan: demoUser
+            ? new ObjectId(demoUser._id)
+            : newUser
+              ? newUser.insertedId
+              : new ObjectId(),
           mango: new ObjectId(mangoId),
           status: "initiated",
           isPublic: false,
@@ -472,7 +518,11 @@ const createOrRevokeSubscription = factory.createHandlers(
         await Mongo.subscription.updateOne(
           {
             creator: mango.creator,
-            fan: new ObjectId(demoUser._id),
+            fan: demoUser
+              ? new ObjectId(demoUser._id)
+              : newUser
+                ? newUser.insertedId
+                : new ObjectId(),
             mango: new ObjectId(mangoId),
           },
           {
@@ -483,7 +533,11 @@ const createOrRevokeSubscription = factory.createHandlers(
         );
         await Mongo.subscription.deleteOne({
           creator: mango.creator,
-          fan: new ObjectId(demoUser._id),
+          fan: demoUser
+            ? new ObjectId(demoUser._id)
+            : newUser
+              ? newUser.insertedId
+              : new ObjectId(),
           mango: new ObjectId(mangoId),
         });
       }
