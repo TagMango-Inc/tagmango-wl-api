@@ -1,5 +1,4 @@
 import Mongo from "../database";
-import { AppFormStatus } from "../types/database";
 
 const fs = require("fs");
 const path = require("path");
@@ -174,7 +173,7 @@ export const populateAppForms = async () => {
         backgroundGradientAngle: 45,
         logoPadding: 15,
         iosDeploymentDetails: {
-          bundleId: `com.tagmango.${formattedName}`,
+          bundleId: ``,
           lastDeploymentDetails: {
             versionName: "3.0.7",
             buildNumber: 450,
@@ -182,7 +181,7 @@ export const populateAppForms = async () => {
           isUnderReview: false,
         },
         androidDeploymentDetails: {
-          bundleId: `com.tagmango.${formattedName}`,
+          bundleId: ``,
           lastDeploymentDetails: {
             versionName: "3.0.7",
             buildNumber: 450,
@@ -190,18 +189,18 @@ export const populateAppForms = async () => {
           isUnderReview: false,
         },
         androidStoreSettings: {
-          title: appName,
-          short_description: `Get access to all premium content by ${appName}!`,
-          full_description: `Get access to all premium content in ${appName}. Access pre-recorded courses, enrol for live workshops, get certified and a lot more! Be a part of the awesome community that you always wanted to be in!`,
+          title: "",
+          short_description: "",
+          full_description: "",
           video: "",
         },
         iosStoreSettings: {
-          description: `Get access to all premium content in ${appName}. Access pre-recorded courses, enrol for live workshops, get certified and a lot more! Be a part of the awesome community that you always wanted to be in!`,
+          description: "",
           keywords: "EdTech, Education",
           marketing_url: "",
-          name: appName,
-          privacy_url: "",
-          promotional_text: `Get access to all premium content by ${appName}!`,
+          name: "",
+          privacy_url: `https://${customHost.host}/privacy`,
+          promotional_text: "",
           subtitle: "",
           support_url: "https://help.tagmango.com",
         },
