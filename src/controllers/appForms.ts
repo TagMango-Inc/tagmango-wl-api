@@ -172,7 +172,7 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
 
 const getAllFormsCount = factory.createHandlers(async (c) => {
   try {
-    const allStatusCounts = await Mongo.app_forms
+    const allStatusCountsPromise = Mongo.app_forms
       .aggregate([
         {
           $lookup: {
@@ -210,7 +210,7 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
       ])
       .toArray();
 
-    const customHosts = await Mongo.customhost
+    const customHostsPromise = Mongo.customhost
       .aggregate([
         {
           $lookup: {
@@ -232,6 +232,67 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
       ])
       .toArray();
 
+    const iosAndAndroidCountsPromise = Mongo.customhost
+      .aggregate([
+        {
+          $lookup: {
+            from: "users",
+            localField: "creator",
+            foreignField: "_id",
+            as: "creatorDetails",
+          },
+        },
+        {
+          $match: {
+            "creatorDetails.whitelabelPlanType": "enterprise-plan",
+            platformSuspended: { $ne: true },
+          },
+        },
+        {
+          $project: {
+            androidShareLinkCount: {
+              $cond: {
+                if: {
+                  $and: [
+                    { $ifNull: ["$androidShareLink", false] },
+                    { $ne: ["$androidShareLink", ""] },
+                  ],
+                },
+                then: 1,
+                else: 0,
+              },
+            },
+            iosShareLinkCount: {
+              $cond: {
+                if: {
+                  $and: [
+                    { $ifNull: ["$iosShareLink", false] },
+                    { $ne: ["$iosShareLink", ""] },
+                  ],
+                },
+                then: 1,
+                else: 0,
+              },
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null, // We only want the total count, so we don't need to group by a specific field
+            totalAndroidShareLinks: { $sum: "$androidShareLinkCount" },
+            totalIosShareLinks: { $sum: "$iosShareLinkCount" },
+          },
+        },
+      ])
+      .toArray();
+
+    const [allStatusCounts, customHosts, iosAndAndroidCounts] =
+      await Promise.all([
+        allStatusCountsPromise,
+        customHostsPromise,
+        iosAndAndroidCountsPromise,
+      ]);
+
     return c.json(
       {
         message: "All forms count",
@@ -244,6 +305,14 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
                     customHosts?.length > 0
                       ? customHosts[0].suspendedPlatformCount
                       : 0,
+                  ios:
+                    iosAndAndroidCounts?.length > 0
+                      ? iosAndAndroidCounts[0].totalIosShareLinks
+                      : 0,
+                  android:
+                    iosAndAndroidCounts?.length > 0
+                      ? iosAndAndroidCounts[0].totalAndroidShareLinks
+                      : 0,
                 }
               : {
                   [AppFormStatus.IN_PROGRESS]: 0,
@@ -255,6 +324,14 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
                   suspended:
                     customHosts?.length > 0
                       ? customHosts[0].suspendedPlatformCount
+                      : 0,
+                  ios:
+                    iosAndAndroidCounts?.length > 0
+                      ? iosAndAndroidCounts[0].totalIosShareLinks
+                      : 0,
+                  android:
+                    iosAndAndroidCounts?.length > 0
+                      ? iosAndAndroidCounts[0].totalAndroidShareLinks
                       : 0,
                 },
         },
