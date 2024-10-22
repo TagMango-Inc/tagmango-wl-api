@@ -107,8 +107,19 @@ const getAllMangoesByCreator = factory.createHandlers(async (c) => {
         {
           $lookup: {
             from: "rooms",
-            localField: "_id",
-            foreignField: "mango",
+            let: { mangoId: "$_id" }, // Current Mango ID
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ["$mango", "$$mangoId"] }, // Check if mango matches Mango ID
+                      { $in: ["$$mangoId", { $ifNull: ["$mangoArr", []] }] }, // Check if Mango ID is in mangoArr, default to empty array if mangoArr doesn't exist
+                    ],
+                  },
+                },
+              },
+            ],
             as: "relatedRooms",
           },
         },
