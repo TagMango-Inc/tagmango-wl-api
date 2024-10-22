@@ -442,7 +442,7 @@ const createNewDeploymentHandler = factory.createHandlers(
             (target === "android"
               ? metadata.androidStoreSettings.title
               : metadata.iosStoreSettings.name) ?? customhost.appName,
-          appName: customhost.appName || customhost.brandname,
+          appName: customhost.appName,
           bundle:
             target === "android"
               ? metadata.androidDeploymentDetails.bundleId
@@ -952,7 +952,6 @@ const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
         });
 
         if (subscription) {
-          console.log(subscription);
           isDemoUserSubscribed = true;
         }
       }
