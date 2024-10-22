@@ -936,6 +936,28 @@ const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
       }),
     ]);
 
+    let isDemoUserSubscribed = false;
+    if (data[2]?.host) {
+      const demoUser = await Mongo.platform_users.findOne({
+        phone: 1223334444,
+        host: data[2].host,
+      });
+
+      if (demoUser) {
+        const subscription = await Mongo.subscription.findOne({
+          creator: new ObjectId(creatorId),
+          fan: demoUser._id,
+          status: "active",
+          isFree: { $ne: true },
+        });
+
+        if (subscription) {
+          console.log(subscription);
+          isDemoUserSubscribed = true;
+        }
+      }
+    }
+
     return c.json(
       {
         message: "Fetched Deployment Requirements Checklist",
@@ -954,7 +976,7 @@ const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
           },
           {
             name: DEPLOYMENT_REQUIREMENTS[3],
-            isCompleted: data[3] ? true : false,
+            isCompleted: data[3] && isDemoUserSubscribed ? true : false,
           },
         ],
       },
