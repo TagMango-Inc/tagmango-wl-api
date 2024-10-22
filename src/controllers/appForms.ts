@@ -1498,7 +1498,7 @@ const fetchPreRequisitesForApp = factory.createHandlers(async (c) => {
                 cond: {
                   $and: [
                     { $eq: ["$$course.isPublished", true] },
-                    { $eq: ["$$course.isDripped", false] },
+                    { $ne: ["$$course.isDripped", true] },
                   ],
                 },
               },

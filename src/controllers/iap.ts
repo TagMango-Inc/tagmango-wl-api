@@ -140,7 +140,7 @@ const getAllMangoesByCreator = factory.createHandlers(async (c) => {
                 cond: {
                   $and: [
                     { $eq: ["$$course.isPublished", true] },
-                    { $eq: ["$$course.isDripped", false] },
+                    { $ne: ["$$course.isDripped", true] },
                   ],
                 },
               },
@@ -450,7 +450,7 @@ const createOrRevokeSubscription = factory.createHandlers(
           expireIn: "",
           createdAt: new Date(),
           updatedAt: new Date(),
-          userSlug: "",
+          userSlug: `demo-user-${new ObjectId().toHexString()}`,
           firebaseSync: 0,
           syncFirebase: false,
           refreshTokens: [],
