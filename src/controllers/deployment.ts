@@ -371,6 +371,7 @@ const createNewDeploymentHandler = factory.createHandlers(
         );
       }
 
+      let newOneSignalId = "";
       if (!customhost.onesignalAppId) {
         let body = {
           name: customhost.appName,
@@ -429,6 +430,7 @@ const createNewDeploymentHandler = factory.createHandlers(
         const data = await response.json();
 
         if (data.id && data.basic_auth_key) {
+          newOneSignalId = data.id;
           await Mongo.customhost.updateOne(
             {
               _id: new ObjectId(customHostId),
@@ -532,6 +534,14 @@ const createNewDeploymentHandler = factory.createHandlers(
             );
           }
         }
+      }
+
+      // check if there is either old or new one signal id present before deployment
+      if (!customhost.onesignalAppId && !newOneSignalId) {
+        return c.json(
+          { message: "OneSignal App ID is required" },
+          Response.BAD_REQUEST,
+        );
       }
 
       const { versionName: productionVersionName, lastDeploymentDetails } =
@@ -642,7 +652,9 @@ const createNewDeploymentHandler = factory.createHandlers(
           domain: customhost.host,
           color: customhost.colors.PRIMARY,
           bgColor: metadata.backgroundStartColor,
-          onesignal_id: customhost.onesignalAppId || "",
+          onesignal_id: newOneSignalId
+            ? newOneSignalId
+            : customhost.onesignalAppId || "",
           platform: target,
           versionName: currentVersionName,
           buildNumber: currentBuildNumber,
