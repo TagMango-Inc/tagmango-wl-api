@@ -1,6 +1,7 @@
 import fs from "fs-extra";
 import { createFactory } from "hono/factory";
 import { ObjectId, WithId } from "mongodb";
+import path from "path";
 
 import { zValidator } from "@hono/zod-validator";
 
@@ -294,6 +295,13 @@ const createNewDeploymentHandler = factory.createHandlers(
       const { target } = c.req.valid("json");
       const payload: JWTPayloadType = c.get("jwtPayload");
 
+      if (!target) {
+        return c.json(
+          { message: "Deployment target is required" },
+          Response.BAD_REQUEST,
+        );
+      }
+
       // pending or processing
       const recentActiveDeployment = await Mongo.deployment.findOne({
         host: new ObjectId(customHostId),
@@ -340,6 +348,190 @@ const createNewDeploymentHandler = factory.createHandlers(
       }
       if (!metadata) {
         return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      if (target === "ios" && !metadata.iosDeploymentDetails.bundleId) {
+        return c.json(
+          { message: "Bundle ID for iOS is required" },
+          Response.BAD_REQUEST,
+        );
+      }
+
+      if (target === "android" && !metadata.androidDeploymentDetails.bundleId) {
+        return c.json(
+          { message: "Bundle ID for Android is required" },
+          Response.BAD_REQUEST,
+        );
+      }
+
+      if (!customhost.appName) {
+        return c.json(
+          { message: "Platform name is required" },
+          Response.BAD_REQUEST,
+        );
+      }
+
+      if (!customhost.onesignalAppId) {
+        let body = {
+          name: customhost.appName,
+          organization_id: process.env.ONESIGNAL_ORG_ID,
+        } as Record<string, string>;
+
+        if (target === "ios") {
+          const apns_path = path.resolve("./apns.p8");
+          const isApnExist = await fs.pathExists(apns_path);
+
+          if (!isApnExist) {
+            return c.json(
+              { message: "APN file not found for one-signal creation" },
+              Response.BAD_REQUEST,
+            );
+          }
+          const apns_p8 = await fs.readFile(apns_path, "base64");
+
+          body = {
+            ...body,
+            apns_p8: apns_p8,
+            apns_bundle_id: metadata.iosDeploymentDetails.bundleId,
+            apns_team_id: process.env.ONESIGNAL_APNS_TEAM_ID as string,
+            apns_key_id: process.env.ONESIGNAL_APNS_KEY_ID as string,
+            apns_env: "production",
+          };
+        } else if (target === "android") {
+          const fcm_path = path.resolve("./fcm.json");
+          const isFcmExist = await fs.pathExists(fcm_path);
+          if (!isFcmExist) {
+            return c.json(
+              { message: "FCM file not found for one-signal creation" },
+              Response.BAD_REQUEST,
+            );
+          }
+          const fcm_v1_service_account_json = await fs.readFile(
+            fcm_path,
+            "base64",
+          );
+          body = {
+            ...body,
+            fcm_v1_service_account_json,
+          };
+        }
+
+        // Make the request to OneSignal API to create an app
+        const response = await fetch("https://api.onesignal.com/apps", {
+          method: "POST",
+          headers: {
+            Authorization: `Basic ${process.env.ONESIGNAL_REST_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+
+        const data = await response.json();
+
+        if (data.id && data.basic_auth_key) {
+          await Mongo.customhost.updateOne(
+            {
+              _id: new ObjectId(customHostId),
+            },
+            {
+              $set: {
+                onesignalAppId: data.id,
+                customOneSignalApiKey: data.basic_auth_key,
+              },
+            },
+          );
+        } else {
+          return c.json({ message: "Failed to create app", data }, 400);
+        }
+      } else if (customhost.onesignalAppId) {
+        const response = await fetch(
+          `https://api.onesignal.com/apps/${customhost.onesignalAppId}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Basic ${process.env.ONESIGNAL_REST_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+          },
+        );
+
+        const data = await response.json();
+
+        if ("errors" in data) {
+          return c.json(
+            { message: "Failed to fetch app details from OneSignal", data },
+            Response.BAD_REQUEST,
+          );
+        }
+
+        if (!data.apns_p8 || !data.fcm_v1_service_account_json) {
+          // on or the other platform setup is missing for the onesignal app
+
+          let body = {} as Record<string, string>;
+
+          if (!data.apns_p8) {
+            const apns_path = path.resolve("./apns.p8");
+            const isApnExist = await fs.pathExists(apns_path);
+
+            if (!isApnExist) {
+              return c.json(
+                { message: "APN file not found for one-signal update" },
+                Response.BAD_REQUEST,
+              );
+            }
+
+            const apns_p8 = await fs.readFile(apns_path, "base64");
+
+            body = {
+              ...body,
+              apns_p8,
+              apns_bundle_id: metadata.iosDeploymentDetails.bundleId,
+              apns_team_id: process.env.ONESIGNAL_APNS_TEAM_ID as string,
+              apns_key_id: process.env.ONESIGNAL_APNS_KEY_ID as string,
+              apns_env: "production",
+            };
+          }
+
+          if (!data.fcm_v1_service_account_json) {
+            const fcm_path = path.resolve("./fcm.json");
+            const isFcmExist = await fs.pathExists(fcm_path);
+            if (!isFcmExist) {
+              return c.json(
+                { message: "FCM file not found for one-signal update" },
+                Response.BAD_REQUEST,
+              );
+            }
+            const fcm_v1_service_account_json = await fs.readFile(
+              fcm_path,
+              "base64",
+            );
+            body = {
+              ...body,
+              fcm_v1_service_account_json,
+            };
+          }
+
+          const updateResponse = await fetch(
+            `https://api.onesignal.com/apps/${customhost.onesignalAppId}`,
+            {
+              method: "PUT",
+              headers: {
+                Authorization: `Basic ${process.env.ONESIGNAL_REST_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(body),
+            },
+          );
+
+          const newData = await updateResponse.json();
+
+          if (!newData.id || "errors" in newData) {
+            return c.json(
+              { message: "Failed to update app", newData },
+              Response.BAD_REQUEST,
+            );
+          }
+        }
       }
 
       const { versionName: productionVersionName, lastDeploymentDetails } =

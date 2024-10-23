@@ -252,6 +252,7 @@ export interface ICustomHost {
   communityEnabledMangoes?: ObjectId; // ! PopulatedDoc<MangoDocument>[];
   iapMangoes?: Record<string, string>;
   onesignalAppId?: string;
+  customOneSignalApiKey?: string;
   domainVerificationRecords?: any;
   emailDomainVerificationRecords?: any;
 
