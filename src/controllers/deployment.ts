@@ -917,6 +917,7 @@ const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
         },
       }),
       Mongo.metadata.findOne({
+        host: new ObjectId(appId),
         logo: {
           $exists: true,
           $ne: "",
