@@ -68,7 +68,7 @@ const createMetadata = factory.createHandlers(async (c) => {
       return c.json({ message: "App not found" }, Response.NOT_FOUND);
     }
 
-    const appName = customhost.appName ?? customhost.brandname ?? "";
+    const appName = customhost.appName ?? "";
     const formattedName = appName.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 
     const result = await Mongo.metadata.insertOne({
@@ -80,34 +80,34 @@ const createMetadata = factory.createHandlers(async (c) => {
       backgroundGradientAngle: 45,
       logoPadding: 15,
       iosDeploymentDetails: {
-        bundleId: `com.tagmango.${formattedName}`,
+        bundleId: "",
         lastDeploymentDetails: {
-          versionName: "3.0.7",
-          buildNumber: 450,
+          versionName: "",
+          buildNumber: 400,
         },
         isUnderReview: false,
       },
       androidDeploymentDetails: {
-        bundleId: `com.tagmango.${formattedName}`,
+        bundleId: ``,
         lastDeploymentDetails: {
-          versionName: "3.0.7",
+          versionName: "",
           buildNumber: 450,
         },
         isUnderReview: false,
       },
       androidStoreSettings: {
         title: appName,
-        short_description: `Get access to all premium content by ${appName}!`,
-        full_description: `Get access to all premium content in ${appName}. Access pre-recorded courses, enrol for live workshops, get certified and a lot more! Be a part of the awesome community that you always wanted to be in!`,
+        short_description: "",
+        full_description: "",
         video: "",
       },
       iosStoreSettings: {
-        description: `Get access to all premium content in ${appName}. Access pre-recorded courses, enrol for live workshops, get certified and a lot more! Be a part of the awesome community that you always wanted to be in!`,
+        description: "",
         keywords: "EdTech, Education",
         marketing_url: "",
         name: appName,
         privacy_url: "",
-        promotional_text: `Get access to all premium content by ${appName}!`,
+        promotional_text: ``,
         subtitle: "",
         support_url: "https://help.tagmango.com",
       },
