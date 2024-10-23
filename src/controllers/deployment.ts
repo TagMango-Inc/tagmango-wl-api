@@ -909,21 +909,21 @@ const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
         host: new ObjectId(appId),
         "androidStoreSettings.title": {
           $exists: true,
+          $ne: "",
         },
         "iosStoreSettings.name": {
           $exists: true,
+          $ne: "",
         },
       }),
       Mongo.metadata.findOne({
         logo: {
           $exists: true,
+          $ne: "",
         },
       }),
       Mongo.customhost.findOne({
         _id: new ObjectId(appId),
-        onesignalAppId: {
-          $exists: true,
-        },
       }),
       Mongo.mango.findOne({
         creator: new ObjectId(creatorId),
@@ -968,10 +968,6 @@ const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
           {
             name: DEPLOYMENT_REQUIREMENTS[1],
             isCompleted: data[1] ? true : false,
-          },
-          {
-            name: DEPLOYMENT_REQUIREMENTS[2],
-            isCompleted: data[2] ? true : false,
           },
           {
             name: DEPLOYMENT_REQUIREMENTS[3],
