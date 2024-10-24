@@ -142,6 +142,14 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
         formUpdatedAt: customHost.appFormDetails
           ? customHost.appFormDetails.updatedAt
           : null,
+        formSubmittedAt:
+          customHost.appFormDetails && customHost.appFormDetails.submittedAt
+            ? customHost.appFormDetails.submittedAt
+            : null,
+        formApprovedAt:
+          customHost.appFormDetails && customHost.appFormDetails.approvedAt
+            ? customHost.appFormDetails.approvedAt
+            : null,
         isFormSubmitted: customHost.appFormDetails
           ? customHost.appFormDetails.isFormSubmitted ?? false
           : false,
@@ -485,6 +493,8 @@ const getFormOverviewByHostIdHandler = factory.createHandlers(async (c) => {
                   }
                 : appForm.rejectionDetails,
             updatedAt: appForm.updatedAt,
+            submittedAt: appForm.submittedAt || null,
+            approvedAt: appForm.approvedAt || null,
           },
         },
       },
@@ -839,6 +849,7 @@ const submitFormHandler = factory.createHandlers(async (c) => {
         $set: {
           status: AppFormStatus.IN_REVIEW,
           isFormSubmitted: true,
+          submittedAt: new Date(),
           updatedAt: new Date(),
         },
       },
@@ -957,6 +968,7 @@ const approveFormHandler = factory.createHandlers(
           $set: {
             status: AppFormStatus.APPROVED,
             updatedAt: new Date(),
+            approvedAt: new Date(),
             rejectionDetails: undefined,
           },
         },
@@ -1014,6 +1026,7 @@ const rejectFormHandler = factory.createHandlers(
         {
           $set: {
             status: AppFormStatus.REJECTED,
+            updatedAt: new Date(),
             rejectionDetails: {
               date: new Date(),
               reviewer: new ObjectId(payload.id),
@@ -1057,7 +1070,7 @@ const markFormUnpublished = factory.createHandlers(
 
       const result = await Mongo.app_forms.updateOne(
         { host: new ObjectId(hostId) },
-        { $set: { status: AppFormStatus.UNPUBLISHED } },
+        { $set: { status: AppFormStatus.UNPUBLISHED, updatedAt: new Date() } },
       );
       if (result.modifiedCount === 0) {
         return c.json({ message: "Form not found" }, Response.NOT_FOUND);
@@ -1096,7 +1109,12 @@ const markFormInStoreReviewHandler = factory.createHandlers(
 
       const result = await Mongo.app_forms.updateOne(
         { host: new ObjectId(hostId) },
-        { $set: { status: AppFormStatus.IN_STORE_REVIEW } },
+        {
+          $set: {
+            status: AppFormStatus.IN_STORE_REVIEW,
+            updatedAt: new Date(),
+          },
+        },
       );
       if (result.modifiedCount === 0) {
         return c.json({ message: "Form not found" }, Response.NOT_FOUND);
@@ -1202,7 +1220,7 @@ const markFormApprovedHandler = factory.createHandlers(
               primary_category: "EDUCATION",
             },
             isFormSubmitted: true,
-            createdAt: new Date(),
+            approvedAt: new Date(),
             updatedAt: new Date(),
           },
         },
@@ -1254,7 +1272,7 @@ const markFormDeployedHandler = factory.createHandlers(
 
       const result = await Mongo.app_forms.updateOne(
         { host: new ObjectId(hostId) },
-        { $set: { status: AppFormStatus.DEPLOYED } },
+        { $set: { status: AppFormStatus.DEPLOYED, updatedAt: new Date() } },
       );
       if (result.modifiedCount === 0) {
         return c.json({ message: "Form not found" }, Response.NOT_FOUND);

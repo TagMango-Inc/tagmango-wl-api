@@ -172,6 +172,7 @@ const patchCustomHostByIdHandler = factory.createHandlers(
             {
               $set: {
                 status: AppFormStatus.DEPLOYED,
+                updatedAt: new Date(),
               },
             },
           );

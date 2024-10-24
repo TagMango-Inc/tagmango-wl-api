@@ -576,6 +576,8 @@ export interface IAppForm {
 
   createdAt: Date;
   updatedAt: Date;
+  submittedAt?: Date; // timestamp when the form was move to in-review status, gets changed when the form is resubmitted
+  approvedAt?: Date; // timestamp when the form was approved
 
   isFormSubmitted?: boolean;
 
