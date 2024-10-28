@@ -1,4 +1,15 @@
 const fs = require("fs-extra");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+
+const uri = process.env.MONGO_URI;
+
+const client = new MongoClient(uri, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  },
+});
 
 const { writeFile, readFile } = fs.promises;
 
@@ -240,6 +251,36 @@ const generateMetadata = async ({
     }),
   );
 
+  try {
+    if (!androidScreenshots || !iosScreenshots || !androidFeatureGraphic) {
+      console.log(
+        "No screenshot metadata is unavailable, trying to fetch from db",
+      );
+      await client.connect();
+
+      console.log("Connected to MongoDB");
+
+      const metadata = await client
+        .db("tagmango-production")
+        .collection("customhostmetadatas")
+        .findOne({ host: new ObjectId(hostId) });
+
+      if (metadata) {
+        androidScreenshots = metadata.androidScreenshots;
+        iosScreenshots = metadata.iosScreenshots;
+        androidFeatureGraphic = metadata.androidFeatureGraphic;
+      } else {
+        throw new Error("Metadata not found in db");
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    throw err;
+  } finally {
+    // Ensures that the client will close when you finish/error
+    await client.close();
+  }
+
   // Copying Android images
   const copyAndroidImages = Promise.all([
     fs.copy(
@@ -343,5 +384,8 @@ if (commandLineArgs) {
     }
   });
 
-  generateMetadata(config);
+  generateMetadata(config).catch((err) => {
+    console.error(err);
+    throw err;
+  });
 }

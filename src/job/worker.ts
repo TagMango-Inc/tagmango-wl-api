@@ -207,9 +207,15 @@ const { readFile, writeFile } = fs.promises;
                 iosStoreSettings: JSON.stringify(iosStoreSettings),
                 iosInfoSettings: JSON.stringify(iosInfoSettings),
                 iosReviewSettings: JSON.stringify(iosReviewSettings),
-                androidScreenshots: JSON.stringify(androidScreenshots),
-                iosScreenshots: JSON.stringify(iosScreenshots),
-                androidFeatureGraphic: androidFeatureGraphic,
+                androidScreenshots: isAndroidScreenshotsAvailable
+                  ? JSON.stringify(androidScreenshots)
+                  : null,
+                iosScreenshots: isIosScreenshotsAvailable
+                  ? JSON.stringify(iosScreenshots)
+                  : null,
+                androidFeatureGraphic: isFeatureGraphicAvailable
+                  ? androidFeatureGraphic
+                  : null,
                 androidDeveloperAccount: JSON.stringify(
                   androidDeveloperAccount ?? {},
                 ),
