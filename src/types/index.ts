@@ -30,6 +30,7 @@ export type BuildConfigType = {
   onesignal_id: string;
   buildNumber: number;
   versionName: string;
+  appleId: string;
 
   androidStoreSettings: IAndroidStoreSettings;
   androidScreenshots: string[];

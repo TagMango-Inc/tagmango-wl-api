@@ -19,6 +19,7 @@ export function generateTaskNames({
     `Generating screenshots`,
     `Generating metadata files for android and ios`,
     `Running pre deployment and bundle script`,
+    `Generating app on platform via fastlane`,
     `Running fastlane bundle for ${platform} platform`,
     `Running fastlane deploy for ${platform} platform`,
     `Removing the ${customhostDeploymentDir}/${bundle} folder`,

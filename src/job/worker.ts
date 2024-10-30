@@ -55,6 +55,7 @@ const { readFile, writeFile } = fs.promises;
             onesignal_id,
             buildNumber,
             versionName,
+            appleId,
 
             androidStoreSettings,
             androidScreenshots,
@@ -85,6 +86,11 @@ const { readFile, writeFile } = fs.promises;
             versionName: string;
             buildNumber: number;
           };
+
+          const privateKey = await fs.promises.readFile(
+            `./asc_api_pk.p8`,
+            "utf-8",
+          );
 
           /**
            * Fetching the task names for the deployment
@@ -240,8 +246,29 @@ const { readFile, writeFile } = fs.promises;
               })}`,
             ],
 
-            // step 5: Running the fastlane build for specific targer platform
             [taskNames[6].id]:
+              platform === "android"
+                ? [`echo "Skipping this step for android"`]
+                : [
+                    `cd ${customHostAppDir}`,
+                    // create ios apps on apple dev center and app store connect, skips if already created
+                    `source ~/.zshrc && bundle exec fastlane ios create`,
+                    // create app group for ios bundle, skips if already created
+                    `source ~/.zshrc && bundle exec fastlane produce group -g group.${bundle}.onesignal -n "group ${bundle.split(".").join(" ")} onesignal"`,
+                    // associate bundle with app group, skips if already associated
+                    `source ~/.zshrc && bundle exec fastlane produce associate_group -a ${bundle} group.${bundle}.onesignal`,
+                    // associate bundle with app group, skips if already associated
+                    `source ~/.zshrc && bundle exec fastlane produce associate_group -a ${bundle}.OneSignalNotificationServiceExtension group.${bundle}.onesignal`,
+                    `node ./scripts/appstore-metadata.js ${JSON.stringify({
+                      hostId,
+                      bundle,
+                      privateKey,
+                      appleId,
+                    })}`,
+                  ],
+
+            // step 5: Running the fastlane build for specific targer platform
+            [taskNames[7].id]:
               platform === "android"
                 ? [
                     `cd ${customHostAppDir}`,
@@ -255,12 +282,12 @@ const { readFile, writeFile } = fs.promises;
                   ],
             // step 6: Running the fastlane upload for specific targer platform
             // TODO
-            [taskNames[7].id]: [
+            [taskNames[8].id]: [
               `cd ${customHostAppDir}`,
               `source ~/.zshrc && bundle exec fastlane ${platform} upload`,
             ],
             // step 7: Removing the deployment/{bundleId} folder after successful deployment
-            [taskNames[8].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
+            [taskNames[9].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
             // [taskNames[6].id]: [],
           };
 

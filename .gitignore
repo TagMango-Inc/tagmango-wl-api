@@ -21,3 +21,4 @@ release.json
 remove-bundles.js
 fcm.json
 apns.p8
+asc_api_pk.p8

@@ -658,6 +658,7 @@ const createNewDeploymentHandler = factory.createHandlers(
           platform: target,
           versionName: currentVersionName,
           buildNumber: currentBuildNumber,
+          appleId: metadata.iosDeploymentDetails.appleId || "",
 
           androidStoreSettings: metadata.androidStoreSettings,
           androidScreenshots: metadata.androidScreenshots,
@@ -902,6 +903,7 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
           platform: deployment.platform,
           versionName: releaseDetails.versionName,
           buildNumber: releaseDetails.buildNumber,
+          appleId: metadata.iosDeploymentDetails.appleId || "",
 
           androidStoreSettings: metadata.androidStoreSettings,
           androidScreenshots: metadata.androidScreenshots,
