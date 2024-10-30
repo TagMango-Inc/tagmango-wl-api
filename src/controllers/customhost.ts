@@ -154,6 +154,27 @@ const patchCustomHostByIdHandler = factory.createHandlers(
         },
       );
 
+      // if the updatedCustomHost contains iosShareLink
+      // then extract and update appleId from that link
+      if (updatedCustomHost && updatedCustomHost.iosShareLink) {
+        const matches = updatedCustomHost.iosShareLink.match(/id(\d+)/i);
+        if (matches && matches?.length > 0) {
+          const appleId = matches[0].split("id").join("");
+          if (appleId) {
+            await Mongo.metadata.findOneAndUpdate(
+              {
+                host: new ObjectId(id),
+              },
+              {
+                $set: {
+                  "iosDeploymentDetails.appleId": appleId,
+                },
+              },
+            );
+          }
+        }
+      }
+
       // if the updatedCustomHost contains both androidShareLink and iosShareLink
       // then find the app_form and update the status of the app_form to DEPLOYED if it is not already DEPLOYED
       if (
