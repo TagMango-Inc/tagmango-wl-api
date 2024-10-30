@@ -313,7 +313,7 @@ const generateMetadata = async ({
     ...(iosScreenshots["iphone_65"]?.map((screenshot, index) =>
       fs.copy(
         `${rootAssetPath}/${screenshot}`,
-        `${iosScreenshotsPath}/${index}_APP_IPHONE_65_${index}.jpg`,
+        `${iosScreenshotsPath}/${index}_APP_IPHONE_65_${index}.png`,
       ),
     ) || []),
     ...(iosScreenshots["iphone_55"]?.map((screenshot, index) =>
@@ -334,7 +334,7 @@ const generateMetadata = async ({
     ...(iosScreenshots["iphone_65"]?.map((screenshot, index) =>
       fs.copy(
         `${rootAssetPath}/${screenshot}`,
-        `${iosUSScreenshotsPath}/${index}_APP_IPHONE_65_${index}.jpg`,
+        `${iosUSScreenshotsPath}/${index}_APP_IPHONE_65_${index}.png`,
       ),
     ) || []),
     ...(iosScreenshots["iphone_55"]?.map((screenshot, index) =>
