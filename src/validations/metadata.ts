@@ -38,6 +38,9 @@ const updateAndroidDeploymentAccountSchema = z.object({
   developerAccountId: z.string(),
 });
 
+const updateIosAppleIdSchema = z.object({
+  appleId: z.string(),
+});
 const updateIosDeploymentDetailsSchema = z.object({
   bundleId: z.string(),
   versionName: z.string(),
@@ -64,6 +67,7 @@ export {
   updateAndroidDeploymentAccountSchema,
   updateAndroidDeploymentDetailsSchema,
   updateAndroidStoreMetadataSchema,
+  updateIosAppleIdSchema,
   updateIosDeploymentDetailsSchema,
   updateIosInfoMetadataSchema,
   updateIosReviewMetadataSchema,

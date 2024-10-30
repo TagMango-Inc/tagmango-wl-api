@@ -96,6 +96,7 @@ export interface IAndroidDeploymentDetails {
 
 export interface IIosDeploymentDetails {
   bundleId: string;
+  appleId: string;
   versionName: string;
   buildNumber: number;
   isUnderReview: boolean;

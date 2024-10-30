@@ -15,6 +15,7 @@ import {
   updateAndroidDeploymentAccountSchema,
   updateAndroidDeploymentDetailsSchema,
   updateAndroidStoreMetadataSchema,
+  updateIosAppleIdSchema,
   updateIosDeploymentDetailsSchema,
   updateIosInfoMetadataSchema,
   updateIosReviewMetadataSchema,
@@ -627,6 +628,48 @@ const updateAndroidDeveloperAccountForApp = factory.createHandlers(
   },
 );
 
+const updateIosAppleId = factory.createHandlers(
+  zValidator("json", updateIosAppleIdSchema),
+  async (c) => {
+    try {
+      const { appId } = c.req.param();
+      const body = c.req.valid("json");
+
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(appId),
+      });
+
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      await Mongo.metadata.updateOne(
+        {
+          host: new ObjectId(appId),
+        },
+        {
+          $set: {
+            "iosDeploymentDetails.appleId": body.appleId,
+          },
+        },
+      );
+
+      return c.json(
+        {
+          message: "Metadata updated successfully",
+          result: body.appleId,
+        },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
 const updateBuildMetadataIosSettings = factory.createHandlers(
   zValidator("json", updateIosDeploymentDetailsSchema),
   async (c) => {
@@ -967,6 +1010,7 @@ export {
   updateBuildMetadataAndroidSettings,
   updateBuildMetadataIosSettings,
   updateInfoMetadataIosSettings,
+  updateIosAppleId,
   updateReviewMetadataIosSettings,
   updateStoreMetadataAndroidSettings,
   updateStoreMetadataIosSettings,

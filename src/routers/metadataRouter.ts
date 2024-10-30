@@ -11,6 +11,7 @@ import {
   updateBuildMetadataAndroidSettings,
   updateBuildMetadataIosSettings,
   updateInfoMetadataIosSettings,
+  updateIosAppleId,
   updateReviewMetadataIosSettings,
   updateStoreMetadataAndroidSettings,
   updateStoreMetadataIosSettings,
@@ -57,6 +58,7 @@ router.patch(
   ...updateAndroidDeveloperAccountForApp,
 );
 
+router.patch("/:appId/settings/ios/updateAppleId", ...updateIosAppleId);
 router.patch("/:appId/settings/ios/build", ...updateBuildMetadataIosSettings);
 router.patch("/:appId/settings/ios/store", ...updateStoreMetadataIosSettings);
 router.patch("/:appId/settings/ios/info", ...updateInfoMetadataIosSettings);
