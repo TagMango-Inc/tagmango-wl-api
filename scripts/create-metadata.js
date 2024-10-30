@@ -108,6 +108,7 @@ const iosReviewFiles = [
 ];
 
 const iosInfoFiles = [
+  "copyright",
   "primary_category",
   "primary_first_sub_category",
   "primary_second_sub_category",
