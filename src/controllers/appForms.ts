@@ -113,6 +113,19 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
         },
       },
       {
+        $lookup: {
+          from: "customhostmetadatas",
+          localField: "_id",
+          foreignField: "host",
+          as: "metadataDetails",
+        },
+      },
+      {
+        $unwind: {
+          path: "$metadataDetails",
+        },
+      },
+      {
         $sort: { sortField: -1 },
       },
       {
@@ -158,6 +171,9 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
           appStoreLink: customHost.iosShareLink || "",
         },
         platformSuspended: customHost.platformSuspended,
+        appStoreStatus:
+          customHost?.metadataDetails?.iosDeploymentDetails?.appStore?.status ||
+          "",
       };
     });
 
