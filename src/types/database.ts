@@ -71,6 +71,7 @@ export interface IDeployment {
   tasks: IDeploymentTask[];
   status: Exclude<Status, "warning">;
   cancelledBy: ObjectId | null;
+  isFirstDeployment: boolean;
 
   createdAt: Date;
   updatedAt: Date;

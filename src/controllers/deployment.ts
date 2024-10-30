@@ -1,5 +1,7 @@
 import fs from "fs-extra";
+import { google } from "googleapis";
 import { createFactory } from "hono/factory";
+import jwt from "jsonwebtoken";
 import { ObjectId, WithId } from "mongodb";
 import path from "path";
 
@@ -544,6 +546,95 @@ const createNewDeploymentHandler = factory.createHandlers(
         );
       }
 
+      let isFirstDeployment = false; // this same variable is used separately for both android and ios
+      if (target === "ios") {
+        // find if the current ios deployment is first or not
+        // by searching for apple id through app store connect api
+        // if apple id is not present then it is first deployment
+        // apple id is created and saved during deployment process if not present
+        const iosDeploymentDetails = metadata.iosDeploymentDetails;
+        if (!iosDeploymentDetails.appleId) {
+          let appleId = "";
+          const privateKey = await fs.readFile(
+            path.resolve("./asc_api_pk.p8"),
+            "utf-8",
+          );
+
+          let token = jwt.sign({}, privateKey, {
+            algorithm: "ES256",
+            expiresIn: "5m",
+            issuer: "4f5cd5ab-5d30-46ec-8a09-33508575602e",
+            audience: "appstoreconnect-v1",
+            keyid: "FW86Z62C9N",
+          });
+
+          const appleRes = await fetch(
+            `https://api.appstoreconnect.apple.com/v1/apps?filter[bundleId]=${metadata.iosDeploymentDetails.bundleId}`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            },
+          );
+
+          const appleResData = await appleRes.json();
+
+          if (appleResData?.data?.length) {
+            appleId = appleResData.data[0].id;
+          }
+
+          if (appleId) {
+            await Mongo.metadata.updateOne(
+              {
+                host: new ObjectId(customHostId),
+              },
+              {
+                $set: {
+                  "iosDeploymentDetails.appleId": appleId,
+                },
+              },
+            );
+          } else {
+            // apple id is not found even on apple servers
+            // so it is first deployment, and new apple id will be created during deployment process
+            isFirstDeployment = true;
+          }
+        }
+      } else if (target === "android") {
+        // check if the android deployment is first or not
+        const serviceAccountFilePath = path.resolve(
+          "./android_service_account.json",
+        );
+        const serviceAccount = await fs.readFile(
+          serviceAccountFilePath,
+          "utf-8",
+        );
+
+        const auth = new google.auth.GoogleAuth({
+          credentials: JSON.parse(serviceAccount),
+          scopes: ["https://www.googleapis.com/auth/androidpublisher"],
+        });
+        const client = await auth.getClient();
+
+        const play = google.androidpublisher({
+          version: "v3",
+          auth: client as any,
+        });
+
+        try {
+          await play.edits.insert({
+            packageName: metadata.androidDeploymentDetails.bundleId,
+            requestBody: {},
+          });
+        } catch (error: any) {
+          if (error?.response?.data?.error?.code === 404) {
+            isFirstDeployment = true;
+          }
+        }
+      }
+
       const { versionName: productionVersionName, lastDeploymentDetails } =
         target === "android"
           ? metadata.androidDeploymentDetails
@@ -620,6 +711,7 @@ const createNewDeploymentHandler = factory.createHandlers(
         cancelledBy: null,
         createdAt: new Date(),
         updatedAt: new Date(),
+        isFirstDeployment,
       });
 
       // TODO: can't create another job if the job already exists and processing
@@ -670,6 +762,7 @@ const createNewDeploymentHandler = factory.createHandlers(
           iosScreenshots: metadata.iosScreenshots,
 
           androidDeveloperAccount,
+          isFirstDeployment,
         },
         {
           attempts: 0,
@@ -915,6 +1008,7 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
           iosScreenshots: metadata.iosScreenshots,
 
           androidDeveloperAccount,
+          isFirstDeployment: deployment.isFirstDeployment || false,
         },
         {
           attempts: 0,
