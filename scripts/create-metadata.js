@@ -66,15 +66,10 @@ const { writeFile, readFile } = fs.promises;
 // * secondary_second_sub_category.txt
 // * screenshots/
 //     * en-GB/
-//         * 0_APP_IPHONE_55_0.png
 //         * 0_APP_IPHONE_65_0.jpg
-//         * 1_APP_IPHONE_55_1.png
 //         * 1_APP_IPHONE_65_1.jpg
-//         * 2_APP_IPHONE_55_2.png
 //         * 2_APP_IPHONE_65_2.jpg
-//         * 3_APP_IPHONE_55_3.png
 //         * 3_APP_IPHONE_65_3.jpg
-//         * 4_APP_IPHONE_55_4.jpg
 //         * 4_APP_IPHONE_65_4.jpg
 
 const androidStoreFiles = [
@@ -316,18 +311,6 @@ const generateMetadata = async ({
         `${iosScreenshotsPath}/${index}_APP_IPHONE_65_${index}.png`,
       ),
     ) || []),
-    ...(iosScreenshots["iphone_55"]?.map((screenshot, index) =>
-      fs.copy(
-        `${rootAssetPath}/${screenshot}`,
-        `${iosScreenshotsPath}/${index}_APP_IPHONE_55_${index}.png`,
-      ),
-    ) || []),
-    ...(iosScreenshots["iphone_67"]?.map((screenshot, index) =>
-      fs.copy(
-        `${rootAssetPath}/${screenshot}`,
-        `${iosScreenshotsPath}/${index}_APP_IPHONE_67_${index}.png`,
-      ),
-    ) || []),
   ]);
 
   const copyIosUSImages = Promise.all([
@@ -335,18 +318,6 @@ const generateMetadata = async ({
       fs.copy(
         `${rootAssetPath}/${screenshot}`,
         `${iosUSScreenshotsPath}/${index}_APP_IPHONE_65_${index}.png`,
-      ),
-    ) || []),
-    ...(iosScreenshots["iphone_55"]?.map((screenshot, index) =>
-      fs.copy(
-        `${rootAssetPath}/${screenshot}`,
-        `${iosUSScreenshotsPath}/${index}_APP_IPHONE_55_${index}.png`,
-      ),
-    ) || []),
-    ...(iosScreenshots["iphone_67"]?.map((screenshot, index) =>
-      fs.copy(
-        `${rootAssetPath}/${screenshot}`,
-        `${iosUSScreenshotsPath}/${index}_APP_IPHONE_67_${index}.png`,
       ),
     ) || []),
   ]);
