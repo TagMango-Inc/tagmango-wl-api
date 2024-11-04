@@ -194,7 +194,7 @@ const { readFile, writeFile } = fs.promises;
                     `echo "Renaming app"`,
                     `node ./scripts/app-screenshots.js --rename "${appName}"`,
                     `echo "Running e2e tests"`,
-                    `detox test --configuration ios.sim.release --cleanup --headless --artifacts-location artifacts/`,
+                    `detox test --configuration ios.sim.release --cleanup --artifacts-location artifacts/`,
                     `echo "Generating screenshots"`,
                     `node ./scripts/app-screenshots.js ${JSON.stringify({
                       hostId,
