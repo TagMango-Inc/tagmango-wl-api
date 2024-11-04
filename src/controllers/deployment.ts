@@ -975,6 +975,19 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
           });
       }
 
+      // change status of deployment to pending
+      await Mongo.deployment.updateOne(
+        {
+          _id: new ObjectId(deploymentId),
+        },
+        {
+          $set: {
+            status: Status.PENDING,
+            updatedAt: new Date(),
+          },
+        },
+      );
+
       await buildQueue.add(
         `${deploymentId}-${deployment.platform}-${releaseDetails.versionName}`,
         {
