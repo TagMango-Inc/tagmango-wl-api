@@ -12,4 +12,21 @@ const generateFormValuesAISchema = z.object({
   name: z.string(),
 });
 
-export { generateFormValuesAISchema, rejectFormByIdSchema };
+const updatAppFormLogoSchema = z.object({
+  logo: z.string(),
+  customOneSignalIcon: z.string(),
+  icon: z.string(),
+  background: z.string(),
+  foreground: z.string(),
+  backgroundType: z.enum(["color", "gradient"]),
+  backgroundStartColor: z.string().optional(),
+  backgroundEndColor: z.string().optional(),
+  backgroundGradientAngle: z.number().optional(),
+  logoPadding: z.number(),
+});
+
+export {
+  generateFormValuesAISchema,
+  rejectFormByIdSchema,
+  updatAppFormLogoSchema,
+};

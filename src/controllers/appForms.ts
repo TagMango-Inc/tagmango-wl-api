@@ -13,11 +13,11 @@ import { Response } from '../utils/statuscode';
 import {
   generateFormValuesAISchema,
   rejectFormByIdSchema,
+  updatAppFormLogoSchema,
 } from '../validations/appForms';
 import {
   updateAndroidStoreMetadataSchema,
   updateIosStoreMetadataSchema,
-  updateMetadataLogoSchema,
 } from '../validations/metadata';
 import { generateAppFormDescriptions } from './openai';
 
@@ -608,7 +608,7 @@ const getFormByHostIdHandler = factory.createHandlers(async (c) => {
  * Protected Route
  */
 const uploadFormLogo = factory.createHandlers(
-  zValidator("json", updateMetadataLogoSchema),
+  zValidator("json", updatAppFormLogoSchema),
   async (c) => {
     try {
       const { formId } = c.req.param();
@@ -669,8 +669,10 @@ const uploadFormLogo = factory.createHandlers(
         },
         {
           $set: {
-            logo: `logo.png`,
-            customOneSignalIcon: `customOneSignalIcon.png`,
+            logo: logo ? `logo.png` : "",
+            customOneSignalIcon: customOneSignalIcon
+              ? `customOneSignalIcon.png`
+              : "",
             backgroundType: body.backgroundType || form.backgroundType,
             backgroundStartColor:
               body.backgroundStartColor || form.backgroundStartColor,
