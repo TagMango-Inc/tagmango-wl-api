@@ -90,7 +90,7 @@ const { readFile, writeFile } = fs.promises;
 
           const privateKey = await fs.promises.readFile(
             `./asc_api_pk.p8`,
-            "utf-8",
+            "base64",
           );
 
           /**
