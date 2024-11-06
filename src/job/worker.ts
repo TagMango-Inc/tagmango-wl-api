@@ -266,9 +266,19 @@ const { readFile, writeFile } = fs.promises;
                         bundle,
                         privateKey,
                         appleId,
+                        isFirstDeployment,
                       })}`,
                     ]
-                  : [`echo "Skipping since this is not first deployment"`],
+                  : [
+                      `echo "Skipping app and app groups creations"`,
+                      `node ./scripts/appstore-metadata.js ${JSON.stringify({
+                        hostId,
+                        bundle,
+                        privateKey,
+                        appleId,
+                        isFirstDeployment,
+                      })}`,
+                    ],
 
             // step 5: Running the fastlane build for specific targer platform
             [taskNames[7].id]:
