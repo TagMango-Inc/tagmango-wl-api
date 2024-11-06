@@ -253,6 +253,8 @@ const { readFile, writeFile } = fs.promises;
                 : isFirstDeployment
                   ? [
                       `cd ${customHostAppDir}`,
+                      `echo "Reinstalling node_modules"`,
+                      `npm install`,
                       // create ios apps on apple dev center and app store connect, skips if already created
                       `source ~/.zshrc && bundle exec fastlane ios create`,
                       // create app group for ios bundle, skips if already created
@@ -271,6 +273,9 @@ const { readFile, writeFile } = fs.promises;
                     ]
                   : [
                       `echo "Skipping app and app groups creations"`,
+                      `cd ${customHostAppDir}`,
+                      `echo "Reinstalling node_modules"`,
+                      `npm install`,
                       `node ./scripts/appstore-metadata.js ${JSON.stringify({
                         hostId,
                         bundle,
