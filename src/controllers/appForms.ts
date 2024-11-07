@@ -861,6 +861,71 @@ const submitFormHandler = factory.createHandlers(async (c) => {
       );
     }
 
+    const metadata = await Mongo.metadata.findOne({
+      host: new ObjectId(form.host),
+    });
+
+    if (!metadata) {
+      // create metadata if not exists
+      await Mongo.metadata.insertOne({
+        host: new ObjectId(form.host),
+        logo: "",
+        backgroundType: "color",
+        backgroundStartColor: "#ffffff",
+        backgroundEndColor: "#ffffff",
+        backgroundGradientAngle: 45,
+        logoPadding: 15,
+        iosDeploymentDetails: {
+          bundleId: "",
+          lastDeploymentDetails: {
+            versionName: "",
+            buildNumber: 400,
+          },
+          isUnderReview: false,
+        },
+        androidDeploymentDetails: {
+          bundleId: ``,
+          lastDeploymentDetails: {
+            versionName: "",
+            buildNumber: 450,
+          },
+          isUnderReview: false,
+        },
+        androidStoreSettings: {
+          title: "",
+          short_description: "",
+          full_description: "",
+          video: "",
+        },
+        iosStoreSettings: {
+          description: "",
+          keywords: "EdTech, Education",
+          marketing_url: "",
+          name: "",
+          privacy_url: "",
+          promotional_text: ``,
+          subtitle: "",
+          support_url: "https://help.tagmango.com",
+        },
+        iosInfoSettings: {
+          copyright: "©2021 TagMango, Inc.",
+          primary_category: "EDUCATION",
+        },
+        iosReviewSettings: {
+          demo_password: "123456",
+          demo_user: "1223334444",
+          email_address: "hasan@tagmango.com",
+          first_name: "Mohammad",
+          last_name: "Hasan",
+          notes:
+            'The App requires OTP to login. Please use the password as OTP to login.\n\nIf the app is expecting email id to login please use below credentials:\nemail:\ntest.review@tagmango.com\npassword(OTP):\n123456\n\nIf on entering the OTP it shows "Login Limit Exceeded" on a modal press on "Continue" button to enter the app.',
+          phone_number: "+919748286867",
+        },
+
+        isFormImported: false,
+      } as any);
+    }
+
     const result = await Mongo.app_forms.updateOne(
       { _id: new ObjectId(formId) },
       {
