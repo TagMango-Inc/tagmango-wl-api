@@ -136,18 +136,33 @@ export const populateAppForms = async () => {
   ];
 
   const customHostsArr = await Mongo.customhost.aggregate(pipeline).toArray();
+  console.log(
+    customHostsArr.filter((ch) => ch.metadataDetails.length === 0).length,
+  );
+  const chWithoutMetadata = customHostsArr.filter(
+    (ch) => ch.metadataDetails.length === 0,
+  );
+  // console.log(customHostsArr[0]);
+  const appFormsArr = await Mongo.app_forms.find().toArray(); // 1353
 
-  const hostids = customHostsArr.map((customHost) => customHost._id);
-  const appFormsArr = await Mongo.app_forms
-    .find({ host: { $in: hostids } })
-    .toArray();
-
-  const appFormHostId = appFormsArr.map((appForm) => String(appForm.host));
+  const appFormHostIds = appFormsArr.map((appForm) => String(appForm.host));
   // find the appForm that does not have a host from hostIds array
   const appFormsWithoutHost = customHostsArr.filter(
-    (customHost) => !appFormHostId.includes(String(customHost._id)),
+    (customHost) => !appFormHostIds.includes(String(customHost._id)),
   );
-  console.log(customHostsArr.length, appFormsArr.length, appFormsWithoutHost);
+
+  const customHostIds = chWithoutMetadata.map((ch) => String(ch._id)); // 1350
+  const chWithoutAppform = appFormsArr.filter(
+    (appForm) =>
+      customHostIds.includes(String(appForm.host)) &&
+      appForm.status === "in-progress",
+  );
+  console.log(
+    customHostsArr.length,
+    appFormsArr.length,
+    appFormsWithoutHost,
+    chWithoutAppform.length,
+  );
 
   return; // guard
   for (const customHost of customHostsArr) {
