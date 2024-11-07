@@ -11,7 +11,8 @@ const DEPLOYMENT_REQUIREMENTS = [
 const DAY_FROM_NOW = 4;
 const REMOVE_SUCCESS_LOGS_CRON = "0 0 * * SUN";
 const REMOVE_BUNDLES_CRON = "0 0 * * SUN";
-const MIGRATE_CRON = "0 0 * * *";
+const MIGRATE_CRON = "15 21 * * *";
+const UPDATE_IOS_REVIEW_STATUS_CRON = "0 */6 * * *";
 
 export {
   customhostDeploymentDir,
@@ -21,4 +22,5 @@ export {
   MIGRATE_CRON,
   REMOVE_BUNDLES_CRON,
   REMOVE_SUCCESS_LOGS_CRON,
+  UPDATE_IOS_REVIEW_STATUS_CRON,
 };
