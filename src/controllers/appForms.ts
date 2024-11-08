@@ -234,6 +234,76 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
       ])
       .toArray();
 
+    const allIosReviewStatusPromise = Mongo.app_forms
+      .aggregate([
+        {
+          $lookup: {
+            from: "customhosts",
+            localField: "host",
+            foreignField: "_id",
+            as: "hostDetails",
+          },
+        },
+        {
+          $match: {
+            "hostDetails.platformSuspended": { $ne: true },
+          },
+        },
+        {
+          $lookup: {
+            from: "customhostmetadatas",
+            localField: "host",
+            foreignField: "host",
+            as: "metadataDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$metadataDetails",
+          },
+        },
+        {
+          $match: {
+            $and: [
+              {
+                "metadataDetails.iosDeploymentDetails.appStore.status": {
+                  $exists: true,
+                },
+              },
+              {
+                "metadataDetails.iosDeploymentDetails.appStore.status": {
+                  $ne: "",
+                },
+              },
+              {
+                status: AppFormStatus.IN_STORE_REVIEW,
+              },
+            ],
+          },
+        },
+        {
+          $group: {
+            _id: "$metadataDetails.iosDeploymentDetails.appStore.status", // Group by the 'status' field
+            count: { $sum: 1 }, // Count each occurrence
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            statuses: {
+              $push: { k: "$_id", v: "$count" }, // Create key-value pairs
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            statuses: { $arrayToObject: "$statuses" }, // Convert the array to an object
+          },
+        },
+      ])
+      .toArray();
+
     const customHostsPromise = Mongo.customhost
       .aggregate([
         {
@@ -310,34 +380,25 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
       ])
       .toArray();
 
-    const [allStatusCounts, customHosts, iosAndAndroidCounts] =
-      await Promise.all([
-        allStatusCountsPromise,
-        customHostsPromise,
-        iosAndAndroidCountsPromise,
-      ]);
+    const [
+      allStatusCounts,
+      customHosts,
+      iosAndAndroidCounts,
+      allIosReviewStatusCount,
+    ] = await Promise.all([
+      allStatusCountsPromise,
+      customHostsPromise,
+      iosAndAndroidCountsPromise,
+      allIosReviewStatusPromise,
+    ]);
 
     return c.json(
       {
         message: "All forms count",
         result: {
-          count:
-            allStatusCounts.length > 0
-              ? {
-                  ...allStatusCounts[0].statuses,
-                  suspended:
-                    customHosts?.length > 0
-                      ? customHosts[0].suspendedPlatformCount
-                      : 0,
-                  ios:
-                    iosAndAndroidCounts?.length > 0
-                      ? iosAndAndroidCounts[0].totalIosShareLinks
-                      : 0,
-                  android:
-                    iosAndAndroidCounts?.length > 0
-                      ? iosAndAndroidCounts[0].totalAndroidShareLinks
-                      : 0,
-                }
+          count: {
+            ...(allStatusCounts.length > 0
+              ? allStatusCounts[0].statuses
               : {
                   [AppFormStatus.IN_PROGRESS]: 0,
                   [AppFormStatus.IN_REVIEW]: 0,
@@ -345,19 +406,26 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
                   [AppFormStatus.REJECTED]: 0,
                   [AppFormStatus.IN_STORE_REVIEW]: 0,
                   [AppFormStatus.DEPLOYED]: 0,
-                  suspended:
-                    customHosts?.length > 0
-                      ? customHosts[0].suspendedPlatformCount
-                      : 0,
-                  ios:
-                    iosAndAndroidCounts?.length > 0
-                      ? iosAndAndroidCounts[0].totalIosShareLinks
-                      : 0,
-                  android:
-                    iosAndAndroidCounts?.length > 0
-                      ? iosAndAndroidCounts[0].totalAndroidShareLinks
-                      : 0,
-                },
+                }),
+            ...(allIosReviewStatusCount.length > 0 &&
+              allIosReviewStatusCount[0].statuses),
+            total: Object.values(allStatusCounts[0].statuses).reduce(
+              (acc: any, curr: any) => acc + curr,
+              0,
+            ),
+            suspended:
+              customHosts?.length > 0
+                ? customHosts[0].suspendedPlatformCount
+                : 0,
+            ios:
+              iosAndAndroidCounts?.length > 0
+                ? iosAndAndroidCounts[0].totalIosShareLinks
+                : 0,
+            android:
+              iosAndAndroidCounts?.length > 0
+                ? iosAndAndroidCounts[0].totalAndroidShareLinks
+                : 0,
+          },
         },
       },
       Response.OK,
