@@ -121,11 +121,6 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
         },
       },
       {
-        $unwind: {
-          path: "$metadataDetails",
-        },
-      },
-      {
         $sort: { sortField: -1 },
       },
       {
@@ -174,7 +169,9 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
         },
         platformSuspended: customHost.platformSuspended,
         appStoreStatus:
-          customHost?.metadataDetails?.iosDeploymentDetails?.appStore?.status ||
+          (customHost?.metadataDetails.length > 0 &&
+            customHost?.metadataDetails[0]?.iosDeploymentDetails?.appStore
+              ?.status) ||
           "",
       };
     });
