@@ -129,16 +129,18 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
         $sort: { sortField: -1 },
       },
       {
-        $skip: OFFSET,
-      },
-      {
-        $limit: LIMIT,
+        $facet: {
+          data: [{ $skip: OFFSET }, { $limit: LIMIT }],
+          totalCount: [{ $count: "count" }],
+        },
       },
     ];
 
     const customHostsArr = await Mongo.customhost.aggregate(pipeline).toArray();
 
-    const customHosts = customHostsArr.map((customHost: any) => {
+    const customHostsData = customHostsArr[0]?.data ?? [];
+
+    const customHosts = customHostsData.map((customHost: any) => {
       return {
         _id: customHost._id,
         host: customHost.host,
@@ -182,6 +184,7 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
         message: "All Custom Hosts",
         result: {
           customHosts,
+          totalCount: customHostsArr[0]?.totalCount[0]?.count ?? 0,
         },
       },
       Response.OK,
