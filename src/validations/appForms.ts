@@ -13,8 +13,8 @@ const generateFormValuesAISchema = z.object({
 });
 
 const updatAppFormLogoSchema = z.object({
-  logo: z.string(),
-  customOneSignalIcon: z.string(),
+  logo: z.string().optional(),
+  customOneSignalIcon: z.string().optional(),
   icon: z.string(),
   background: z.string(),
   foreground: z.string(),
