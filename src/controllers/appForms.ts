@@ -35,11 +35,13 @@ const writeFile = fs.promises.writeFile;
  * @param search: string
  * @param status: 'in-progress' | 'in-review' | 'approved' | 'rejected' | 'in-store-review' |  'deployed'
  * @param isSuspended: boolean
+ * @param sortByApprovedAt: 1 | -1 | 0
  * @returns { message: string, result: { customHosts: Array } }
  */
 const getAllFormsHandler = factory.createHandlers(async (c) => {
   try {
-    const { page, limit, search, status, isSuspended } = c.req.query();
+    const { page, limit, search, status, isSuspended, sortByApprovedAt } =
+      c.req.query();
     let PAGE = page ? parseInt(page as string) : 1;
     let LIMIT = limit ? parseInt(limit as string) : 10;
     let SEARCH = search ? (search as string) : "";
@@ -108,7 +110,9 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
       {
         $addFields: {
           sortField: {
-            $ifNull: ["$appFormDetails.updatedAt", "$createdAt"],
+            $ifNull: sortByApprovedAt
+              ? ["$appFormDetails.approvedAt", "$createdAt"]
+              : ["$appFormDetails.updatedAt", "$createdAt"],
           },
         },
       },
@@ -121,7 +125,9 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
         },
       },
       {
-        $sort: { sortField: -1 },
+        $sort: {
+          sortField: Number(sortByApprovedAt) ? Number(sortByApprovedAt) : -1,
+        },
       },
       {
         $facet: {
