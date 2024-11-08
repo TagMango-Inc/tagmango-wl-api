@@ -1664,53 +1664,52 @@ const fetchPreRequisitesForApp = factory.createHandlers(async (c) => {
             relatedPosts: { $first: "$relatedPosts" }, // Preserve posts
             relatedCourses: { $push: "$relatedCourses" }, // Collect filtered courses
             relatedRooms: { $first: "$relatedRooms" }, // Preserve rooms
-          },
-        },
-        {
-          $match: {
-            "relatedPosts.0": {
-              $exists: true,
-            },
-            "relatedCourses.0": {
-              $exists: true,
-            },
-            "relatedRooms.0": {
-              $exists: true,
-            },
+            title: { $first: "$title" },
           },
         },
       ])
       .toArray();
 
+    const isPostCourseRoomLinkedWithOneMangoExists =
+      mangoAggregation.filter(
+        (mango) =>
+          mango.relatedPosts.length > 0 &&
+          mango.relatedCourses.length > 0 &&
+          mango.relatedRooms.length > 0,
+      ).length > 0;
+
     return c.json(
       {
         message: "Pre-requisites for app fetched successfully",
-        result: [
-          {
-            title: "Create a service",
-            description: "You need to create an offering to proceed",
-            isCompleted: mango ? true : false,
-            url: "/dashboard/mango-overview?newMangoform=true",
-          },
-          {
-            title: "Create a post in a service",
-            description: `Make sure you create alteast one post ${mango ? "in the same offering you created above" : ""}`,
-            isCompleted: mangoAggregation.length > 0,
-            url: "/activity",
-          },
-          {
-            title: "Create a course in a service",
-            description: `Make sure you create alteast one course ${mango ? "in the same offering you created above" : ""}. Also the course should be published, should have alteast one video chapter and should have drip system disabled`,
-            isCompleted: mangoAggregation.length > 0,
-            url: "/courses",
-          },
-          {
-            title: "Create a room in a service",
-            description: `Make sure you create alteast one room ${mango ? "in the same offering you created above" : ""}`,
-            isCompleted: mangoAggregation.length > 0,
-            url: "/messages",
-          },
-        ],
+        result: {
+          prerequisites: [
+            {
+              title: "Create a service",
+              description: "You need to create an offering to proceed",
+              isCompleted: mango ? true : false,
+              url: "/dashboard/mango-overview?newMangoform=true",
+            },
+            {
+              title: "Create a post in a service",
+              description: `Make sure you create alteast one post ${mango ? "in the same offering you created above" : ""}`,
+              isCompleted: isPostCourseRoomLinkedWithOneMangoExists,
+              url: "/activity",
+            },
+            {
+              title: "Create a course in a service",
+              description: `Make sure you create alteast one course ${mango ? "in the same offering you created above" : ""}. Also the course should be published, should have alteast one video chapter and should have drip system disabled`,
+              isCompleted: isPostCourseRoomLinkedWithOneMangoExists,
+              url: "/courses",
+            },
+            {
+              title: "Create a room in a service",
+              description: `Make sure you create alteast one room ${mango ? "in the same offering you created above" : ""}`,
+              isCompleted: isPostCourseRoomLinkedWithOneMangoExists,
+              url: "/messages",
+            },
+          ],
+          mangoList: mangoAggregation || [],
+        },
       },
       {
         status: 200,
