@@ -38,7 +38,7 @@ Mongo.connect().then(() => {
 
     let count = 0;
 
-    for (const metadata of allMetadatas.slice(0, 5)) {
+    for (const metadata of allMetadatas) {
       try {
         let appleId = metadata.iosDeploymentDetails.appleId;
 
