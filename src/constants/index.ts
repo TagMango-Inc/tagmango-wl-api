@@ -12,7 +12,7 @@ const DAY_FROM_NOW = 4;
 const REMOVE_SUCCESS_LOGS_CRON = "0 0 * * SUN";
 const REMOVE_BUNDLES_CRON = "0 0 * * SUN";
 const MIGRATE_CRON = "15 21 * * *";
-const UPDATE_IOS_REVIEW_STATUS_CRON = "0 */6 * * *";
+const UPDATE_IOS_REVIEW_STATUS_CRON = "0 */3 * * *";
 
 export {
   customhostDeploymentDir,
