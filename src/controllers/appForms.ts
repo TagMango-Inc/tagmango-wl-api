@@ -1655,10 +1655,6 @@ const fetchPreRequisitesForApp = factory.createHandlers(async (c) => {
           },
         },
         {
-          $match: { relatedCourses: { $ne: null } },
-        },
-
-        {
           $group: {
             _id: "$_id",
             relatedPosts: { $first: "$relatedPosts" }, // Preserve posts
@@ -1675,6 +1671,7 @@ const fetchPreRequisitesForApp = factory.createHandlers(async (c) => {
         (mango) =>
           mango.relatedPosts.length > 0 &&
           mango.relatedCourses.length > 0 &&
+          mango.relatedCourses.filter(Boolean).length > 0 &&
           mango.relatedRooms.length > 0,
       ).length > 0;
 
