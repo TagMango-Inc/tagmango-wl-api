@@ -1,25 +1,25 @@
-import fs from 'fs-extra';
-import { createFactory } from 'hono/factory';
-import { ObjectId } from 'mongodb';
+import fs from "fs-extra";
+import { createFactory } from "hono/factory";
+import { ObjectId } from "mongodb";
 
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from "@hono/zod-validator";
 
-import Mongo from '../database';
-import authenticationMiddleware from '../middleware/authentication';
-import { JWTPayloadType } from '../types';
-import { AppFormStatus } from '../types/database';
-import { base64ToImage } from '../utils/image';
-import { Response } from '../utils/statuscode';
+import Mongo from "../database";
+import authenticationMiddleware from "../middleware/authentication";
+import { JWTPayloadType } from "../types";
+import { AppFormStatus } from "../types/database";
+import { base64ToImage } from "../utils/image";
+import { Response } from "../utils/statuscode";
 import {
   generateFormValuesAISchema,
   rejectFormByIdSchema,
   updatAppFormLogoSchema,
-} from '../validations/appForms';
+} from "../validations/appForms";
 import {
   updateAndroidStoreMetadataSchema,
   updateIosStoreMetadataSchema,
-} from '../validations/metadata';
-import { generateAppFormDescriptions } from './openai';
+} from "../validations/metadata";
+import { generateAppFormDescriptions } from "./openai";
 
 const factory = createFactory();
 
@@ -1729,62 +1729,46 @@ const fetchPreRequisitesForApp = factory.createHandlers(async (c) => {
           },
         },
         {
-          $match: { relatedCourses: { $ne: null } },
-        },
-
-        {
           $group: {
             _id: "$_id",
             relatedPosts: { $first: "$relatedPosts" }, // Preserve posts
             relatedCourses: { $push: "$relatedCourses" }, // Collect filtered courses
             relatedRooms: { $first: "$relatedRooms" }, // Preserve rooms
-          },
-        },
-        {
-          $match: {
-            "relatedPosts.0": {
-              $exists: true,
-            },
-            "relatedCourses.0": {
-              $exists: true,
-            },
-            "relatedRooms.0": {
-              $exists: true,
-            },
+            title: { $first: "$title" },
           },
         },
       ])
       .toArray();
 
+    const isPostCourseRoomLinkedWithOneMangoExists =
+      mangoAggregation.filter(
+        (mango) =>
+          mango.relatedPosts.length > 0 &&
+          mango.relatedCourses.length > 0 &&
+          mango.relatedCourses.filter(Boolean).length > 0 &&
+          mango.relatedRooms.length > 0,
+      ).length > 0;
+
     return c.json(
       {
         message: "Pre-requisites for app fetched successfully",
-        result: [
-          {
-            title: "Create a service",
-            description: "You need to create an offering to proceed",
-            isCompleted: mango ? true : false,
-            url: "/dashboard/mango-overview?newMangoform=true",
-          },
-          {
-            title: "Create a post in a service",
-            description: `Make sure you create alteast one post ${mango ? "in the same offering you created above" : ""}`,
-            isCompleted: mangoAggregation.length > 0,
-            url: "/activity",
-          },
-          {
-            title: "Create a course in a service",
-            description: `Make sure you create alteast one course ${mango ? "in the same offering you created above" : ""}. Also the course should be published, should have alteast one video chapter and should have drip system disabled`,
-            isCompleted: mangoAggregation.length > 0,
-            url: "/courses",
-          },
-          {
-            title: "Create a room in a service",
-            description: `Make sure you create alteast one room ${mango ? "in the same offering you created above" : ""}`,
-            isCompleted: mangoAggregation.length > 0,
-            url: "/messages",
-          },
-        ],
+        result: {
+          prerequisites: [
+            {
+              title: "Create a service",
+              description: "You need to create an offering to proceed",
+              isCompleted: mango ? true : false,
+              url: "/dashboard/mango-overview?newMangoform=true",
+            },
+            {
+              title: "Create a post, course and room in a service",
+              description: `Make sure you create alteast one post, one course (which is published, has alteast one video chapter and has drip system disabled) and one room in the same offering you created above`,
+              isCompleted: isPostCourseRoomLinkedWithOneMangoExists,
+              url: "/activity",
+            },
+          ],
+          mangoList: mangoAggregation || [],
+        },
       },
       {
         status: 200,

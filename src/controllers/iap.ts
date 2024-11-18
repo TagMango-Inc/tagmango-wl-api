@@ -195,9 +195,6 @@ const getAllMangoesByCreator = factory.createHandlers(async (c) => {
             },
           },
         },
-        {
-          $match: { relatedCourses: { $ne: null } },
-        },
 
         {
           $group: {
@@ -225,7 +222,9 @@ const getAllMangoesByCreator = factory.createHandlers(async (c) => {
     const mangoesToSend = mangoAggregation.map((mango) => ({
       ...mango,
       hasPosts: mango.hasPosts.length > 0,
-      hasCourses: mango.hasCourses.length > 0,
+      hasCourses:
+        mango.hasCourses.length > 0 &&
+        mango.hasCourses.filter(Boolean).length > 0,
       hasRooms: mango.hasRooms.length > 0,
       isSubscribed: subscriptionMangoes.has(mango._id.toHexString()),
     }));
