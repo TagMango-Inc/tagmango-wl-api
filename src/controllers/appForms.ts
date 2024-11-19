@@ -743,10 +743,12 @@ const uploadFormLogo = factory.createHandlers(
         },
         {
           $set: {
-            logo: logo ? `logo.png` : "",
-            customOneSignalIcon: customOneSignalIcon
-              ? `customOneSignalIcon.png`
-              : "",
+            logo: form.logo ? form.logo : logo ? `logo.png` : "",
+            customOneSignalIcon: form.customOneSignalIcon
+              ? form.customOneSignalIcon
+              : customOneSignalIcon
+                ? `customOneSignalIcon.png`
+                : "",
             backgroundType: body.backgroundType || form.backgroundType,
             backgroundStartColor:
               body.backgroundStartColor || form.backgroundStartColor,
