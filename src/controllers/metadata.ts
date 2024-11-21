@@ -81,7 +81,7 @@ const createMetadata = factory.createHandlers(async (c) => {
       backgroundGradientAngle: 45,
       logoPadding: 15,
       iosDeploymentDetails: {
-        bundleId: "",
+        bundleId: `com.tagmango.${formattedName}`,
         lastDeploymentDetails: {
           versionName: "",
           buildNumber: 400,
@@ -89,7 +89,7 @@ const createMetadata = factory.createHandlers(async (c) => {
         isUnderReview: false,
       },
       androidDeploymentDetails: {
-        bundleId: ``,
+        bundleId: `com.tagmango.${formattedName}`,
         lastDeploymentDetails: {
           versionName: "",
           buildNumber: 450,

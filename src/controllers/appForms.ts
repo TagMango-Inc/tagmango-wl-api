@@ -942,6 +942,19 @@ const submitFormHandler = factory.createHandlers(async (c) => {
     });
 
     if (!metadata) {
+      const customhost = await Mongo.customhost.findOne({
+        _id: new ObjectId(form.host),
+      });
+
+      if (!customhost) {
+        return c.json(
+          { message: "Cannot submit form, contact support" },
+          Response.NOT_FOUND,
+        );
+      }
+
+      const appName = customhost.appName ?? "";
+      const formattedName = appName.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
       // create metadata if not exists
       await Mongo.metadata.insertOne({
         host: new ObjectId(form.host),
@@ -952,7 +965,7 @@ const submitFormHandler = factory.createHandlers(async (c) => {
         backgroundGradientAngle: 45,
         logoPadding: 15,
         iosDeploymentDetails: {
-          bundleId: "",
+          bundleId: `com.tagmango.${formattedName}`,
           lastDeploymentDetails: {
             versionName: "",
             buildNumber: 400,
@@ -960,7 +973,7 @@ const submitFormHandler = factory.createHandlers(async (c) => {
           isUnderReview: false,
         },
         androidDeploymentDetails: {
-          bundleId: ``,
+          bundleId: `com.tagmango.${formattedName}`,
           lastDeploymentDetails: {
             versionName: "",
             buildNumber: 450,
