@@ -366,6 +366,50 @@ const createNewDeploymentHandler = factory.createHandlers(
         );
       }
 
+      // update deep links for platform
+      if (target === "android") {
+        await Mongo.customhost.findOneAndUpdate(
+          { _id: metadata.host }, // Filter to find the document
+          {
+            $set: {
+              androidDeepLinkConfig: {
+                relation: ["delegate_permission/common.handle_all_urls"],
+                target: {
+                  namespace: "android_app",
+                  package_name: metadata.androidDeploymentDetails.bundleId,
+                  sha256_cert_fingerprints: [
+                    "72:2C:BF:A9:80:A7:53:ED:BF:10:39:6C:27:72:24:99:33:F9:DC:7B:5D:64:08:99:04:02:58:EA:07:C8:2F:54",
+                    "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C",
+                    "26:5D:F6:40:FD:0A:53:11:A2:5A:34:34:11:68:EE:B1:ED:20:59:08:8A:09:5B:A5:57:66:21:89:AC:31:93:3D",
+                  ],
+                },
+              },
+            },
+          },
+          { upsert: true }, // Enable upsert
+        );
+      } else if (target === "ios") {
+        await Mongo.customhost.findOneAndUpdate(
+          { _id: metadata.host }, // Filter to find the document
+          {
+            $set: {
+              iosDeepLinkConfig: {
+                applinks: {
+                  apps: [],
+                  details: [
+                    {
+                      appID: `Z9M2DKF2B7.${metadata.iosDeploymentDetails.bundleId}`,
+                      paths: ["NOT /zoom*", "*"],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+          { upsert: true }, // Enable upsert
+        );
+      }
+
       if (!customhost.appName) {
         return c.json(
           { message: "Platform name is required" },
