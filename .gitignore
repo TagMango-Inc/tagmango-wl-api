@@ -23,3 +23,4 @@ fcm.json
 apns.p8
 asc_api_pk.p8
 android_service_account.json
+tm-expo-update-certificate-private-key.pem
