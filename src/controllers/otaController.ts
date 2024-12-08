@@ -346,7 +346,9 @@ const handleAssetsRequest = factory.createHandlers(async (c) => {
     c.status(200);
     c.header(
       "content-type",
-      isLaunchAsset ? "application/javascript" : mime.lookup(assetMetadata.ext),
+      isLaunchAsset
+        ? "application/javascript"
+        : mime.getType(assetMetadata.ext) ?? "",
     );
     return c.body(asset);
   } catch (error) {

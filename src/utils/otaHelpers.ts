@@ -103,7 +103,7 @@ export async function getAssetMetadataAsync(arg: GetAssetMetadataArg) {
   const keyExtensionSuffix = arg.isLaunchAsset ? "bundle" : arg.ext;
   const contentType = arg.isLaunchAsset
     ? "application/javascript"
-    : mime.lookup(arg.ext);
+    : mime.getType(arg.ext);
 
   return {
     hash: assetHash,
