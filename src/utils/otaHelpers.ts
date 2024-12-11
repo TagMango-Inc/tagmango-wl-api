@@ -50,8 +50,9 @@ export async function getPrivateKeyAsync() {
 
 export async function getLatestUpdateBundlePathForRuntimeVersionAsync(
   runtimeVersion: string,
+  channel: string,
 ) {
-  const updatesDirectoryForRuntimeVersion = `updates/${runtimeVersion}`;
+  const updatesDirectoryForRuntimeVersion = `updates/${channel}/${runtimeVersion}`;
   if (!fsSync.existsSync(updatesDirectoryForRuntimeVersion)) {
     throw new Error("Unsupported runtime version");
   }

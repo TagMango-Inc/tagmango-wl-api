@@ -37,6 +37,18 @@ const handleManifestRequest = factory.createHandlers(async (c) => {
     );
   }
 
+  const channel = c.req.header("expo-channel-name");
+  if (!channel || typeof channel !== "string") {
+    return c.json(
+      {
+        error: "No channel provided.",
+        message: "No channel provided.",
+        result: null,
+      },
+      Response.BAD_REQUEST,
+    );
+  }
+
   const protocolVersionMaybeArray = c.req.header("expo-protocol-version");
   if (protocolVersionMaybeArray && Array.isArray(protocolVersionMaybeArray)) {
     return c.json(
@@ -77,8 +89,10 @@ const handleManifestRequest = factory.createHandlers(async (c) => {
 
   let updateBundlePath: string;
   try {
-    updateBundlePath =
-      await getLatestUpdateBundlePathForRuntimeVersionAsync(runtimeVersion);
+    updateBundlePath = await getLatestUpdateBundlePathForRuntimeVersionAsync(
+      runtimeVersion,
+      channel,
+    );
   } catch (error: any) {
     return c.json(
       {
@@ -278,6 +292,18 @@ const handleAssetsRequest = factory.createHandlers(async (c) => {
     );
   }
 
+  const channel = c.req.header("expo-channel-name");
+  if (!channel || typeof channel !== "string") {
+    return c.json(
+      {
+        error: "No channel provided.",
+        message: "No channel provided.",
+        result: null,
+      },
+      Response.BAD_REQUEST,
+    );
+  }
+
   if (platform !== "ios" && platform !== "android") {
     return c.json(
       {
@@ -302,8 +328,10 @@ const handleAssetsRequest = factory.createHandlers(async (c) => {
 
   let updateBundlePath: string;
   try {
-    updateBundlePath =
-      await getLatestUpdateBundlePathForRuntimeVersionAsync(runtimeVersion);
+    updateBundlePath = await getLatestUpdateBundlePathForRuntimeVersionAsync(
+      runtimeVersion,
+      channel,
+    );
   } catch (error: any) {
     return c.json(
       {
@@ -366,12 +394,36 @@ const handleAssetsRequest = factory.createHandlers(async (c) => {
 
 const handleUploadUpdateRequest = factory.createHandlers(async (c) => {
   // check for upload-key header
+  // this upload key is used to authenticate the upload request
   const uploadKey = c.req.header("upload-key");
   if (!uploadKey) {
     return c.json(
       {
         error: "No upload key provided.",
         message: "No upload key provided.",
+        result: null,
+      },
+      Response.BAD_REQUEST,
+    );
+  }
+
+  if (uploadKey !== process.env.UPLOAD_KEY) {
+    return c.json(
+      {
+        error: "Invalid upload key.",
+        message: "Invalid upload key.",
+        result: null,
+      },
+      Response.UNAUTHORIZED,
+    );
+  }
+
+  const channel = c.req.header("expo-channel-name");
+  if (!channel || typeof channel !== "string") {
+    return c.json(
+      {
+        error: "No channel provided.",
+        message: "No channel provided.",
         result: null,
       },
       Response.BAD_REQUEST,
@@ -417,7 +469,7 @@ const handleUploadUpdateRequest = factory.createHandlers(async (c) => {
   // Extract zip file from buffer
   const fileBuffer = Buffer.from(await file.arrayBuffer());
   const filePath = path.resolve(
-    `updates/${runtimeVersion}/${parseInt(String(Date.now() / 1000), 10)}`,
+    `updates/${channel}/${runtimeVersion}/${parseInt(String(Date.now() / 1000), 10)}`,
   );
 
   fs.rmSync(filePath, { recursive: true, force: true });
