@@ -16,6 +16,7 @@ import customHostRouter from './routers/customHostRouter';
 import developerAccountsRouter from './routers/developerAccountsRouter';
 import iapRouter from './routers/iapRouter';
 import metadataRouter from './routers/metadataRouter';
+import otaRouter from './routers/otaRouter';
 import outputRouter from './routers/outputRouter';
 import releaseRouter from './routers/releaseRouter';
 import sseRouter from './routers/sse';
@@ -89,6 +90,7 @@ Mongo.connect().then(() => {
   app.route("/sse", sseRouter);
   app.route("/developer-accounts", developerAccountsRouter);
   app.route("/forms", appFormsRouter);
+  app.route("/ota", otaRouter);
 
   app.use(prettyJSON());
 
