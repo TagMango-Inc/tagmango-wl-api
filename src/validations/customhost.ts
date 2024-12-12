@@ -4,6 +4,7 @@ import { RoutingConfig } from "../../src/types/database";
 
 export const createNewDeploymentSchema = z.object({
   target: z.enum(["android", "ios"]),
+  generateIAPScreenshot: z.boolean().optional(),
 });
 
 export const patchCustomHostByIdSchema = z.object({

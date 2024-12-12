@@ -63,6 +63,8 @@ const { readFile, writeFile } = fs.promises;
             iosInfoSettings,
             iosReviewSettings,
 
+            generateIAPScreenshot,
+
             androidDeveloperAccount,
             isFirstDeployment,
           } = job.data;
@@ -178,7 +180,8 @@ const { readFile, writeFile } = fs.promises;
             [taskNames[3].id]:
               isAndroidScreenshotsAvailable &&
               isIosScreenshotsAvailable &&
-              isFeatureGraphicAvailable
+              isFeatureGraphicAvailable &&
+              !generateIAPScreenshot
                 ? [`echo "Screenshots are available"`]
                 : [
                     `cd ${customHostAppDir}`,
@@ -203,6 +206,9 @@ const { readFile, writeFile } = fs.promises;
                     `echo "Removing artifacts"`,
                     `rm -rf artifacts`,
                     `echo "Renaming app"`,
+                    generateIAPScreenshot === true
+                      ? `node ./scripts/app-screenshots.js --generateIAPScreenshot`
+                      : "",
                     `node ./scripts/app-screenshots.js --rename "${appName}"`,
                     `echo "Running e2e tests"`,
                     `detox test --configuration ios.sim.release --cleanup --artifacts-location artifacts/`,
@@ -214,6 +220,7 @@ const { readFile, writeFile } = fs.promises;
                       androidScreenshots: JSON.stringify(androidScreenshots),
                       iosScreenshots: JSON.stringify(iosScreenshots),
                       androidFeatureGraphic: androidFeatureGraphic,
+                      generateIAPScreenshot,
                     })}`,
                   ],
             [taskNames[4].id]: [

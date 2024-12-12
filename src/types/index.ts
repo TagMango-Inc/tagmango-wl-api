@@ -39,6 +39,7 @@ export type BuildConfigType = {
 
   androidDeveloperAccount?: null | WithId<IDeveloperAccountAndroid>;
   isFirstDeployment: boolean;
+  generateIAPScreenshot: boolean;
 };
 
 export type BuildJobPayloadType = {
