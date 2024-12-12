@@ -294,7 +294,7 @@ const createNewDeploymentHandler = factory.createHandlers(
   async (c) => {
     try {
       const { id: customHostId } = c.req.param();
-      const { target } = c.req.valid("json");
+      const { target, generateIAPScreenshot } = c.req.valid("json");
       const payload: JWTPayloadType = c.get("jwtPayload");
 
       if (!target) {
@@ -756,6 +756,7 @@ const createNewDeploymentHandler = factory.createHandlers(
         createdAt: new Date(),
         updatedAt: new Date(),
         isFirstDeployment,
+        generateIAPScreenshot: generateIAPScreenshot || false,
       });
 
       // TODO: can't create another job if the job already exists and processing
@@ -797,13 +798,12 @@ const createNewDeploymentHandler = factory.createHandlers(
           appleId: metadata.iosDeploymentDetails.appleId || "",
 
           androidStoreSettings: metadata.androidStoreSettings,
-          androidScreenshots: metadata.androidScreenshots,
-          androidFeatureGraphic: metadata.androidFeatureGraphic,
 
           iosStoreSettings: metadata.iosStoreSettings,
           iosInfoSettings: metadata.iosInfoSettings,
           iosReviewSettings: metadata.iosReviewSettings,
-          iosScreenshots: metadata.iosScreenshots,
+
+          generateIAPScreenshot: generateIAPScreenshot || false,
 
           androidDeveloperAccount,
           isFirstDeployment,
@@ -1056,13 +1056,12 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
           appleId: metadata.iosDeploymentDetails.appleId || "",
 
           androidStoreSettings: metadata.androidStoreSettings,
-          androidScreenshots: metadata.androidScreenshots,
-          androidFeatureGraphic: metadata.androidFeatureGraphic,
 
           iosStoreSettings: metadata.iosStoreSettings,
           iosInfoSettings: metadata.iosInfoSettings,
           iosReviewSettings: metadata.iosReviewSettings,
-          iosScreenshots: metadata.iosScreenshots,
+
+          generateIAPScreenshot: deployment.generateIAPScreenshot || false,
 
           androidDeveloperAccount,
           isFirstDeployment: deployment.isFirstDeployment || false,
