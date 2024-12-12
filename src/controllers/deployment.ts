@@ -797,13 +797,10 @@ const createNewDeploymentHandler = factory.createHandlers(
           appleId: metadata.iosDeploymentDetails.appleId || "",
 
           androidStoreSettings: metadata.androidStoreSettings,
-          androidScreenshots: metadata.androidScreenshots,
-          androidFeatureGraphic: metadata.androidFeatureGraphic,
 
           iosStoreSettings: metadata.iosStoreSettings,
           iosInfoSettings: metadata.iosInfoSettings,
           iosReviewSettings: metadata.iosReviewSettings,
-          iosScreenshots: metadata.iosScreenshots,
 
           androidDeveloperAccount,
           isFirstDeployment,
@@ -1056,13 +1053,10 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
           appleId: metadata.iosDeploymentDetails.appleId || "",
 
           androidStoreSettings: metadata.androidStoreSettings,
-          androidScreenshots: metadata.androidScreenshots,
-          androidFeatureGraphic: metadata.androidFeatureGraphic,
 
           iosStoreSettings: metadata.iosStoreSettings,
           iosInfoSettings: metadata.iosInfoSettings,
           iosReviewSettings: metadata.iosReviewSettings,
-          iosScreenshots: metadata.iosScreenshots,
 
           androidDeveloperAccount,
           isFirstDeployment: deployment.isFirstDeployment || false,

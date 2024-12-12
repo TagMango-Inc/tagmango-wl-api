@@ -58,13 +58,10 @@ const { readFile, writeFile } = fs.promises;
             appleId,
 
             androidStoreSettings,
-            androidScreenshots,
-            androidFeatureGraphic,
 
             iosStoreSettings,
             iosInfoSettings,
             iosReviewSettings,
-            iosScreenshots,
 
             androidDeveloperAccount,
             isFirstDeployment,
@@ -72,10 +69,24 @@ const { readFile, writeFile } = fs.promises;
 
           const formatedAppName = name.replace(/ /g, "");
 
-          const isAndroidScreenshotsAvailable = androidScreenshots?.length > 0;
+          // get screenshots values from DB as the job starts instead of getting a copy when the job is created
+          // assumption: only 1 deployment is running at a time, so we can get the latest values from the DB
+          // NOTE: do not increase max concurrency of the worker to more than 1
+
+          const metadata = await Mongo.metadata.findOne({
+            host: new ObjectId(hostId),
+          });
+
+          const androidScreenshots = metadata?.androidScreenshots;
+          const iosScreenshots = metadata?.iosScreenshots;
+          const androidFeatureGraphic = metadata?.androidFeatureGraphic;
+
+          const isAndroidScreenshotsAvailable =
+            androidScreenshots && androidScreenshots?.length > 0;
           const isIosScreenshotsAvailable =
-            iosScreenshots?.iphone_65?.length > 0;
-          const isFeatureGraphicAvailable = androidFeatureGraphic?.length > 0;
+            iosScreenshots && iosScreenshots?.iphone_65?.length > 0;
+          const isFeatureGraphicAvailable =
+            androidFeatureGraphic && androidFeatureGraphic?.length > 0;
 
           logger.info("Fetching Deployment Details");
 

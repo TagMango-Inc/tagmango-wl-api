@@ -6,7 +6,6 @@ import {
   IDeveloperAccountAndroid,
   IIosInfoSettings,
   IIosReviewSettings,
-  IIosScreenshots,
   IIosStoreSettings,
 } from "./database";
 
@@ -33,13 +32,10 @@ export type BuildConfigType = {
   appleId: string;
 
   androidStoreSettings: IAndroidStoreSettings;
-  androidScreenshots: string[];
-  androidFeatureGraphic: string;
 
   iosStoreSettings: IIosStoreSettings;
   iosInfoSettings: IIosInfoSettings;
   iosReviewSettings: IIosReviewSettings;
-  iosScreenshots: IIosScreenshots;
 
   androidDeveloperAccount?: null | WithId<IDeveloperAccountAndroid>;
   isFirstDeployment: boolean;
