@@ -846,6 +846,13 @@ const uploadIosIAPScreenshot = factory.createHandlers(async (c) => {
 
     const iapScreenshot = body.iapScreenshot;
 
+    if (!iapScreenshot) {
+      return c.json(
+        { message: "IAP screenshot not found" },
+        Response.NOT_FOUND,
+      );
+    }
+
     const metadata = await Mongo.metadata.findOne({
       host: new ObjectId(appId),
     });
