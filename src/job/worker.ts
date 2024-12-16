@@ -213,15 +213,17 @@ const { readFile, writeFile } = fs.promises;
                     `echo "Running e2e tests"`,
                     `detox test --configuration ios.sim.release --cleanup --artifacts-location artifacts/`,
                     `echo "Generating screenshots"`,
-                    `node ./scripts/app-screenshots.js ${JSON.stringify({
-                      hostId,
-                      domain,
-                      appName,
-                      androidScreenshots: JSON.stringify(androidScreenshots),
-                      iosScreenshots: JSON.stringify(iosScreenshots),
-                      androidFeatureGraphic: androidFeatureGraphic,
-                      generateIAPScreenshot,
-                    })}`,
+                    `node ./scripts/app-screenshots.js --config ${JSON.stringify(
+                      {
+                        hostId,
+                        domain,
+                        appName,
+                        androidScreenshots: JSON.stringify(androidScreenshots),
+                        iosScreenshots: JSON.stringify(iosScreenshots),
+                        androidFeatureGraphic: androidFeatureGraphic,
+                        generateIAPScreenshot,
+                      },
+                    )}`,
                   ],
             [taskNames[4].id]: [
               `node ./scripts/create-metadata.js ${JSON.stringify({
