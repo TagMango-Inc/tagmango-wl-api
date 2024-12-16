@@ -839,6 +839,67 @@ const updateReviewMetadataIosSettings = factory.createHandlers(
   },
 );
 
+const uploadIosIAPScreenshot = factory.createHandlers(async (c) => {
+  try {
+    const { appId } = c.req.param();
+    const body = await c.req.parseBody();
+
+    const iapScreenshot = body.iapScreenshot;
+
+    if (!iapScreenshot) {
+      return c.json(
+        { message: "IAP screenshot not found" },
+        Response.NOT_FOUND,
+      );
+    }
+
+    const metadata = await Mongo.metadata.findOne({
+      host: new ObjectId(appId),
+    });
+
+    if (!metadata) {
+      return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+    }
+
+    const fileSavePath = `./assets/${appId}/`;
+
+    // Creating directory if it does not exist
+    if (!fs.existsSync(`${fileSavePath}/ios`)) {
+      fs.mkdirSync(`${fileSavePath}/ios`, {
+        recursive: true,
+      });
+    }
+
+    const name = `ios/iapScreenshot.png`;
+    const filePath = path.join(fileSavePath, name);
+    const buffer = await (iapScreenshot as File).arrayBuffer();
+    const file = Buffer.from(buffer);
+    await writeFile(filePath, file);
+
+    // Update metadata
+    await Mongo.metadata.updateOne(
+      { host: new ObjectId(appId) },
+      { $set: { iapScreenshot: name } },
+    );
+
+    return c.json(
+      {
+        message: "IAP screenshot uploaded successfully",
+        result: {
+          iapScreenshot: name,
+        },
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    console.log(error);
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
 const uploadIosScreenshots = factory.createHandlers(async (c) => {
   try {
     const { appId } = c.req.param();
@@ -1016,6 +1077,7 @@ export {
   updateStoreMetadataIosSettings,
   uploadAndroidFeatureGraphic,
   uploadAndroidScreenshots,
+  uploadIosIAPScreenshot,
   uploadIosScreenshots,
   uploadMetadataLogo,
 };

@@ -14,6 +14,7 @@ const patchMangoIapDetailsSchema = z.object({
 const createOrRevokeSubscriptionSchema = z.object({
   action: z.enum(["create", "revoke"]),
   host: z.string(),
+  target: z.enum(["ios", "android"]),
 });
 
 export {

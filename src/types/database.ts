@@ -72,6 +72,7 @@ export interface IDeployment {
   status: Exclude<Status, "warning">;
   cancelledBy: ObjectId | null;
   isFirstDeployment: boolean;
+  generateIAPScreenshot: boolean;
 
   createdAt: Date;
   updatedAt: Date;
@@ -170,6 +171,7 @@ export interface IMetaData {
   iosInfoSettings: IIosInfoSettings;
   iosReviewSettings: IIosReviewSettings;
   iosScreenshots: IIosScreenshots;
+  iapScreenshot: string;
 
   androidDeveloperAccount?: ObjectId;
 

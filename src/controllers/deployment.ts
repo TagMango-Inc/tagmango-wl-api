@@ -294,7 +294,7 @@ const createNewDeploymentHandler = factory.createHandlers(
   async (c) => {
     try {
       const { id: customHostId } = c.req.param();
-      const { target } = c.req.valid("json");
+      const { target, generateIAPScreenshot } = c.req.valid("json");
       const payload: JWTPayloadType = c.get("jwtPayload");
 
       if (!target) {
@@ -756,6 +756,7 @@ const createNewDeploymentHandler = factory.createHandlers(
         createdAt: new Date(),
         updatedAt: new Date(),
         isFirstDeployment,
+        generateIAPScreenshot: generateIAPScreenshot || false,
       });
 
       // TODO: can't create another job if the job already exists and processing
@@ -797,13 +798,12 @@ const createNewDeploymentHandler = factory.createHandlers(
           appleId: metadata.iosDeploymentDetails.appleId || "",
 
           androidStoreSettings: metadata.androidStoreSettings,
-          androidScreenshots: metadata.androidScreenshots,
-          androidFeatureGraphic: metadata.androidFeatureGraphic,
 
           iosStoreSettings: metadata.iosStoreSettings,
           iosInfoSettings: metadata.iosInfoSettings,
           iosReviewSettings: metadata.iosReviewSettings,
-          iosScreenshots: metadata.iosScreenshots,
+
+          generateIAPScreenshot: generateIAPScreenshot || false,
 
           androidDeveloperAccount,
           isFirstDeployment,
@@ -1056,13 +1056,12 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
           appleId: metadata.iosDeploymentDetails.appleId || "",
 
           androidStoreSettings: metadata.androidStoreSettings,
-          androidScreenshots: metadata.androidScreenshots,
-          androidFeatureGraphic: metadata.androidFeatureGraphic,
 
           iosStoreSettings: metadata.iosStoreSettings,
           iosInfoSettings: metadata.iosInfoSettings,
           iosReviewSettings: metadata.iosReviewSettings,
-          iosScreenshots: metadata.iosScreenshots,
+
+          generateIAPScreenshot: deployment.generateIAPScreenshot || false,
 
           androidDeveloperAccount,
           isFirstDeployment: deployment.isFirstDeployment || false,
@@ -1294,27 +1293,6 @@ const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
       }),
     ]);
 
-    let isDemoUserSubscribed = false;
-    if (data[2]?.host) {
-      const demoUser = await Mongo.platform_users.findOne({
-        phone: 1223334444,
-        host: data[2].host,
-      });
-
-      if (demoUser) {
-        const subscription = await Mongo.subscription.findOne({
-          creator: new ObjectId(creatorId),
-          fan: demoUser._id,
-          status: "active",
-          isFree: { $ne: true },
-        });
-
-        if (subscription) {
-          isDemoUserSubscribed = true;
-        }
-      }
-    }
-
     return c.json(
       {
         message: "Fetched Deployment Requirements Checklist",
@@ -1329,7 +1307,7 @@ const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
           },
           {
             name: DEPLOYMENT_REQUIREMENTS[3],
-            isCompleted: data[3] && isDemoUserSubscribed ? true : false,
+            isCompleted: data[3],
           },
         ],
       },

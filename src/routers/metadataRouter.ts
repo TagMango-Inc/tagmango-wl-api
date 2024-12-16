@@ -17,6 +17,7 @@ import {
   updateStoreMetadataIosSettings,
   uploadAndroidFeatureGraphic,
   uploadAndroidScreenshots,
+  uploadIosIAPScreenshot,
   uploadIosScreenshots,
   uploadMetadataLogo,
 } from '../../src/controllers/metadata';
@@ -63,6 +64,7 @@ router.patch("/:appId/settings/ios/build", ...updateBuildMetadataIosSettings);
 router.patch("/:appId/settings/ios/store", ...updateStoreMetadataIosSettings);
 router.patch("/:appId/settings/ios/info", ...updateInfoMetadataIosSettings);
 router.patch("/:appId/settings/ios/review", ...updateReviewMetadataIosSettings);
+router.patch("/:appId/settings/ios/iapScreenshot", ...uploadIosIAPScreenshot);
 router.patch("/:appId/settings/ios/screenshots", ...uploadIosScreenshots);
 router.patch(
   "/:appId/settings/ios/screenshots/reorder",

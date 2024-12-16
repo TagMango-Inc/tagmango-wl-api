@@ -30,19 +30,36 @@ const getAllMangoesByCreator = factory.createHandlers(async (c) => {
       },
     );
   try {
-    const demoUser = await Mongo.platform_users.findOne({
+    const demoUserIos = await Mongo.platform_users.findOne({
       phone: 1223334444,
       host,
     });
 
+    const demoUserAndroid = await Mongo.platform_users.findOne({
+      phone: 1223334445,
+      host,
+    });
+
     // Aggregate posts, courses, and subscriptions
-    const [allSubscriptions] = await Promise.all([
-      demoUser
+    const [allSubscriptionsIos, allSubscriptionsAndroid] = await Promise.all([
+      demoUserIos
         ? Mongo.subscription
             .find(
               {
                 creator: new ObjectId(creatorId),
-                fan: demoUser._id,
+                fan: demoUserIos._id,
+                status: "active",
+              },
+              { projection: { mango: 1 } },
+            )
+            .toArray()
+        : Promise.resolve([]),
+      demoUserAndroid
+        ? Mongo.subscription
+            .find(
+              {
+                creator: new ObjectId(creatorId),
+                fan: demoUserAndroid._id,
                 status: "active",
               },
               { projection: { mango: 1 } },
@@ -51,8 +68,16 @@ const getAllMangoesByCreator = factory.createHandlers(async (c) => {
         : Promise.resolve([]),
     ]);
 
-    const subscriptionMangoes = new Set(
-      allSubscriptions.map((subscription) => subscription.mango.toHexString()),
+    const subscribedMangoesIos = new Set(
+      allSubscriptionsIos.map((subscription) =>
+        subscription.mango.toHexString(),
+      ),
+    );
+
+    const subscribedMangoesAndroid = new Set(
+      allSubscriptionsAndroid.map((subscription) =>
+        subscription.mango.toHexString(),
+      ),
     );
 
     const mangoAggregation = await Mongo.mango
@@ -226,7 +251,10 @@ const getAllMangoesByCreator = factory.createHandlers(async (c) => {
         mango.hasCourses.length > 0 &&
         mango.hasCourses.filter(Boolean).length > 0,
       hasRooms: mango.hasRooms.length > 0,
-      isSubscribed: subscriptionMangoes.has(mango._id.toHexString()),
+      isSubscribedIos: subscribedMangoesIos.has(mango._id.toHexString()),
+      isSubscribedAndroid: subscribedMangoesAndroid.has(
+        mango._id.toHexString(),
+      ),
     }));
 
     return c.json(
@@ -262,8 +290,13 @@ const updateIapProductIds = factory.createHandlers(
     try {
       const { mangoIds, action, host } = c.req.valid("json");
 
-      const demoUser = await Mongo.platform_users.findOne({
+      const demoUserIos = await Mongo.platform_users.findOne({
         phone: 1223334444,
+        host,
+      });
+
+      const demoUserAndroid = await Mongo.platform_users.findOne({
+        phone: 1223334445,
         host,
       });
 
@@ -278,14 +311,14 @@ const updateIapProductIds = factory.createHandlers(
           { $unset: { iapProductId: 1, iapDescription: 1, iapPrice: 1 } },
         );
 
-        // remove subscription
-        if (demoUser) {
+        // remove subscription ios
+        if (demoUserIos) {
           await Mongo.subscription.updateMany(
             {
               mango: {
                 $in: mangoIds.map((mng) => new ObjectId(mng)),
               },
-              fan: new ObjectId(demoUser._id),
+              fan: new ObjectId(demoUserIos._id),
             },
             {
               $set: {
@@ -298,7 +331,31 @@ const updateIapProductIds = factory.createHandlers(
             mango: {
               $in: mangoIds.map((mng) => new ObjectId(mng)),
             },
-            fan: new ObjectId(demoUser._id),
+            fan: new ObjectId(demoUserIos._id),
+          });
+        }
+
+        // remove subscription android
+        if (demoUserAndroid) {
+          await Mongo.subscription.updateMany(
+            {
+              mango: {
+                $in: mangoIds.map((mng) => new ObjectId(mng)),
+              },
+              fan: new ObjectId(demoUserAndroid._id),
+            },
+            {
+              $set: {
+                status: "expired",
+              },
+            },
+          );
+
+          await Mongo.subscription.deleteMany({
+            mango: {
+              $in: mangoIds.map((mng) => new ObjectId(mng)),
+            },
+            fan: new ObjectId(demoUserAndroid._id),
           });
         }
       } else {
@@ -416,7 +473,7 @@ const createOrRevokeSubscription = factory.createHandlers(
   zValidator("json", createOrRevokeSubscriptionSchema),
   async (c) => {
     const { mangoId } = c.req.param();
-    const { action, host } = c.req.valid("json");
+    const { action, host, target } = c.req.valid("json");
 
     if (!mangoId)
       return c.json(
@@ -427,9 +484,11 @@ const createOrRevokeSubscription = factory.createHandlers(
         },
       );
 
+    const demoUserPhone = target === "ios" ? 1223334444 : 1223334445;
+
     try {
       const demoUser = await Mongo.platform_users.findOne({
-        phone: 1223334444,
+        phone: demoUserPhone,
         host,
       });
 
@@ -438,7 +497,7 @@ const createOrRevokeSubscription = factory.createHandlers(
         // fint
         // create a new user
         newUser = await Mongo.platform_users.insertOne({
-          phone: 1223334444,
+          phone: demoUserPhone,
           host,
           onboarding: "fan_completed",
           country: "IN",
