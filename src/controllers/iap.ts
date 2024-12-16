@@ -485,6 +485,10 @@ const createOrRevokeSubscription = factory.createHandlers(
       );
 
     const demoUserPhone = target === "ios" ? 1223334444 : 1223334445;
+    const demoUserEmail =
+      target === "ios"
+        ? "test.review@tagmango.com"
+        : "testing.review@tagmango.com";
 
     try {
       const demoUser = await Mongo.platform_users.findOne({
@@ -503,7 +507,7 @@ const createOrRevokeSubscription = factory.createHandlers(
           country: "IN",
           currency: "INR",
           name: "John Doe",
-          email: "test.review@tagmango.com",
+          email: demoUserEmail,
           profilePicUrl:
             "https://tagmango.com/staticassets/avatar-placeholder.png-1612857612139.png",
           isEmailVerified: false,
