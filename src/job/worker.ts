@@ -206,9 +206,7 @@ const { readFile, writeFile } = fs.promises;
                     `echo "Removing artifacts"`,
                     `rm -rf artifacts`,
                     `echo "Renaming app"`,
-                    generateIAPScreenshot === true
-                      ? `node ./scripts/app-screenshots.js --generateIAPScreenshot`
-                      : "",
+                    `${generateIAPScreenshot === true ? "node ./scripts/app-screenshots.js --generateIAPScreenshot" : 'echo  "IAP Screenshot"'}`,
                     `node ./scripts/app-screenshots.js --rename "${appName}"`,
                     `echo "Running e2e tests"`,
                     `detox test --configuration ios.sim.release --cleanup --artifacts-location artifacts/`,
