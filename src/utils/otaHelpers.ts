@@ -111,7 +111,7 @@ export async function getAssetMetadataAsync(arg: GetAssetMetadataArg) {
     key,
     fileExtension: `.${keyExtensionSuffix}`,
     contentType,
-    url: `https://c827-2405-201-6008-60bc-f02e-d8d6-c4c8-7200.ngrok-free.app/wl/ota/assets?asset=${assetFilePath}&runtimeVersion=${arg.runtimeVersion}&platform=${arg.platform}`,
+    url: `${process.env.SERVER_URL}/wl/ota/assets?asset=${assetFilePath}&runtimeVersion=${arg.runtimeVersion}&platform=${arg.platform}`,
   };
 }
 
@@ -148,34 +148,6 @@ export async function getMetadataAsync({
     );
   }
 }
-
-/**
- * This adds the `@expo/config`-exported config to `extra.expoConfig`, which is a common thing
- * done by implementors of the expo-updates specification since a lot of Expo modules use it.
- * It is not required by the specification, but is included here in the example client and server
- * for demonstration purposes. EAS Update does something conceptually very similar.
- */
-// export async function getExpoConfigAsync({
-//   updateBundlePath,
-//   runtimeVersion,
-// }: {
-//   updateBundlePath: string;
-//   runtimeVersion: string;
-// }): Promise<any> {
-//   try {
-//     const expoConfigPath = `${updateBundlePath}/expoConfig.json`;
-//     const expoConfigBuffer = await fs.readFile(
-//       path.resolve(expoConfigPath),
-//       null,
-//     );
-//     const expoConfigJson = JSON.parse(expoConfigBuffer.toString("utf-8"));
-//     return expoConfigJson;
-//   } catch (error) {
-//     throw new Error(
-//       `No expo config json found with runtime version: ${runtimeVersion}. Error: ${error}`,
-//     );
-//   }
-// }
 
 export function convertSHA256HashToUUID(value: string) {
   return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(

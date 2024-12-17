@@ -121,11 +121,6 @@ const handleManifestRequest = factory.createHandlers(async (c) => {
         throw new NoUpdateAvailableError();
       }
 
-      // const expoConfig = await getExpoConfigAsync({
-      //   updateBundlePath,
-      //   runtimeVersion,
-      // });
-
       const platformSpecificMetadata = metadataJson.fileMetadata[platform];
       const manifest = {
         id: convertSHA256HashToUUID(id),
@@ -152,9 +147,6 @@ const handleManifestRequest = factory.createHandlers(async (c) => {
           ext: null,
         }),
         metadata: {},
-        // extra: {
-        //   expoClient: expoConfig,
-        // },
       };
 
       let signature = null;
