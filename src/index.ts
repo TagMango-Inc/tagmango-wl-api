@@ -24,16 +24,6 @@ import userManagementRouter from "./routers/userManagementRouter";
 const app = new Hono().basePath("/wl");
 
 Mongo.connect().then(() => {
-  app.options("/*", (c) => {
-    c.header("Access-Control-Allow-Origin", "*");
-    c.header(
-      "Access-Control-Allow-Methods",
-      "GET, POST, PATCH, PUT, DELETE, OPTIONS",
-    );
-    c.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-    return c.text("", 204);
-  });
   app.use(logger());
   app.use(
     "/*",
@@ -42,6 +32,18 @@ Mongo.connect().then(() => {
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     }),
   );
+
+  app.use("/*", async (c, next) => {
+    c.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    c.header(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PATCH, PUT, DELETE, OPTIONS",
+    );
+    if (c.req.method === "OPTIONS") {
+      return c.text("", 204);
+    }
+    await next();
+  });
 
   app.use("/user-management/*", authenticationMiddleware);
   app.use("/apps/*", authenticationMiddleware);
