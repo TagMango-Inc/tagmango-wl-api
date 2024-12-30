@@ -23,18 +23,17 @@ import userManagementRouter from "./routers/userManagementRouter";
 
 const app = new Hono().basePath("/wl");
 
-app.options("*", (c) => {
-  c.header("Access-Control-Allow-Origin", "*");
-  c.header(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PATCH, PUT, DELETE, OPTIONS",
-  );
-  c.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-  return c.text("", 204);
-});
-
 Mongo.connect().then(() => {
+  app.options("/*", (c) => {
+    c.header("Access-Control-Allow-Origin", "*");
+    c.header(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PATCH, PUT, DELETE, OPTIONS",
+    );
+    c.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    return c.text("", 204);
+  });
   app.use(logger());
   app.use(
     "/*",
