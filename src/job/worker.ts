@@ -190,7 +190,7 @@ const { readFile, writeFile } = fs.promises;
                     `echo "Using Node Version"`,
                     `node -v`,
                     `echo "Reinstalling node_modules"`,
-                    `npm install --reset-cache`,
+                    `npm install --reset-cache --include=dev`,
                     `echo "Using ruby version"`,
                     `source ~/.zshrc && ruby -v`,
                     `echo "Using bundle version"`,
@@ -250,7 +250,7 @@ const { readFile, writeFile } = fs.promises;
             // step: 4: Running the pre deployment and bundle script for the deployment/{bundleId} folder
             [taskNames[5].id]: [
               `cd ${customHostAppDir}`,
-              `npm install`,
+              `npm install --reset-cache --include=dev`,
               `node ./scripts/app-build.js ${JSON.stringify({
                 name,
                 bundle,
@@ -272,7 +272,7 @@ const { readFile, writeFile } = fs.promises;
                   ? [
                       `cd ${customHostAppDir}`,
                       `echo "Reinstalling node_modules"`,
-                      `npm install`,
+                      `npm install --reset-cache --include=dev`,
                       // create ios apps on apple dev center and app store connect, skips if already created
                       `source ~/.zshrc && bundle exec fastlane ios create`,
                       // create app group for ios bundle, skips if already created
@@ -293,7 +293,7 @@ const { readFile, writeFile } = fs.promises;
                       `echo "Skipping app and app groups creations"`,
                       `cd ${customHostAppDir}`,
                       `echo "Reinstalling node_modules"`,
-                      `npm install`,
+                      `npm install --reset-cache --include=devnpm install`,
                       `node ./scripts/appstore-metadata.js ${JSON.stringify({
                         hostId,
                         bundle,
