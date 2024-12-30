@@ -293,7 +293,7 @@ const { readFile, writeFile } = fs.promises;
                       `echo "Skipping app and app groups creations"`,
                       `cd ${customHostAppDir}`,
                       `echo "Reinstalling node_modules"`,
-                      `npm install --reset-cache --include=devnpm install`,
+                      `npm install --reset-cache --include=dev`,
                       `node ./scripts/appstore-metadata.js ${JSON.stringify({
                         hostId,
                         bundle,
