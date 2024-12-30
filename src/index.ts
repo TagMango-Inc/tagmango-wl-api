@@ -25,7 +25,13 @@ const app = new Hono().basePath("/wl");
 
 Mongo.connect().then(() => {
   app.use(logger());
-  app.use("/*", cors());
+  app.use(
+    "/*",
+    cors({
+      origin: "*",
+      allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    }),
+  );
 
   app.use("/user-management/*", authenticationMiddleware);
   app.use("/apps/*", authenticationMiddleware);
