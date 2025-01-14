@@ -10,6 +10,7 @@
     "stop:prod": "pm2 stop ecosystem.config.js"
   },
   "dependencies": {
+    "@aws-sdk/client-sqs": "^3.726.1",
     "@hono/node-server": "^1.11.1",
     "@hono/zod-validator": "^0.2.1",
     "bcrypt": "^5.1.1",
