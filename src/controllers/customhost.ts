@@ -7,6 +7,7 @@ import Mongo from "../../src/database";
 import { patchCustomHostByIdSchema } from "../../src/validations/customhost";
 import { AppFormStatus } from "../types/database";
 import { Response } from "../utils/statuscode";
+import { enqueueMessage } from "../utils/sqs";
 
 const factory = createFactory();
 /**
@@ -197,6 +198,13 @@ const patchCustomHostByIdHandler = factory.createHandlers(
               },
             },
           );
+          await enqueueMessage(
+            'appzap.app.deployed',
+            {
+              host: updatedCustomHost._id.toString(),
+            },
+            {}
+          )
         }
       }
 

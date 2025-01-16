@@ -20,6 +20,7 @@ import {
   updateIosStoreMetadataSchema,
 } from "../validations/metadata";
 import { generateAppFormDescriptions } from "./openai";
+import { enqueueMessage } from "../utils/sqs";
 
 const factory = createFactory();
 
@@ -1208,6 +1209,16 @@ const rejectFormHandler = factory.createHandlers(
           },
         },
       );
+
+      await enqueueMessage(
+        'appzap.appform.reject',
+        {
+          host: form.host.toString(),
+          errors,
+        },
+        {}
+      )
+
       if (result.modifiedCount === 0) {
         return c.json({ message: "Form not found" }, Response.NOT_FOUND);
       }
