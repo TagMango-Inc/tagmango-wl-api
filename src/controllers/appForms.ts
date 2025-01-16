@@ -9,6 +9,7 @@ import authenticationMiddleware from "../middleware/authentication";
 import { JWTPayloadType } from "../types";
 import { AppFormStatus } from "../types/database";
 import { base64ToImage } from "../utils/image";
+import { enqueueMessage } from "../utils/sqs";
 import { Response } from "../utils/statuscode";
 import {
   generateFormValuesAISchema,
@@ -20,7 +21,6 @@ import {
   updateIosStoreMetadataSchema,
 } from "../validations/metadata";
 import { generateAppFormDescriptions } from "./openai";
-import { enqueueMessage } from "../utils/sqs";
 
 const factory = createFactory();
 
@@ -1211,13 +1211,13 @@ const rejectFormHandler = factory.createHandlers(
       );
 
       await enqueueMessage(
-        'appzap.appform.reject',
+        "appzap.appform.reject",
         {
           host: form.host.toString(),
           errors,
         },
-        {}
-      )
+        {},
+      );
 
       if (result.modifiedCount === 0) {
         return c.json({ message: "Form not found" }, Response.NOT_FOUND);
@@ -1791,6 +1791,12 @@ const fetchPreRequisitesForApp = factory.createHandlers(async (c) => {
               description: `Make sure you create alteast one post, one course (which is published, has alteast one video chapter and has drip system disabled) and one room in the same offering you created above`,
               isCompleted: isPostCourseRoomLinkedWithOneMangoExists,
               url: "/activity",
+            },
+            {
+              title: "Update your Platform's Logo",
+              description: `Make sure you have uploaded your platform's logo in Settings > Platform Settings`,
+              isCompleted: customHost.logo ? true : false,
+              url: `/dashboard/platformsettings`,
             },
           ],
           mangoList: mangoAggregation || [],
