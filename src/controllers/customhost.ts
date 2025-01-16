@@ -40,8 +40,8 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
         {
           $lookup: {
             from: "customhostmetadatas",
-            localField: "deploymentMetadata",
-            foreignField: "_id",
+            localField: "_id",
+            foreignField: "host",
             as: "deploymentDetails",
           },
         },
