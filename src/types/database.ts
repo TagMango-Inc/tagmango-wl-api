@@ -585,6 +585,8 @@ export interface IAppForm {
 
   isFormSubmitted?: boolean;
 
+  showAppsLiveBannerToCreator?: boolean;
+
   rejectionDetails?: {
     date: Date;
     reviewer: ObjectId;

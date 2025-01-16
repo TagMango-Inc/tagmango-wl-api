@@ -10,6 +10,7 @@ import {
   getFormByHostIdHandler,
   getFormByIdHandler,
   getFormOverviewByHostIdHandler,
+  markAppsLiveBannerSeenHandler,
   markFormApprovedHandler,
   markFormDeployedHandler,
   markFormInStoreReviewHandler,
@@ -28,6 +29,10 @@ router.get("/count", ...getAllFormsCount);
 router.get("/:formId", ...getFormByIdHandler);
 
 router.get("/host/:hostId/overview", ...getFormOverviewByHostIdHandler);
+router.patch(
+  "/host/:hostId/mark-apps-live-banner-seen",
+  ...markAppsLiveBannerSeenHandler,
+);
 router.get("/host/:hostId", ...getFormByHostIdHandler);
 
 router.patch(

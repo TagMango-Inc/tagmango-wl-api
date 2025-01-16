@@ -586,11 +586,47 @@ const getFormOverviewByHostIdHandler = factory.createHandlers(async (c) => {
             updatedAt: appForm.updatedAt,
             submittedAt: appForm.submittedAt || null,
             approvedAt: appForm.approvedAt || null,
+            showAppsLiveBannerToCreator: appForm.showAppsLiveBannerToCreator,
           },
         },
       },
       Response.OK,
     );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
+/**
+ * PATCH wl/forms/:hostId/mark-apps-live-banner-seen
+ * Mark the Apps Live Banner as seen by the creator
+ * Protected Route
+ */
+const markAppsLiveBannerSeenHandler = factory.createHandlers(async (c) => {
+  try {
+    const { hostId } = c.req.param();
+
+    const appForm = await Mongo.app_forms.findOne({
+      host: new ObjectId(hostId),
+    });
+
+    if (!appForm) {
+      return c.json({ message: "Form not found" }, Response.NOT_FOUND);
+    }
+
+    await Mongo.app_forms.updateOne(
+      { host: new ObjectId(hostId) },
+      {
+        $set: {
+          showAppsLiveBannerToCreator: false,
+        },
+      },
+    );
+
+    return c.json({ message: "Apps Live Banner marked as seen" }, Response.OK);
   } catch (error) {
     return c.json(
       { message: "Internal Server Error" },
@@ -1829,6 +1865,7 @@ export {
   getFormByHostIdHandler,
   getFormByIdHandler,
   getFormOverviewByHostIdHandler,
+  markAppsLiveBannerSeenHandler,
   markFormApprovedHandler,
   markFormDeployedHandler,
   markFormInStoreReviewHandler,

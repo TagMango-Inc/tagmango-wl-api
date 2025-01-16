@@ -6,8 +6,8 @@ import { zValidator } from "@hono/zod-validator";
 import Mongo from "../../src/database";
 import { patchCustomHostByIdSchema } from "../../src/validations/customhost";
 import { AppFormStatus } from "../types/database";
-import { Response } from "../utils/statuscode";
 import { enqueueMessage } from "../utils/sqs";
+import { Response } from "../utils/statuscode";
 
 const factory = createFactory();
 /**
@@ -193,18 +193,19 @@ const patchCustomHostByIdHandler = factory.createHandlers(
             },
             {
               $set: {
+                showAppsLiveBannerToCreator: true,
                 status: AppFormStatus.DEPLOYED,
                 updatedAt: new Date(),
               },
             },
           );
           await enqueueMessage(
-            'appzap.app.deployed',
+            "appzap.app.deployed",
             {
               host: updatedCustomHost._id.toString(),
             },
-            {}
-          )
+            {},
+          );
         }
       }
 
