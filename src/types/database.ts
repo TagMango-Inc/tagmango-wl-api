@@ -1,4 +1,4 @@
-import { ObjectId } from 'mongodb';
+import { ObjectId } from "mongodb";
 
 export const Collections = {
   ADMIN_USER: "adminusers",
@@ -159,6 +159,7 @@ export interface IMetaData {
   backgroundEndColor: string;
   backgroundGradientAngle: number;
   logoPadding: number;
+  iosLogoPadding: number;
 
   iosDeploymentDetails: IIosDeploymentDetails;
   androidDeploymentDetails: IAndroidDeploymentDetails;
@@ -570,6 +571,7 @@ export interface IAppForm {
   backgroundEndColor: string;
   backgroundGradientAngle: number;
   logoPadding: number;
+  iosLogoPadding: number;
 
   androidStoreSettings: IAndroidStoreSettings;
 

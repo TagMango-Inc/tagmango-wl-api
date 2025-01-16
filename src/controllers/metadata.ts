@@ -1,12 +1,12 @@
-import fs from 'fs-extra';
-import { createFactory } from 'hono/factory';
-import { ObjectId } from 'mongodb';
-import path from 'path';
+import fs from "fs-extra";
+import { createFactory } from "hono/factory";
+import { ObjectId } from "mongodb";
+import path from "path";
 
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from "@hono/zod-validator";
 
-import Mongo from '../../src/database';
-import { Response } from '../../src/utils/statuscode';
+import Mongo from "../../src/database";
+import { Response } from "../../src/utils/statuscode";
 import {
   deleteAndroidScreenshotsSchema,
   deleteIosScreenshotsSchema,
@@ -21,12 +21,9 @@ import {
   updateIosReviewMetadataSchema,
   updateIosStoreMetadataSchema,
   updateMetadataLogoSchema,
-} from '../../src/validations/metadata';
-import {
-  AppFormStatus,
-  IIosScreenshots,
-} from '../types/database';
-import { base64ToImage } from '../utils/image';
+} from "../../src/validations/metadata";
+import { AppFormStatus, IIosScreenshots } from "../types/database";
+import { base64ToImage } from "../utils/image";
 
 const factory = createFactory();
 
@@ -80,6 +77,7 @@ const createMetadata = factory.createHandlers(async (c) => {
       backgroundEndColor: "#ffffff",
       backgroundGradientAngle: 45,
       logoPadding: 15,
+      iosLogoPadding: 15,
       iosDeploymentDetails: {
         bundleId: `com.tagmango.${formattedName}`,
         lastDeploymentDetails: {
@@ -205,6 +203,7 @@ const uploadMetadataLogo = factory.createHandlers(
       const icon = body.icon;
       const background = body.background;
       const foreground = body.foreground;
+      const iosIcon = body.iosIcon;
 
       const logoPath = `./assets/${appId}`;
 
@@ -225,6 +224,7 @@ const uploadMetadataLogo = factory.createHandlers(
         base64ToImage(icon, `${logoPath}/icon.png`),
         base64ToImage(background, `${logoPath}/background.png`),
         base64ToImage(foreground, `${logoPath}/foreground.png`),
+        base64ToImage(iosIcon, `${logoPath}/iosIcon.png`),
       ]);
 
       await Mongo.metadata.updateOne(
@@ -243,6 +243,7 @@ const uploadMetadataLogo = factory.createHandlers(
             backgroundGradientAngle:
               body.backgroundGradientAngle || metadata.backgroundGradientAngle,
             logoPadding: body.logoPadding || metadata.logoPadding,
+            iosLogoPadding: body.iosLogoPadding || metadata.iosLogoPadding,
           },
         },
       );
