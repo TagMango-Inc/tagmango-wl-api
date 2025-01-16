@@ -15,13 +15,11 @@ const updateMetadataLogoSchema = z.object({
   icon: z.string(),
   background: z.string(),
   foreground: z.string(),
-  iosIcon: z.string(),
   backgroundType: z.enum(["color", "gradient"]).optional(),
   backgroundStartColor: z.string().optional(),
   backgroundEndColor: z.string().optional(),
   backgroundGradientAngle: z.number().optional(),
   logoPadding: z.number().optional(),
-  iosLogoPadding: z.number().optional(),
 });
 
 const updateAndroidDeploymentDetailsSchema = z.object({

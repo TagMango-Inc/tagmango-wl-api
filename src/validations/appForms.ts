@@ -16,7 +16,6 @@ const updatAppFormLogoSchema = z.object({
   logo: z.string().optional(),
   customOneSignalIcon: z.string().optional(),
   icon: z.string(),
-  iosIcon: z.string(),
   background: z.string(),
   foreground: z.string(),
   backgroundType: z.enum(["color", "gradient"]),
@@ -24,7 +23,6 @@ const updatAppFormLogoSchema = z.object({
   backgroundEndColor: z.string().optional(),
   backgroundGradientAngle: z.number().optional(),
   logoPadding: z.number(),
-  iosLogoPadding: z.number(),
 });
 
 export {
