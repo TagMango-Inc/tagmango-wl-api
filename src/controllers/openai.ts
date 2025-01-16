@@ -17,15 +17,15 @@ const generateAppFormDescriptions = async (appDetails: {
   const prompts = [
     {
       type: "androidStoreSettings.short_description",
-      prompt: `Generate a short description for the Android Play Store for an app with the following details:\n\nApp Name: ${name}\nApp Category: ${category}\nTarget Audience: ${audience}\nPurpose: ${purpose}\nKey Features: ${features}\n\nShort Description (max 80 characters):`,
+      prompt: `Generate a short description for the Android Play Store in strictly not more than 80 characters for an app with the following details:\n\nApp Name: ${name}\nApp Category: ${category}\nTarget Audience: ${audience}\nPurpose: ${purpose}\nKey Features: ${features}\n\nShort Description (max 80 characters):`,
     },
     {
       type: "androidStoreSettings.full_description",
-      prompt: `Generate a long description for the Android Play Store for an app with the following details:\n\nApp Name: ${name}\nApp Category: ${category}\nTarget Audience: ${audience}\nPurpose: ${purpose}\nKey Features: ${features}\n\nLong Description (max 4000 characters):`,
+      prompt: `Generate a long description for the Android Play Store in strictly not more than 4000 characters for an app with the following details:\n\nApp Name: ${name}\nApp Category: ${category}\nTarget Audience: ${audience}\nPurpose: ${purpose}\nKey Features: ${features}\n\nLong Description (max 4000 characters):`,
     },
     {
       type: "iosStoreSettings.description",
-      prompt: `Generate a description for the iOS App Store for an app with the following details:\n\nApp Name: ${name}\nApp Category: ${category}\nTarget Audience: ${audience}\nPurpose: ${purpose}\nKey Features: ${features}\n\nDescription (max 4000 characters):`,
+      prompt: `Generate a description for the iOS App Store in strictly not more than 80 characters for an app with the following details:\n\nApp Name: ${name}\nApp Category: ${category}\nTarget Audience: ${audience}\nPurpose: ${purpose}\nKey Features: ${features}\n\nDescription (max 4000 characters):`,
     },
   ];
 
