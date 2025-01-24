@@ -173,8 +173,10 @@ const { readFile, writeFile } = fs.promises;
               `cp ../../../../assets/${hostId}/icon.png .`,
               `cp ../../../../assets/${hostId}/foreground.png .`,
               `cp ../../../../assets/${hostId}/background.png .`,
+              `cp ../../../../assets/${hostId}/iosIcon.png .`,
               `mkdir -p android ios`,
-              `npx icon-set-creator create`,
+              `npx icon-set-creator create -A --adaptive-icon-background ./background.png --adaptive-icon-foreground ./foreground.png ./icon.png`,
+              `npx icon-set-creator create -I ./iosIcon.png`,
             ],
             // Generating screenshots
             [taskNames[3].id]:

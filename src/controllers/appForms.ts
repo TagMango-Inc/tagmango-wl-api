@@ -752,6 +752,7 @@ const uploadFormLogo = factory.createHandlers(
       const icon = body.icon;
       const background = body.background;
       const foreground = body.foreground;
+      const iosIcon = body.iosIcon;
 
       const logoPath = `./forms/${formId}`;
 
@@ -772,6 +773,7 @@ const uploadFormLogo = factory.createHandlers(
         base64ToImage(icon, `${logoPath}/icon.png`),
         base64ToImage(background, `${logoPath}/background.png`),
         base64ToImage(foreground, `${logoPath}/foreground.png`),
+        base64ToImage(iosIcon, `${logoPath}/iosIcon.png`),
       ]);
 
       await Mongo.app_forms.updateOne(
@@ -794,6 +796,7 @@ const uploadFormLogo = factory.createHandlers(
             backgroundGradientAngle:
               body.backgroundGradientAngle || form.backgroundGradientAngle,
             logoPadding: body.logoPadding || form.logoPadding,
+            iosLogoPadding: body.iosLogoPadding || form.iosLogoPadding,
             status: AppFormStatus.IN_PROGRESS,
             updatedAt: new Date(),
           },
@@ -1001,6 +1004,7 @@ const submitFormHandler = factory.createHandlers(async (c) => {
         backgroundEndColor: "#ffffff",
         backgroundGradientAngle: 45,
         logoPadding: 15,
+        iosLogoPadding: 15,
         iosDeploymentDetails: {
           bundleId: `com.tagmango.${formattedName}`,
           lastDeploymentDetails: {
@@ -1125,6 +1129,7 @@ const approveFormHandler = factory.createHandlers(
         "icon.png",
         "background.png",
         "foreground.png",
+        "iosIcon.png",
       ];
 
       let allImageFilesExists = true;
@@ -1157,6 +1162,7 @@ const approveFormHandler = factory.createHandlers(
             backgroundEndColor: form.backgroundEndColor,
             backgroundGradientAngle: form.backgroundGradientAngle,
             logoPadding: form.logoPadding,
+            iosLogoPadding: form.iosLogoPadding,
             androidStoreSettings: form.androidStoreSettings,
             iosStoreSettings: form.iosStoreSettings,
             iosInfoSettings: form.iosInfoSettings,
@@ -1411,6 +1417,7 @@ const markFormApprovedHandler = factory.createHandlers(
             backgroundEndColor: metadata.backgroundEndColor || "#ffffff",
             backgroundGradientAngle: metadata.backgroundGradientAngle || 45,
             logoPadding: metadata.logoPadding || 15,
+            iosLogoPadding: metadata.iosLogoPadding || 15,
 
             androidStoreSettings: {
               title: metadata.androidStoreSettings?.title || "",
