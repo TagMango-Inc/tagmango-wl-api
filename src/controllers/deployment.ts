@@ -121,6 +121,163 @@ const getDeploymentDetails = factory.createHandlers(async (c) => {
  DEPLOYMENTS HANDLERS
 */
 
+// get all deployments across all hosts
+
+const getAllDeployments = factory.createHandlers(async (c) => {
+  try {
+    const { page, limit, search, platform, status } = c.req.query();
+
+    let PAGE = page ? parseInt(page as string) : 1;
+    let LIMIT = limit ? parseInt(limit as string) : 30;
+    let SEARCH = search ? (search as string) : "";
+
+    const searchedDeployments = await Mongo.deployment
+      .aggregate([
+        {
+          $match: {
+            $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
+            platform: platform ?? { $in: PlatformValues },
+            status: status ?? { $in: StatusValues },
+          },
+        },
+        {
+          $facet: {
+            totalSearchResults: [
+              {
+                $count: "count",
+              },
+            ],
+            deployments: [
+              {
+                $lookup: {
+                  from: "customhosts",
+                  localField: "host",
+                  foreignField: "_id",
+                  as: "host",
+                },
+              },
+              {
+                $unwind: "$host",
+              },
+              {
+                $lookup: {
+                  from: "adminusers",
+                  localField: "user",
+                  foreignField: "_id",
+                  as: "user",
+                },
+              },
+              {
+                $unwind: {
+                  path: "$user",
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
+                $lookup: {
+                  from: "adminusers",
+                  let: { cancelledById: "$cancelledBy" },
+                  pipeline: [
+                    {
+                      $match: {
+                        $expr: { $ne: ["$$cancelledById", null] },
+                      },
+                    },
+                    {
+                      $match: {
+                        $expr: { $eq: ["$_id", "$$cancelledById"] },
+                      },
+                    },
+                    {
+                      $project: { _id: 1, name: 1 },
+                    },
+                  ],
+                  as: "cancelled_by_user",
+                },
+              },
+              {
+                $unwind: {
+                  path: "$cancelled_by_user",
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
+                $project: {
+                  "user._id": 1,
+                  "user.name": 1,
+                  "cancelled_by_user._id": 1,
+                  "cancelled_by_user.name": 1,
+                  host: "$host._id",
+                  platform: 1,
+                  versionName: 1,
+                  buildNumber: 1,
+                  status: 1,
+                  updatedAt: 1,
+                  createdAt: 1,
+                  appName: "$host.appName",
+                  appId: "$host._id",
+                  logo: "$host.logo",
+                },
+              },
+              {
+                $sort: { updatedAt: -1 },
+              },
+              {
+                $skip: (PAGE - 1) * LIMIT,
+              },
+              {
+                $limit: LIMIT,
+              },
+            ],
+          },
+        },
+        {
+          $unwind: {
+            path: "$totalSearchResults",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            deployments: 1,
+            totalDeployments: { $ifNull: ["$totalSearchResults.count", 0] },
+          },
+        },
+      ])
+      .toArray();
+
+    const results =
+      searchedDeployments.length > 0 && searchedDeployments[0].deployments
+        ? searchedDeployments[0].deployments
+        : [];
+
+    const hasNextPage = searchedDeployments[0]?.totalDeployments > PAGE * LIMIT;
+
+    return c.json(
+      {
+        message: "All Deployments for Custom Host",
+        result: {
+          deployments: results,
+          totalDeployments: 0, //! no need for this
+          totalSearchResults: searchedDeployments[0]?.totalDeployments,
+          currentPage: PAGE,
+          nextPage: hasNextPage ? PAGE + 1 : -1,
+          limit: LIMIT,
+          hasNext: hasNextPage,
+        },
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    console.log(error);
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
+// get all deployments for a host
 const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
   try {
     const { id: appId } = c.req.param();
@@ -1324,6 +1481,7 @@ const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
 export {
   cancelDeploymentJobByDeploymentId,
   createNewDeploymentHandler,
+  getAllDeployments,
   getAllDeploymentsHandler,
   getDeploymentDetails,
   getDeploymentDetailsById,

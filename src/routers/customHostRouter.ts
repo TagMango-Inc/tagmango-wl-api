@@ -1,22 +1,23 @@
-import { Hono } from 'hono';
+import { Hono } from "hono";
 
 import {
   getAllCustomHostsHandler,
   getCustomHostByIdHandler,
   patchCustomHostByIdHandler,
-} from '../../src/controllers/customhost';
+} from "../../src/controllers/customhost";
 import {
   cancelDeploymentJobByDeploymentId,
   createNewDeploymentHandler,
+  getAllDeployments,
   getAllDeploymentsHandler,
   getDeploymentDetails,
   getDeploymentDetailsById,
-  restartDeploymentTaskByDeploymentId,
   getDeploymentRequirementsChecklist,
   getDeploymentTaskLogsByTaskId,
   getRecentDeploymentsHandler,
+  restartDeploymentTaskByDeploymentId,
   updateFailedAndroidDeploymentStatus,
-} from '../../src/controllers/deployment';
+} from "../../src/controllers/deployment";
 
 const router = new Hono();
 
@@ -31,12 +32,16 @@ const router = new Hono();
 
 router.get("/", ...getAllCustomHostsHandler);
 router.get("/recent-deployments", ...getRecentDeploymentsHandler);
+router.get("/deployments", ...getAllDeployments);
 router.get("/:id", ...getCustomHostByIdHandler);
 router.patch("/:id", ...patchCustomHostByIdHandler);
 router.get("/:id/deployment-details/:target", ...getDeploymentDetails);
 router.get("/:id/deployments", ...getAllDeploymentsHandler);
 router.get("/:id/deployments/:deploymentId", ...getDeploymentDetailsById);
-router.get("/:id/deployments/:deploymentId/restart", ...restartDeploymentTaskByDeploymentId);
+router.get(
+  "/:id/deployments/:deploymentId/restart",
+  ...restartDeploymentTaskByDeploymentId,
+);
 router.post("/:id/deployments", ...createNewDeploymentHandler);
 router.get(
   "/:id/deployments/:deploymentId/logs/:taskId",
