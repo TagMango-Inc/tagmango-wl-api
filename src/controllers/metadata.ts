@@ -1061,11 +1061,61 @@ const deleteIosScreenshots = factory.createHandlers(
   },
 );
 
+// get all the apps that are deployed with the specific version
+const getAppsCountByVersion = factory.createHandlers(async (c) => {
+  try {
+    const { version: targetVersion } = c.req.param();
+
+    const result = await Mongo.metadata
+      .aggregate([
+        {
+          $facet: {
+            androidCount: [
+              {
+                $match: {
+                  "androidDeploymentDetails.versionName": targetVersion,
+                },
+              },
+              { $count: "count" },
+            ],
+            iosCount: [
+              { $match: { "iosDeploymentDetails.versionName": targetVersion } },
+              { $count: "count" },
+            ],
+          },
+        },
+        {
+          $project: {
+            android: {
+              $ifNull: [{ $arrayElemAt: ["$androidCount.count", 0] }, 0],
+            },
+            ios: { $ifNull: [{ $arrayElemAt: ["$iosCount.count", 0] }, 0] },
+          },
+        },
+      ])
+      .toArray();
+
+    return c.json(
+      {
+        message: "Apps count fetched successfully",
+        result: result[0],
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
 export {
   createMetadata,
   deleteAndroidScreenshots,
   deleteIosScreenshots,
   getAppMetadata,
+  getAppsCountByVersion,
   reorderAndroidScreenshots,
   reorderIosScreenshots,
   updateAndroidDeveloperAccountForApp,
