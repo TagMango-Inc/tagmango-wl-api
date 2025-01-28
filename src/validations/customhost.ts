@@ -7,6 +7,11 @@ export const createNewDeploymentSchema = z.object({
   generateIAPScreenshot: z.boolean().optional(),
 });
 
+export const createBulkReDeploymentSchema = z.object({
+  target: z.enum(["android", "ios"]),
+  customHostIds: z.array(z.string()),
+});
+
 export const patchCustomHostByIdSchema = z.object({
   domain: z.string().optional(),
   logo: z.string().optional(),

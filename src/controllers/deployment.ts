@@ -9,7 +9,7 @@ import { zValidator } from "@hono/zod-validator";
 
 import { DEPLOYMENT_REQUIREMENTS } from "../../src/constants";
 import Mongo from "../../src/database";
-import { buildQueue } from "../../src/job/config";
+import { buildQueue, redeploymentQueue } from "../../src/job/config";
 import { JWTPayloadType } from "../../src/types";
 import {
   IDeveloperAccountAndroid,
@@ -19,7 +19,10 @@ import {
 } from "../../src/types/database";
 import { generateDeploymentTasks } from "../../src/utils/generateTaskDetails";
 import { Response } from "../../src/utils/statuscode";
-import { createNewDeploymentSchema } from "../../src/validations/customhost";
+import {
+  createBulkReDeploymentSchema,
+  createNewDeploymentSchema,
+} from "../../src/validations/customhost";
 import { updateFailedAndroidDeploymentSchema } from "../validations/deployment";
 
 const { readFile } = fs.promises;
@@ -994,6 +997,126 @@ const createNewDeploymentHandler = factory.createHandlers(
   },
 );
 
+const createBulkReDeploymentHandler = factory.createHandlers(
+  zValidator("json", createBulkReDeploymentSchema),
+  async (c) => {
+    try {
+      const { target, customHostIds } = c.req.valid("json");
+      const payload: JWTPayloadType = c.get("jwtPayload");
+
+      if (!target) {
+        return c.json(
+          { message: "Deployment target is required" },
+          Response.BAD_REQUEST,
+        );
+      }
+
+      if (!customHostIds.length) {
+        return c.json(
+          { message: "Custom Host IDs are required" },
+          Response.BAD_REQUEST,
+        );
+      }
+
+      // pending or processing
+      const recentActiveDeployment = await Mongo.redeployment.findOne({
+        status: { $in: [Status.PENDING, Status.PROCESSING] },
+        platform: target,
+      });
+
+      if (recentActiveDeployment) {
+        const { _id, versionName, platform } = recentActiveDeployment;
+        const jobName = `${_id}-${platform}-${versionName}`;
+        const jobs = await redeploymentQueue.getJobs();
+        const job = jobs.find((job) => job.name === jobName);
+        if (job) {
+          const jobStatus = await job.getState();
+          if (jobStatus === "active" || jobStatus === "waiting") {
+            return c.json(
+              { message: "Deployment job already exists" },
+              Response.CONFLICT,
+            );
+          }
+        }
+      }
+
+      const user = await Mongo.user.findOne(
+        {
+          _id: new ObjectId(payload.id),
+        },
+        { projection: { name: 1 } },
+      );
+
+      if (!user) {
+        return c.json({ message: "User not found" }, Response.NOT_FOUND);
+      }
+
+      const releaseBuffer = await fs.promises.readFile(
+        `./data/release.json`,
+        "utf-8",
+      );
+
+      const releaseDetails = JSON.parse(releaseBuffer) as {
+        versionName: string;
+        buildNumber: number;
+      };
+
+      let currentVersionName = releaseDetails.versionName;
+
+      // creating a new re-deployment
+      const createdReDeployment = await Mongo.redeployment.insertOne({
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        user: new ObjectId(payload.id),
+        platform: target,
+        versionName: currentVersionName,
+        hosts: customHostIds.map((id: string) => new ObjectId(id)),
+        status: Status.PENDING,
+        progress: {
+          completed: 0,
+          total: customHostIds.length,
+          failed: [],
+          succeeded: [],
+        },
+      });
+
+      await redeploymentQueue.add(
+        `${createdReDeployment.insertedId.toString()}-${target}-${currentVersionName}`,
+        {
+          hostIds: customHostIds,
+          platform: target,
+          redeploymentId: createdReDeployment.insertedId.toString(),
+        },
+        {
+          attempts: 0,
+        },
+      );
+
+      return c.json(
+        {
+          message: "Created new re-deployment job",
+          result: {
+            _id: createdReDeployment.insertedId.toString(),
+            user,
+            platform: target,
+            versionName: currentVersionName,
+            status: Status.PENDING,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+        Response.CREATED,
+      );
+    } catch (error) {
+      console.log(error);
+      return c.json(
+        { message: "Internal Server Error", error },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
 const getDeploymentDetailsById = factory.createHandlers(async (c) => {
   try {
     const { id, deploymentId } = c.req.param();
@@ -1480,6 +1603,7 @@ const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
 
 export {
   cancelDeploymentJobByDeploymentId,
+  createBulkReDeploymentHandler,
   createNewDeploymentHandler,
   getAllDeployments,
   getAllDeploymentsHandler,

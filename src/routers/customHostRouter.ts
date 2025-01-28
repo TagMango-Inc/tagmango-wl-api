@@ -7,6 +7,7 @@ import {
 } from "../../src/controllers/customhost";
 import {
   cancelDeploymentJobByDeploymentId,
+  createBulkReDeploymentHandler,
   createNewDeploymentHandler,
   getAllDeployments,
   getAllDeploymentsHandler,
@@ -43,6 +44,7 @@ router.get(
   ...restartDeploymentTaskByDeploymentId,
 );
 router.post("/:id/deployments", ...createNewDeploymentHandler);
+router.post("/deployments/bulk-redeploy", ...createBulkReDeploymentHandler);
 router.get(
   "/:id/deployments/:deploymentId/logs/:taskId",
   ...getDeploymentTaskLogsByTaskId,
