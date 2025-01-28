@@ -74,7 +74,7 @@ export interface IDeployment {
   cancelledBy: ObjectId | null;
   isFirstDeployment: boolean;
   generateIAPScreenshot: boolean;
-
+  redeploymentId?: ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
 }

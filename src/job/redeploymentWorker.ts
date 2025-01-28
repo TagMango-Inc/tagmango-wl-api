@@ -330,6 +330,7 @@ const { readFile, writeFile } = fs.promises;
                 updatedAt: new Date(),
                 isFirstDeployment: false,
                 generateIAPScreenshot: false,
+                redeploymentId: new ObjectId(redeploymentId),
               });
 
               let androidDeveloperAccount: WithId<IDeveloperAccountAndroid> | null =
