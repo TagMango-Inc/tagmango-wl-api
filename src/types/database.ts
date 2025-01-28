@@ -87,7 +87,10 @@ export interface IRedeployment {
   progress: {
     total: number;
     completed: number;
-    failed: ObjectId[];
+    failed: {
+      hostId: ObjectId;
+      reason: string;
+    }[];
     succeeded: ObjectId[];
   };
   status: Exclude<Status, "warning">;

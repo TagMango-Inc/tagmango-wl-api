@@ -1086,6 +1086,7 @@ const createBulkReDeploymentHandler = factory.createHandlers(
           hostIds: customHostIds,
           platform: target,
           redeploymentId: createdReDeployment.insertedId.toString(),
+          userId: payload.id,
         },
         {
           attempts: 0,
