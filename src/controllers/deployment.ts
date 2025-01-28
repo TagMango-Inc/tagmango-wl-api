@@ -1118,6 +1118,44 @@ const createBulkReDeploymentHandler = factory.createHandlers(
   },
 );
 
+const getLatestRedeploymentDetailsById = factory.createHandlers(async (c) => {
+  try {
+    const redeployment = await Mongo.redeployment.findOne(
+      {},
+      {
+        sort: { createdAt: -1 },
+        projection: {
+          user: 1,
+          platform: 1,
+          status: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          versionName: 1,
+          hosts: 1,
+          progress: 1,
+        },
+      },
+    );
+
+    return c.json(
+      {
+        message: "Fetched ReDeployment Details",
+        result: redeployment
+          ? redeployment
+          : {
+              status: Status.SUCCESS,
+            },
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
 const getDeploymentDetailsById = factory.createHandlers(async (c) => {
   try {
     const { id, deploymentId } = c.req.param();
@@ -1612,6 +1650,7 @@ export {
   getDeploymentDetailsById,
   getDeploymentRequirementsChecklist,
   getDeploymentTaskLogsByTaskId,
+  getLatestRedeploymentDetailsById,
   getRecentDeploymentsHandler,
   restartDeploymentTaskByDeploymentId,
   updateFailedAndroidDeploymentStatus,

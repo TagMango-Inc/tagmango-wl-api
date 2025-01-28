@@ -15,6 +15,7 @@ import {
   getDeploymentDetailsById,
   getDeploymentRequirementsChecklist,
   getDeploymentTaskLogsByTaskId,
+  getLatestRedeploymentDetailsById,
   getRecentDeploymentsHandler,
   restartDeploymentTaskByDeploymentId,
   updateFailedAndroidDeploymentStatus,
@@ -34,6 +35,7 @@ const router = new Hono();
 router.get("/", ...getAllCustomHostsHandler);
 router.get("/recent-deployments", ...getRecentDeploymentsHandler);
 router.get("/deployments", ...getAllDeployments);
+router.get("/latest-redeployment-details", ...getLatestRedeploymentDetailsById);
 router.get("/:id", ...getCustomHostByIdHandler);
 router.patch("/:id", ...patchCustomHostByIdHandler);
 router.get("/:id/deployment-details/:target", ...getDeploymentDetails);
