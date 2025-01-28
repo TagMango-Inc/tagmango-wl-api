@@ -1066,20 +1066,56 @@ const getAppsCountByVersion = factory.createHandlers(async (c) => {
   try {
     const { version: targetVersion } = c.req.param();
 
-    const result = await Mongo.metadata
+    const result = await Mongo.customhost
       .aggregate([
+        {
+          $match: {
+            platformSuspended: { $ne: true },
+          },
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "creator",
+            foreignField: "_id",
+            as: "creatorDetails",
+          },
+        },
+        {
+          $match: {
+            "creatorDetails.whitelabelPlanType": "enterprise-plan",
+          },
+        },
+        {
+          $lookup: {
+            from: "customhostmetadatas",
+            localField: "_id",
+            foreignField: "host",
+            as: "metadata",
+          },
+        },
+        {
+          $unwind: "$metadata",
+        },
         {
           $facet: {
             androidCount: [
               {
                 $match: {
-                  "androidDeploymentDetails.versionName": targetVersion,
+                  androidShareLink: { $type: "string", $ne: "" },
+                  "metadata.androidDeploymentDetails.versionName":
+                    targetVersion,
                 },
               },
               { $count: "count" },
             ],
             iosCount: [
-              { $match: { "iosDeploymentDetails.versionName": targetVersion } },
+              {
+                $match: {
+                  iosShareLink: { $type: "string", $ne: "" },
+                  "metadata.iosDeploymentDetails.versionName": targetVersion,
+                },
+              },
               { $count: "count" },
             ],
           },
