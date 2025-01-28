@@ -14,6 +14,7 @@ import {
   IMangoRoom,
   IMetaData,
   IPost,
+  IRedeployment,
   ISubscription,
   IUser,
 } from "../../src/types/database";
@@ -28,6 +29,7 @@ abstract class Mongo {
   public static user: Collection<IAdminUser>;
   public static customhost: Collection<ICustomHost>;
   public static deployment: Collection<IDeployment>;
+  public static redeployment: Collection<IRedeployment>;
   public static metadata: Collection<IMetaData>;
   public static mango: Collection<IMango>;
   public static post: Collection<IPost>;
@@ -57,6 +59,9 @@ abstract class Mongo {
         Collections.CUSTOM_HOST,
       );
       this.deployment = this.db.collection<IDeployment>(Collections.DEPLOYMENT);
+      this.redeployment = this.db.collection<IRedeployment>(
+        Collections.REDEPLOYMENT,
+      );
       this.metadata = this.db.collection<IMetaData>(Collections.METADATA);
       this.mango = this.db.collection<IMango>(Collections.MANGO);
       this.post = this.db.collection<IPost>(Collections.POST);

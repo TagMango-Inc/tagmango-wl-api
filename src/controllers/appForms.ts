@@ -1862,6 +1862,108 @@ const fetchPreRequisitesForApp = factory.createHandlers(async (c) => {
   }
 });
 
+// get all hosts that have deployed forms but are not on the latest version
+const getLiveAppsOnOldVersion = factory.createHandlers(async (c) => {
+  const { latestVersion, target } = c.req.query();
+
+  if (!latestVersion || !target) {
+    return c.json(
+      { message: "latestVersion and target are required" },
+      {
+        status: 400,
+        statusText: "Bad Request",
+      },
+    );
+  }
+
+  let latestVersionQuery = "",
+    shareLinkQuery = {};
+  if (target === "ios") {
+    latestVersionQuery = "metadata.iosDeploymentDetails.versionName";
+    shareLinkQuery = { iosShareLink: { $type: "string", $ne: "" } };
+  } else {
+    latestVersionQuery = "metadata.androidDeploymentDetails.versionName";
+    shareLinkQuery = { androidShareLink: { $type: "string", $ne: "" } };
+  }
+
+  try {
+    const result = await Mongo.customhost
+      .aggregate([
+        {
+          $match: {
+            platformSuspended: { $ne: true },
+            ...shareLinkQuery,
+          },
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "creator",
+            foreignField: "_id",
+            as: "creatorDetails",
+          },
+        },
+        {
+          $match: {
+            "creatorDetails.whitelabelPlanType": "enterprise-plan",
+          },
+        },
+        {
+          $lookup: {
+            from: "customhostmetadatas",
+            localField: "_id",
+            foreignField: "host",
+            as: "metadata",
+          },
+        },
+        {
+          $unwind: "$metadata",
+        },
+        {
+          $match: {
+            [latestVersionQuery]: { $ne: latestVersion },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            host: 1,
+            appName: 1,
+            brandname: 1,
+            logo: 1,
+            createdAt: 1,
+            "appform.status": 1,
+            "metadata.iosDeploymentDetails.versionName": 1,
+            "metadata.androidDeploymentDetails.versionName": 1,
+          },
+        },
+      ])
+      .toArray();
+
+    return c.json(
+      {
+        message: "Live apps on old version fetched successfully",
+        result: {
+          apps: result,
+        },
+      },
+      {
+        status: 200,
+        statusText: "OK",
+      },
+    );
+  } catch (error) {
+    console.log(error);
+    return c.json(
+      { message: "Internal Server Error", error: error },
+      {
+        status: 500,
+        statusText: "Internal Server Error",
+      },
+    );
+  }
+});
+
 export {
   approveFormHandler,
   deleteFormByIdHandler,
@@ -1872,6 +1974,7 @@ export {
   getFormByHostIdHandler,
   getFormByIdHandler,
   getFormOverviewByHostIdHandler,
+  getLiveAppsOnOldVersion,
   markAppsLiveBannerSeenHandler,
   markFormApprovedHandler,
   markFormDeployedHandler,

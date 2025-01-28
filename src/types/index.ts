@@ -48,6 +48,13 @@ export type BuildJobPayloadType = {
   platform: "android" | "ios";
 } & BuildConfigType;
 
+export type RedeploymentJobPayloadType = {
+  hostIds: string[];
+  platform: "android" | "ios";
+  redeploymentId: string;
+  userId: string;
+};
+
 export type JobProgressType = {
   task: {
     id: string;

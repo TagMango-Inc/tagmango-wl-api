@@ -9,7 +9,7 @@ import { zValidator } from "@hono/zod-validator";
 
 import { DEPLOYMENT_REQUIREMENTS } from "../../src/constants";
 import Mongo from "../../src/database";
-import { buildQueue } from "../../src/job/config";
+import { buildQueue, redeploymentQueue } from "../../src/job/config";
 import { JWTPayloadType } from "../../src/types";
 import {
   IDeveloperAccountAndroid,
@@ -19,7 +19,10 @@ import {
 } from "../../src/types/database";
 import { generateDeploymentTasks } from "../../src/utils/generateTaskDetails";
 import { Response } from "../../src/utils/statuscode";
-import { createNewDeploymentSchema } from "../../src/validations/customhost";
+import {
+  createBulkReDeploymentSchema,
+  createNewDeploymentSchema,
+} from "../../src/validations/customhost";
 import { updateFailedAndroidDeploymentSchema } from "../validations/deployment";
 
 const { readFile } = fs.promises;
@@ -121,6 +124,163 @@ const getDeploymentDetails = factory.createHandlers(async (c) => {
  DEPLOYMENTS HANDLERS
 */
 
+// get all deployments across all hosts
+
+const getAllDeployments = factory.createHandlers(async (c) => {
+  try {
+    const { page, limit, search, platform, status } = c.req.query();
+
+    let PAGE = page ? parseInt(page as string) : 1;
+    let LIMIT = limit ? parseInt(limit as string) : 30;
+    let SEARCH = search ? (search as string) : "";
+
+    const searchedDeployments = await Mongo.deployment
+      .aggregate([
+        {
+          $match: {
+            $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
+            platform: platform ?? { $in: PlatformValues },
+            status: status ?? { $in: StatusValues },
+          },
+        },
+        {
+          $facet: {
+            totalSearchResults: [
+              {
+                $count: "count",
+              },
+            ],
+            deployments: [
+              {
+                $lookup: {
+                  from: "customhosts",
+                  localField: "host",
+                  foreignField: "_id",
+                  as: "host",
+                },
+              },
+              {
+                $unwind: "$host",
+              },
+              {
+                $lookup: {
+                  from: "adminusers",
+                  localField: "user",
+                  foreignField: "_id",
+                  as: "user",
+                },
+              },
+              {
+                $unwind: {
+                  path: "$user",
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
+                $lookup: {
+                  from: "adminusers",
+                  let: { cancelledById: "$cancelledBy" },
+                  pipeline: [
+                    {
+                      $match: {
+                        $expr: { $ne: ["$$cancelledById", null] },
+                      },
+                    },
+                    {
+                      $match: {
+                        $expr: { $eq: ["$_id", "$$cancelledById"] },
+                      },
+                    },
+                    {
+                      $project: { _id: 1, name: 1 },
+                    },
+                  ],
+                  as: "cancelled_by_user",
+                },
+              },
+              {
+                $unwind: {
+                  path: "$cancelled_by_user",
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
+                $project: {
+                  "user._id": 1,
+                  "user.name": 1,
+                  "cancelled_by_user._id": 1,
+                  "cancelled_by_user.name": 1,
+                  host: "$host._id",
+                  platform: 1,
+                  versionName: 1,
+                  buildNumber: 1,
+                  status: 1,
+                  updatedAt: 1,
+                  createdAt: 1,
+                  appName: "$host.appName",
+                  appId: "$host._id",
+                  logo: "$host.logo",
+                },
+              },
+              {
+                $sort: { updatedAt: -1 },
+              },
+              {
+                $skip: (PAGE - 1) * LIMIT,
+              },
+              {
+                $limit: LIMIT,
+              },
+            ],
+          },
+        },
+        {
+          $unwind: {
+            path: "$totalSearchResults",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            deployments: 1,
+            totalDeployments: { $ifNull: ["$totalSearchResults.count", 0] },
+          },
+        },
+      ])
+      .toArray();
+
+    const results =
+      searchedDeployments.length > 0 && searchedDeployments[0].deployments
+        ? searchedDeployments[0].deployments
+        : [];
+
+    const hasNextPage = searchedDeployments[0]?.totalDeployments > PAGE * LIMIT;
+
+    return c.json(
+      {
+        message: "All Deployments for Custom Host",
+        result: {
+          deployments: results,
+          totalDeployments: 0, //! no need for this
+          totalSearchResults: searchedDeployments[0]?.totalDeployments,
+          currentPage: PAGE,
+          nextPage: hasNextPage ? PAGE + 1 : -1,
+          limit: LIMIT,
+          hasNext: hasNextPage,
+        },
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    console.log(error);
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
+// get all deployments for a host
 const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
   try {
     const { id: appId } = c.req.param();
@@ -837,6 +997,165 @@ const createNewDeploymentHandler = factory.createHandlers(
   },
 );
 
+const createBulkReDeploymentHandler = factory.createHandlers(
+  zValidator("json", createBulkReDeploymentSchema),
+  async (c) => {
+    try {
+      const { target, customHostIds } = c.req.valid("json");
+      const payload: JWTPayloadType = c.get("jwtPayload");
+
+      if (!target) {
+        return c.json(
+          { message: "Deployment target is required" },
+          Response.BAD_REQUEST,
+        );
+      }
+
+      if (!customHostIds.length) {
+        return c.json(
+          { message: "Custom Host IDs are required" },
+          Response.BAD_REQUEST,
+        );
+      }
+
+      // pending or processing
+      const recentActiveDeployment = await Mongo.redeployment.findOne({
+        status: { $in: [Status.PENDING, Status.PROCESSING] },
+        platform: target,
+      });
+
+      if (recentActiveDeployment) {
+        const { _id, versionName, platform } = recentActiveDeployment;
+        const jobName = `${_id}-${platform}-${versionName}`;
+        const jobs = await redeploymentQueue.getJobs();
+        const job = jobs.find((job) => job.name === jobName);
+        if (job) {
+          const jobStatus = await job.getState();
+          if (jobStatus === "active" || jobStatus === "waiting") {
+            return c.json(
+              { message: "Deployment job already exists" },
+              Response.CONFLICT,
+            );
+          }
+        }
+      }
+
+      const user = await Mongo.user.findOne(
+        {
+          _id: new ObjectId(payload.id),
+        },
+        { projection: { name: 1 } },
+      );
+
+      if (!user) {
+        return c.json({ message: "User not found" }, Response.NOT_FOUND);
+      }
+
+      const releaseBuffer = await fs.promises.readFile(
+        `./data/release.json`,
+        "utf-8",
+      );
+
+      const releaseDetails = JSON.parse(releaseBuffer) as {
+        versionName: string;
+        buildNumber: number;
+      };
+
+      let currentVersionName = releaseDetails.versionName;
+
+      // creating a new re-deployment
+      const createdReDeployment = await Mongo.redeployment.insertOne({
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        user: new ObjectId(payload.id),
+        platform: target,
+        versionName: currentVersionName,
+        hosts: customHostIds.map((id: string) => new ObjectId(id)),
+        status: Status.PENDING,
+        progress: {
+          completed: 0,
+          total: customHostIds.length,
+          failed: [],
+          succeeded: [],
+        },
+      });
+
+      await redeploymentQueue.add(
+        `${createdReDeployment.insertedId.toString()}-${target}-${currentVersionName}`,
+        {
+          hostIds: customHostIds,
+          platform: target,
+          redeploymentId: createdReDeployment.insertedId.toString(),
+          userId: payload.id,
+        },
+        {
+          attempts: 0,
+        },
+      );
+
+      return c.json(
+        {
+          message: "Created new re-deployment job",
+          result: {
+            _id: createdReDeployment.insertedId.toString(),
+            user,
+            platform: target,
+            versionName: currentVersionName,
+            status: Status.PENDING,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+        Response.CREATED,
+      );
+    } catch (error) {
+      console.log(error);
+      return c.json(
+        { message: "Internal Server Error", error },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
+const getLatestRedeploymentDetailsById = factory.createHandlers(async (c) => {
+  try {
+    const redeployment = await Mongo.redeployment.findOne(
+      {},
+      {
+        sort: { createdAt: -1 },
+        projection: {
+          user: 1,
+          platform: 1,
+          status: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          versionName: 1,
+          hosts: 1,
+          progress: 1,
+        },
+      },
+    );
+
+    return c.json(
+      {
+        message: "Fetched ReDeployment Details",
+        result: redeployment
+          ? redeployment
+          : {
+              status: Status.SUCCESS,
+            },
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
 const getDeploymentDetailsById = factory.createHandlers(async (c) => {
   try {
     const { id, deploymentId } = c.req.param();
@@ -1323,12 +1642,15 @@ const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
 
 export {
   cancelDeploymentJobByDeploymentId,
+  createBulkReDeploymentHandler,
   createNewDeploymentHandler,
+  getAllDeployments,
   getAllDeploymentsHandler,
   getDeploymentDetails,
   getDeploymentDetailsById,
   getDeploymentRequirementsChecklist,
   getDeploymentTaskLogsByTaskId,
+  getLatestRedeploymentDetailsById,
   getRecentDeploymentsHandler,
   restartDeploymentTaskByDeploymentId,
   updateFailedAndroidDeploymentStatus,
