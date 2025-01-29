@@ -4,6 +4,7 @@ export const Collections = {
   ADMIN_USER: "adminusers",
   CUSTOM_HOST: "customhosts",
   DEPLOYMENT: "wldeployments",
+  REDEPLOYMENT: "wlredeployments",
   METADATA: "customhostmetadatas",
   MANGO: "mangos",
   POST: "posts",
@@ -73,6 +74,26 @@ export interface IDeployment {
   cancelledBy: ObjectId | null;
   isFirstDeployment: boolean;
   generateIAPScreenshot: boolean;
+  redeploymentId?: ObjectId | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IRedeployment {
+  hosts: ObjectId[];
+  user: ObjectId;
+  platform: Platform;
+  versionName: string;
+  progress: {
+    total: number;
+    completed: number;
+    failed: {
+      hostId: ObjectId;
+      reason: string;
+    }[];
+    succeeded: ObjectId[];
+  };
+  status: Exclude<Status, "warning">;
 
   createdAt: Date;
   updatedAt: Date;

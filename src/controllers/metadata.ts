@@ -1061,11 +1061,97 @@ const deleteIosScreenshots = factory.createHandlers(
   },
 );
 
+// get all the apps that are deployed with the specific version
+const getAppsCountByVersion = factory.createHandlers(async (c) => {
+  try {
+    const { version: targetVersion } = c.req.param();
+
+    const result = await Mongo.customhost
+      .aggregate([
+        {
+          $match: {
+            platformSuspended: { $ne: true },
+          },
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "creator",
+            foreignField: "_id",
+            as: "creatorDetails",
+          },
+        },
+        {
+          $match: {
+            "creatorDetails.whitelabelPlanType": "enterprise-plan",
+          },
+        },
+        {
+          $lookup: {
+            from: "customhostmetadatas",
+            localField: "_id",
+            foreignField: "host",
+            as: "metadata",
+          },
+        },
+        {
+          $unwind: "$metadata",
+        },
+        {
+          $facet: {
+            androidCount: [
+              {
+                $match: {
+                  androidShareLink: { $type: "string", $ne: "" },
+                  "metadata.androidDeploymentDetails.versionName":
+                    targetVersion,
+                },
+              },
+              { $count: "count" },
+            ],
+            iosCount: [
+              {
+                $match: {
+                  iosShareLink: { $type: "string", $ne: "" },
+                  "metadata.iosDeploymentDetails.versionName": targetVersion,
+                },
+              },
+              { $count: "count" },
+            ],
+          },
+        },
+        {
+          $project: {
+            android: {
+              $ifNull: [{ $arrayElemAt: ["$androidCount.count", 0] }, 0],
+            },
+            ios: { $ifNull: [{ $arrayElemAt: ["$iosCount.count", 0] }, 0] },
+          },
+        },
+      ])
+      .toArray();
+
+    return c.json(
+      {
+        message: "Apps count fetched successfully",
+        result: result[0],
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
 export {
   createMetadata,
   deleteAndroidScreenshots,
   deleteIosScreenshots,
   getAppMetadata,
+  getAppsCountByVersion,
   reorderAndroidScreenshots,
   reorderIosScreenshots,
   updateAndroidDeveloperAccountForApp,

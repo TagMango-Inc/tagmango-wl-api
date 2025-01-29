@@ -10,6 +10,7 @@ import {
   getFormByHostIdHandler,
   getFormByIdHandler,
   getFormOverviewByHostIdHandler,
+  getLiveAppsOnOldVersion,
   markAppsLiveBannerSeenHandler,
   markFormApprovedHandler,
   markFormDeployedHandler,
@@ -26,6 +27,7 @@ const router = new Hono();
 
 router.get("/", ...getAllFormsHandler);
 router.get("/count", ...getAllFormsCount);
+router.get("/live-apps-on-old-version", ...getLiveAppsOnOldVersion);
 router.get("/:formId", ...getFormByIdHandler);
 
 router.get("/host/:hostId/overview", ...getFormOverviewByHostIdHandler);
