@@ -1838,7 +1838,12 @@ const fetchPreRequisitesForApp = factory.createHandlers(async (c) => {
             {
               title: "Update your Platform's Logo",
               description: `Make sure you have uploaded your platform's logo in Settings > Platform Settings`,
-              isCompleted: customHost.logo ? true : false,
+              isCompleted:
+                customHost.logo &&
+                customHost.logo !==
+                  "https://assets.website-files.com/6302e597fbb6ee54fbee3b8a/630c8a92c693d29110158998_logocirclecolored.png"
+                  ? true
+                  : false,
               url: `/dashboard/platformsettings`,
             },
           ],
