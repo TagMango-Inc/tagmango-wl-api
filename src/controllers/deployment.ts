@@ -1547,6 +1547,16 @@ const updateFailedAndroidDeploymentStatus = factory.createHandlers(
         return c.json({ message: "Deployment not found" }, Response.NOT_FOUND);
       }
 
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(deploymentDetails.host),
+      });
+
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      fs.remove(`./deployments/${metadata.androidDeploymentDetails.bundleId}`);
+
       // updating the metadata with the new version name and build number
       await Mongo.metadata.updateOne(
         {
