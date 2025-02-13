@@ -261,6 +261,7 @@ const { readFile, writeFile } = fs.promises;
                 bgColor,
                 onesignal_id,
                 buildNumber,
+                platform,
                 androidDeveloperAccount: JSON.stringify(
                   androidDeveloperAccount ?? {},
                 ),
