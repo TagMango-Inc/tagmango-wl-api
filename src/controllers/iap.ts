@@ -560,31 +560,25 @@ const createOrRevokeSubscription = factory.createHandlers(
         );
 
       if (action === "create") {
-        const subscription = await Mongo.subscription.insertOne({
-          creator: mango.creator,
-          fan: demoUser
-            ? new ObjectId(demoUser._id)
-            : newUser
-              ? newUser.insertedId
-              : new ObjectId(),
-          mango: new ObjectId(mangoId),
-          status: "initiated",
-          isPublic: false,
-          createdAt: new Date(),
-          expiredAt: new Date(
-            new Date().setFullYear(new Date().getFullYear() + 10),
-          ),
-          orders: [],
-        });
-        await Mongo.subscription.updateOne(
+        await Mongo.subscription.findOneAndUpdate(
           {
-            _id: subscription.insertedId,
+            creator: mango.creator,
+            fan: demoUser
+              ? new ObjectId(demoUser._id)
+              : newUser
+                ? newUser.insertedId
+                : new ObjectId(),
+            mango: new ObjectId(mangoId),
+            isPublic: false,
           },
           {
             $set: {
               status: "active",
               latestSubscriptionDate: new Date(),
             },
+          },
+          {
+            upsert: true,
           },
         );
       } else {
@@ -600,19 +594,10 @@ const createOrRevokeSubscription = factory.createHandlers(
           },
           {
             $set: {
-              status: "expired",
+              status: "halted",
             },
           },
         );
-        await Mongo.subscription.deleteOne({
-          creator: mango.creator,
-          fan: demoUser
-            ? new ObjectId(demoUser._id)
-            : newUser
-              ? newUser.insertedId
-              : new ObjectId(),
-          mango: new ObjectId(mangoId),
-        });
       }
 
       return c.json(
