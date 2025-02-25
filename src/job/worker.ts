@@ -204,7 +204,7 @@ const { readFile, writeFile } = fs.promises;
                     `echo "Installing pods"`,
                     `source ~/.zshrc && bundle exec "NO_FLIPPER=1 pod install --project-directory=ios"`,
                     `echo "Building app for e2e testing"`,
-                    `detox build --configuration ios.sim.release`,
+                    `detox build --configuration ios.sim.release | xcbeautify`,
                     `echo "Removing artifacts"`,
                     `rm -rf artifacts`,
                     `echo "Renaming app"`,
