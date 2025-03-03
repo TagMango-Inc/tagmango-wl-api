@@ -2,7 +2,9 @@ import { Hono } from "hono";
 
 import {
   createMetadata,
+  deleteAndroidFeatureGraphic,
   deleteAndroidScreenshots,
+  deleteiOSIapScreenshot,
   deleteIosScreenshots,
   getAppMetadata,
   getAppsCountByVersion,
@@ -56,6 +58,10 @@ router.patch(
   ...deleteAndroidScreenshots,
 );
 router.patch(
+  "/:appId/settings/android/feature-graphic/delete",
+  ...deleteAndroidFeatureGraphic,
+);
+router.patch(
   "/:appId/settings/android/developer-account",
   ...updateAndroidDeveloperAccountForApp,
 );
@@ -74,6 +80,10 @@ router.patch(
 router.patch(
   "/:appId/settings/ios/screenshots/delete",
   ...deleteIosScreenshots,
+);
+router.patch(
+  "/:appId/settings/ios/iapScreenshot/delete",
+  ...deleteiOSIapScreenshot,
 );
 router.get("/apps/version/:version", ...getAppsCountByVersion);
 

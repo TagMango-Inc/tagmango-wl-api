@@ -590,6 +590,40 @@ const deleteAndroidScreenshots = factory.createHandlers(
   },
 );
 
+const deleteAndroidFeatureGraphic = factory.createHandlers(async (c) => {
+  try {
+    const { appId } = c.req.param();
+
+    const metadata = await Mongo.metadata.findOne({
+      host: new ObjectId(appId),
+    });
+
+    if (!metadata) {
+      return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+    }
+
+    // Delete feature graphic
+    fs.unlinkSync(`./assets/${appId}/android/featureGraphic.png`);
+
+    await Mongo.metadata.updateOne(
+      { host: new ObjectId(appId) },
+      { $set: { androidFeatureGraphic: "" } },
+    );
+
+    return c.json(
+      {
+        message: "Feature graphic deleted successfully",
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
 const updateAndroidDeveloperAccountForApp = factory.createHandlers(
   zValidator("json", updateAndroidDeploymentAccountSchema),
   async (c) => {
@@ -1061,6 +1095,40 @@ const deleteIosScreenshots = factory.createHandlers(
   },
 );
 
+const deleteiOSIapScreenshot = factory.createHandlers(async (c) => {
+  try {
+    const { appId } = c.req.param();
+
+    const metadata = await Mongo.metadata.findOne({
+      host: new ObjectId(appId),
+    });
+
+    if (!metadata) {
+      return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+    }
+
+    // Delete iap screenshot
+    fs.unlinkSync(`./assets/${appId}/ios/iapScreenshot.png`);
+
+    await Mongo.metadata.updateOne(
+      { host: new ObjectId(appId) },
+      { $set: { iapScreenshot: "" } },
+    );
+
+    return c.json(
+      {
+        message: "IAP screenshot deleted successfully",
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
 // get all the apps that are deployed with the specific version
 const getAppsCountByVersion = factory.createHandlers(async (c) => {
   try {
@@ -1148,7 +1216,9 @@ const getAppsCountByVersion = factory.createHandlers(async (c) => {
 
 export {
   createMetadata,
+  deleteAndroidFeatureGraphic,
   deleteAndroidScreenshots,
+  deleteiOSIapScreenshot,
   deleteIosScreenshots,
   getAppMetadata,
   getAppsCountByVersion,
