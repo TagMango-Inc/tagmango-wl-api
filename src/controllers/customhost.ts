@@ -107,11 +107,20 @@ const getCustomHostByIdHandler = factory.createHandlers(async (c) => {
     const customHost = await Mongo.customhost.findOne({
       _id: new ObjectId(id),
     });
+
     if (!customHost) {
       return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
     }
+
+    const creatorDetails = await Mongo.platform_users.findOne({
+      _id: new ObjectId(customHost?.creator),
+    });
+
     return c.json(
-      { message: "Fetched Custom Host", result: customHost },
+      {
+        message: "Fetched Custom Host",
+        result: { ...customHost, creatorDetails },
+      },
       Response.OK,
     );
   } catch (error) {
