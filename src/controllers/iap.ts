@@ -108,6 +108,7 @@ const getAllMangoesByCreator = factory.createHandlers(async (c) => {
               $ne: true,
             },
             recurringType: "onetime",
+            price: { $gt: 0 },
           },
         },
         {

@@ -1655,6 +1655,7 @@ const fetchPreRequisitesForApp = factory.createHandlers(async (c) => {
       isPublic: { $ne: true },
       isDeleted: { $ne: true },
       recurringType: "onetime",
+      price: { $gt: 0 },
     });
 
     const mangoAggregation = await Mongo.mango
@@ -1685,6 +1686,7 @@ const fetchPreRequisitesForApp = factory.createHandlers(async (c) => {
               $ne: true,
             },
             recurringType: "onetime",
+            price: { $gt: 0 },
           },
         },
         {
