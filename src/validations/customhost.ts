@@ -50,11 +50,15 @@ export const patchCustomHostByIdSchema = z.object({
     .optional(),
   iosDeepLinkConfig: z
     .object({
-      relation: z.array(z.string()).optional(),
-      target: z
+      applinks: z
         .object({
-          namespace: z.string().optional(),
-          host: z.string().optional(),
+          apps: z.array(z.string()).optional(),
+          details: z.array(
+            z.object({
+              appID: z.string().optional(),
+              paths: z.array(z.string()).optional(),
+            }),
+          ),
         })
         .optional(),
     })
