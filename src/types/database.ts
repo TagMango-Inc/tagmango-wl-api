@@ -499,7 +499,7 @@ export interface ISubscription {
   creator: ObjectId;
   fan: ObjectId;
   mango: ObjectId;
-  status: "active" | "cancelled" | "initiated" | "expired" | "halted";
+  status: "active" | "cancelled" | "initiated" | "expired";
   isPublic: boolean;
   createdAt: Date;
   expiredAt: Date;
