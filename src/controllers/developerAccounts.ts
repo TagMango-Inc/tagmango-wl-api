@@ -135,8 +135,47 @@ const createNewDeveloperAccountAndroidHandler = factory.createHandlers(
   },
 );
 
+const getUploadKeyCertificate = factory.createHandlers(async (c) => {
+  const { id } = c.req.param();
+
+  try {
+    const account = await Mongo.developer_accounts_android.findOne({
+      _id: new ObjectId(id),
+    });
+
+    if (!account) {
+      return c.json({ message: "Account not found" }, Response.BAD_REQUEST);
+    }
+
+    // use these values to create a new jks file using keytool
+    // keytool -export -rfc -keystore keystore.jks -alias upload -file upload_certificate.pem
+    await fs.ensureDir(`./developer_accounts/android/${account._id}`);
+
+    await execAsync(
+      `cd ./developer_accounts/android/${account._id} && keytool -export -rfc -keystore keystore.jks -alias ${account.keyAlias} -file upload_certificate.pem -storepass ${account.keyPassword} -keypass ${account.keyPassword}`,
+    );
+
+    const certificate = await fs.readFile(
+      `./developer_accounts/android/${account._id}/upload_certificate.pem`,
+      "utf-8",
+    );
+
+    return c.json({
+      message: "Upload Certificate",
+      result: certificate,
+    });
+  } catch (error) {
+    console.log(error);
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
 export {
   createNewDeveloperAccountAndroidHandler,
   getAllDeveloperAccountsAndroidHandler,
   getDeveloperAccountAndroidByIdHandler,
+  getUploadKeyCertificate,
 };
