@@ -1,7 +1,7 @@
 import { ObjectId } from "mongodb";
 
 export const Collections = {
-  ADMIN_USER: "appzapusers",
+  ADMIN_USER: "adminusers",
   CUSTOM_HOST: "customhosts",
   DEPLOYMENT: "wldeployments",
   REDEPLOYMENT: "wlredeployments",
@@ -39,9 +39,11 @@ export const StatusValues = Object.values(Status);
 export type Status = (typeof Status)[keyof typeof Status];
 
 export interface IAdminUser {
+  approved: boolean;
   email: string;
   name: string;
   password: string;
+  isRestricted: boolean;
   customhostDashboardAccess: {
     role: string;
     isRestricted: boolean;
