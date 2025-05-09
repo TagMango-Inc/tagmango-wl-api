@@ -1,19 +1,18 @@
-import bcrypt from 'bcrypt';
-import { createFactory } from 'hono/factory';
-import { sign } from 'hono/jwt';
-import { ObjectId } from 'mongodb';
+import bcrypt from "bcrypt";
+import { createFactory } from "hono/factory";
+import { sign } from "hono/jwt";
+import { ObjectId } from "mongodb";
 
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from "@hono/zod-validator";
 
-import Mongo from '../../src/database';
-import { JWTPayloadType } from '../../src/types';
-import sendMail from '../../src/utils/sendMail';
-import { Response } from '../../src/utils/statuscode';
+import Mongo from "../../src/database";
+import { JWTPayloadType } from "../../src/types";
+import { Response } from "../../src/utils/statuscode";
 import {
   createUserSchema,
   roleActionSchema,
   updatePasswordSchema,
-} from '../../src/validations/userManagement';
+} from "../../src/validations/userManagement";
 
 const factory = createFactory();
 
@@ -123,62 +122,40 @@ const createNewDashboardUser = factory.createHandlers(
 
       const userExists = await Mongo.user.findOne({ email: body.email });
       if (userExists) {
+        // add customhostDashboardAccess to the admin user to give access to appzap
+        await Mongo.user.updateOne(
+          { _id: userExists._id },
+          {
+            $set: {
+              "customhostDashboardAccess.role": body.role,
+              "customhostDashboardAccess.isRestricted": false,
+            },
+          },
+        );
+
         return c.json(
           {
-            message: "User already exists",
-            status: 400,
+            message: "User created successfully",
+            result: {
+              user: {
+                _id: userExists._id,
+                email: userExists.email,
+                name: userExists.name,
+                role: body.role,
+                isRestricted: false,
+                isEmailVerified: true,
+              },
+            },
           },
-          Response.BAD_REQUEST,
+          Response.CREATED,
         );
       }
-      const createdUser = await Mongo.user.insertOne({
-        name: body.name,
-        email: body.email,
-        approved: true,
-        isRestricted: false,
-        password: "not_a_password",
-        customhostDashboardAccess: {
-          role: body.role,
-          isRestricted: false,
-        },
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-
-      // TODO: need to discuss the exp time
-      const payload: JWTPayloadType = {
-        id: createdUser.insertedId.toString(),
-        email: body.email,
-        exp: Math.floor(Date.now() / 1000) + 60 * (60 * 24 * 30), // 30 days
-      };
-
-      const secret = process.env.JWT_SECRET as string;
-
-      const authToken = await sign(payload, secret);
-
-      // TODO: url needs to be updated after deployment
-      // Send an email with the authToken to the user
-      sendMail({
-        recipient: body.email,
-        subject: "Welcome to WL Dashboard",
-        text: `Here is your authToken: ${process.env.APP_DOMAIN}/update-password?token=${authToken}`,
-      });
 
       return c.json(
         {
-          message: "User created successfully",
-          result: {
-            user: {
-              _id: createdUser.insertedId,
-              email: body.email,
-              name: body.name,
-              role: body.role,
-              isRestricted: false,
-              isEmailVerified: false,
-            },
-          },
+          message: "Use admin password to create a new user",
         },
-        Response.CREATED,
+        Response.BAD_REQUEST,
       );
     } catch (error) {
       return c.json(
@@ -191,7 +168,7 @@ const createNewDashboardUser = factory.createHandlers(
   },
 );
 
-/** 
+/**
     PATCH /wl/user-management/users/:id
     Updating a Dashboard User
 */
@@ -319,97 +296,6 @@ const updateDashboardUserPassword = factory.createHandlers(
   },
 );
 
-/**
-    DELETE /wl/user-management/users/:id
-    Deleting a Dashboard User
-*/
-const deleteDashboardUser = factory.createHandlers(async (c) => {
-  try {
-    const { id } = c.req.param();
-    const deletedUser = await Mongo.user.findOneAndDelete({
-      _id: new ObjectId(id),
-      isRestricted: { $ne: true },
-    });
-    if (!deletedUser) {
-      return c.json(
-        {
-          message: "User not found",
-        },
-        Response.NOT_FOUND,
-      );
-    }
-    return c.json(
-      {
-        message: "User deleted successfully",
-        result: {
-          userId: deletedUser._id,
-        },
-      },
-      Response.OK,
-    );
-  } catch (error) {
-    return c.json(
-      {
-        message: "Internal Server Error",
-      },
-      Response.INTERNAL_SERVER_ERROR,
-    );
-  }
-});
-
-/**
- * POST /wl/user-management/users/:id/resend-verification-email
- * Resend Auth Token to the User
- */
-const resendEmailVerification = factory.createHandlers(async (c) => {
-  try {
-    const { id } = c.req.param();
-    const user = await Mongo.user.findOne({
-      _id: new ObjectId(id),
-      isRestricted: { $ne: true },
-    });
-    if (!user) {
-      return c.json(
-        {
-          message: "User not found",
-        },
-        Response.NOT_FOUND,
-      );
-    }
-
-    const payload: JWTPayloadType = {
-      id: user._id.toString(),
-      email: user.email,
-      exp: Math.floor(Date.now() / 1000) + 60 * (60 * 24 * 15), // 15 days
-    };
-
-    const secret = process.env.JWT_SECRET as string;
-
-    const authToken = await sign(payload, secret);
-
-    // Send an email with the authToken to the user
-    sendMail({
-      recipient: user.email,
-      subject: "Welcome to WL Dashboard",
-      text: `Here is your authToken: ${process.env.APP_DOMAIN}/update-password?token=${authToken}`,
-    });
-
-    return c.json(
-      {
-        message: "Auth Token resent successfully",
-      },
-      Response.OK,
-    );
-  } catch (error) {
-    return c.json(
-      {
-        message: "Internal Server Error",
-      },
-      Response.INTERNAL_SERVER_ERROR,
-    );
-  }
-});
-
 // api to get the current user
 /**
  * GET /wl/user-management/users/me
@@ -457,10 +343,8 @@ const getCurrentUser = factory.createHandlers(async (c) => {
 
 export {
   createNewDashboardUser,
-  deleteDashboardUser,
   getAllDashboardUsers,
   getCurrentUser,
-  resendEmailVerification,
   updateDashboardUser,
   updateDashboardUserPassword,
 };
