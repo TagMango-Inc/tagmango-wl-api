@@ -27,8 +27,13 @@ const updatAppFormLogoSchema = z.object({
   iosLogoPadding: z.number(),
 });
 
+const toggleIsExternalDevAccountSchema = z.object({
+  platform: z.enum(["android", "ios"]),
+});
+
 export {
   generateFormValuesAISchema,
   rejectFormByIdSchema,
+  toggleIsExternalDevAccountSchema,
   updatAppFormLogoSchema,
 };

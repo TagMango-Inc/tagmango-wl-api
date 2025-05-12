@@ -159,6 +159,58 @@ const { readFile, writeFile } = fs.promises;
                 continue;
               }
 
+              if (
+                target === "android" &&
+                metadata.androidDeploymentDetails.isDeploymentBlocked
+              ) {
+                logger.error(
+                  `Android deployment is blocked for hostId: ${hostId}`,
+                );
+
+                await Mongo.redeployment.updateOne(
+                  {
+                    _id: new ObjectId(redeploymentId),
+                  },
+                  {
+                    $inc: { "progress.completed": 1 },
+                    $push: {
+                      "progress.failed": {
+                        hostId: new ObjectId(hostId),
+                        reason:
+                          metadata.androidDeploymentDetails
+                            .deploymentBlockReason,
+                      },
+                    },
+                  },
+                );
+                continue;
+              }
+
+              if (
+                target === "ios" &&
+                metadata.iosDeploymentDetails.isDeploymentBlocked
+              ) {
+                logger.error(`iOS deployment is blocked for hostId: ${hostId}`);
+
+                await Mongo.redeployment.updateOne(
+                  {
+                    _id: new ObjectId(redeploymentId),
+                  },
+                  {
+                    $inc: { "progress.completed": 1 },
+                    $push: {
+                      "progress.failed": {
+                        hostId: new ObjectId(hostId),
+                        reason:
+                          metadata.iosDeploymentDetails.deploymentBlockReason,
+                      },
+                    },
+                  },
+                );
+
+                continue;
+              }
+
               if (!customhost.appName) {
                 logger.error(`App Name is required for hostId: ${hostId}`);
                 await Mongo.redeployment.updateOne(
