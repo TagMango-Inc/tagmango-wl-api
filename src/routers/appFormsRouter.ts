@@ -18,6 +18,7 @@ import {
   markFormUnpublished,
   rejectFormHandler,
   submitFormHandler,
+  toggleIsExternalDevAccount,
   updateStoreAndroidSettings,
   updateStoreIosSettings,
   uploadFormLogo,
@@ -44,6 +45,10 @@ router.patch(
 router.patch("/host/:hostId/mark-approved", ...markFormApprovedHandler);
 router.patch("/host/:hostId/mark-unpublished", ...markFormUnpublished);
 router.patch("/host/:hostId/mark-deployed", ...markFormDeployedHandler);
+router.patch(
+  "/host/:hostId/mark-is-external-dev-account",
+  ...toggleIsExternalDevAccount,
+);
 
 router.post("/:formId/generate", ...generateFormValuesAIHandler);
 

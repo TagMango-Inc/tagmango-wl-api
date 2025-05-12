@@ -14,6 +14,7 @@ import { Response } from "../utils/statuscode";
 import {
   generateFormValuesAISchema,
   rejectFormByIdSchema,
+  toggleIsExternalDevAccountSchema,
   updatAppFormLogoSchema,
 } from "../validations/appForms";
 import {
@@ -180,6 +181,18 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
             customHost?.metadataDetails[0]?.iosDeploymentDetails?.appStore
               ?.status) ||
           "",
+        externalDevAccount: {
+          android:
+            (customHost?.metadataDetails.length > 0 &&
+              customHost?.metadataDetails[0]?.androidDeploymentDetails
+                ?.isInExternalDevAccount) ??
+            false,
+          ios:
+            (customHost?.metadataDetails.length > 0 &&
+              customHost?.metadataDetails[0]?.iosDeploymentDetails
+                ?.isInExternalDevAccount) ??
+            false,
+        },
       };
     });
 
@@ -1971,6 +1984,57 @@ const getLiveAppsOnOldVersion = factory.createHandlers(async (c) => {
   }
 });
 
+const toggleIsExternalDevAccount = factory.createHandlers(
+  zValidator("json", toggleIsExternalDevAccountSchema),
+  async (c) => {
+    const { hostId } = c.req.param();
+
+    const { platform } = c.req.valid("json");
+
+    if (!hostId || !platform) {
+      return c.json(
+        { message: "hostId and platform are required" },
+        { status: 400, statusText: "Bad Request" },
+      );
+    }
+
+    const metadata = await Mongo.metadata.findOne({
+      host: new ObjectId(hostId),
+    });
+
+    if (!metadata) {
+      return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+    }
+
+    if (platform === "android") {
+      metadata.androidDeploymentDetails = {
+        ...metadata.androidDeploymentDetails,
+        isInExternalDevAccount:
+          !metadata.androidDeploymentDetails?.isInExternalDevAccount,
+      };
+    } else {
+      metadata.iosDeploymentDetails = {
+        ...metadata.iosDeploymentDetails,
+        isInExternalDevAccount:
+          !metadata.iosDeploymentDetails.isInExternalDevAccount,
+      };
+    }
+
+    await Mongo.metadata.updateOne(
+      { host: new ObjectId(hostId) },
+      { $set: metadata },
+    );
+
+    return c.json(
+      { message: "Toggled successfully" },
+      {
+        status: 200,
+        statusText: "OK",
+      },
+    );
+  },
+);
+
 export {
   approveFormHandler,
   deleteFormByIdHandler,
@@ -1989,6 +2053,7 @@ export {
   markFormUnpublished,
   rejectFormHandler,
   submitFormHandler,
+  toggleIsExternalDevAccount,
   updateStoreAndroidSettings,
   updateStoreIosSettings,
   uploadFormLogo,

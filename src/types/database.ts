@@ -115,6 +115,7 @@ export interface IAndroidDeploymentDetails {
     versionName: string;
     buildNumber: number;
   };
+  isInExternalDevAccount?: boolean;
 }
 
 export interface IIosDeploymentDetails {
@@ -127,6 +128,7 @@ export interface IIosDeploymentDetails {
     versionName: string;
     buildNumber: number;
   };
+  isInExternalDevAccount?: boolean;
 }
 
 export interface IIosStoreSettings {
