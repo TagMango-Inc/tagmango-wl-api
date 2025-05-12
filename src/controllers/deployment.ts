@@ -512,6 +512,26 @@ const createNewDeploymentHandler = factory.createHandlers(
         return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
       }
 
+      if (
+        target === "ios" &&
+        metadata.iosDeploymentDetails.isDeploymentBlocked
+      ) {
+        return c.json(
+          { message: metadata.iosDeploymentDetails.deploymentBlockReason },
+          Response.BAD_REQUEST,
+        );
+      }
+
+      if (
+        target === "android" &&
+        metadata.androidDeploymentDetails.isDeploymentBlocked
+      ) {
+        return c.json(
+          { message: metadata.androidDeploymentDetails.deploymentBlockReason },
+          Response.BAD_REQUEST,
+        );
+      }
+
       if (target === "ios" && !metadata.iosDeploymentDetails.bundleId) {
         return c.json(
           { message: "Bundle ID for iOS is required" },
@@ -1314,6 +1334,28 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
       }
       if (!metadata) {
         return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      if (
+        deployment.platform === "android" &&
+        metadata.androidDeploymentDetails.isDeploymentBlocked
+      ) {
+        return c.json(
+          {
+            message: metadata.androidDeploymentDetails.deploymentBlockReason,
+          },
+          Response.BAD_REQUEST,
+        );
+      } else if (
+        deployment.platform === "ios" &&
+        metadata.iosDeploymentDetails.isDeploymentBlocked
+      ) {
+        return c.json(
+          {
+            message: metadata.iosDeploymentDetails.deploymentBlockReason,
+          },
+          Response.BAD_REQUEST,
+        );
       }
 
       const releaseBuffer = await fs.promises.readFile(

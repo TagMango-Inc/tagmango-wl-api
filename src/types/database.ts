@@ -116,6 +116,8 @@ export interface IAndroidDeploymentDetails {
     buildNumber: number;
   };
   isInExternalDevAccount?: boolean;
+  isDeploymentBlocked?: boolean;
+  deploymentBlockReason?: string;
 }
 
 export interface IIosDeploymentDetails {
@@ -129,6 +131,8 @@ export interface IIosDeploymentDetails {
     buildNumber: number;
   };
   isInExternalDevAccount?: boolean;
+  isDeploymentBlocked?: boolean;
+  deploymentBlockReason?: string;
 }
 
 export interface IIosStoreSettings {
