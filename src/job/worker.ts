@@ -170,6 +170,7 @@ const { readFile, writeFile } = fs.promises;
               `cd ${customHostAppDir}`,
               `mkdir -p icons`,
               `cd icons`,
+              //
               `cp ../../../../assets/${hostId}/icon.png .`,
               `cp ../../../../assets/${hostId}/foreground.png .`,
               `cp ../../../../assets/${hostId}/background.png .`,
@@ -226,6 +227,7 @@ const { readFile, writeFile } = fs.promises;
                     )}`,
                   ],
             [taskNames[4].id]: [
+              //
               `node ./scripts/create-metadata.js ${JSON.stringify({
                 hostId,
                 rootPath: `${customHostAppDir}`,
