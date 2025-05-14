@@ -217,7 +217,6 @@ const { readFile, writeFile } = fs.promises;
                     )}`,
                   ],
             [taskNames[4].id]: [
-              //
               `node ./scripts/create-metadata.js ${JSON.stringify({
                 hostId,
                 rootPath: `${customHostAppDir}`,
@@ -240,7 +239,6 @@ const { readFile, writeFile } = fs.promises;
                 ),
               })}`,
             ],
-            //TODO
             // step: 4: Running the pre deployment and bundle script for the deployment/{bundleId} folder
             [taskNames[5].id]: [
               `cd ${customHostAppDir}`,

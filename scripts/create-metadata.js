@@ -1,5 +1,7 @@
 const fs = require("fs-extra");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const https = require("https");
+const path = require("path");
 
 const uri = process.env.MONGO_URI;
 
@@ -112,6 +114,43 @@ const iosInfoFiles = [
   "secondary_second_sub_category",
 ];
 
+const downloadFile = async (url, outputPath) => {
+  try {
+    await fs.ensureDir(path.dirname(outputPath));
+
+    return new Promise((resolve, reject) => {
+      https
+        .get(url, (response) => {
+          if (response.statusCode !== 200) {
+            reject(
+              new Error(`Failed to download ${url}: ${response.statusCode}`),
+            );
+            return;
+          }
+
+          const writer = fs.createWriteStream(outputPath);
+          response.pipe(writer);
+
+          writer.on("finish", () => {
+            writer.close();
+            resolve();
+          });
+
+          writer.on("error", (err) => {
+            writer.close();
+            reject(err);
+          });
+        })
+        .on("error", (err) => {
+          reject(err);
+        });
+    });
+  } catch (error) {
+    console.error(`Error downloading file from ${url}:`, error);
+    throw error;
+  }
+};
+
 const generateMetadata = async ({
   hostId,
   rootPath,
@@ -143,7 +182,7 @@ const generateMetadata = async ({
   const iosScreenshotsPath = `${iosPath}/screenshots/en-GB`;
   const iosUSScreenshotsPath = `${iosPath}/screenshots/en-US`;
 
-  const rootAssetPath = `./assets/${hostId}`;
+  const rootAssetPath = `https://tagmango.com/appzap-assets/metadata/${hostId}`;
 
   // Array of directory paths to ensure
   const directories = [
@@ -279,24 +318,27 @@ const generateMetadata = async ({
 
   // Copying Android images
   const copyAndroidImages = Promise.all([
-    fs.copy(
+    downloadFile(
       `${rootAssetPath}/${androidFeatureGraphic}`,
       `${androidImagesPath}/featureGraphic.png`,
     ),
-    fs.copy(
+    downloadFile(
       `${rootAssetPath}/${androidFeatureGraphic}`,
       `${androidUSImagesPath}/featureGraphic.png`,
     ),
-    fs.copy(`${rootAssetPath}/icon.png`, `${androidImagesPath}/icon.png`),
-    fs.copy(`${rootAssetPath}/icon.png`, `${androidUSImagesPath}/icon.png`),
+    downloadFile(`${rootAssetPath}/icon.png`, `${androidImagesPath}/icon.png`),
+    downloadFile(
+      `${rootAssetPath}/icon.png`,
+      `${androidUSImagesPath}/icon.png`,
+    ),
     ...androidScreenshots.map((screenshot, index) => {
-      return fs.copy(
+      return downloadFile(
         `${rootAssetPath}/${screenshot}`,
         `${androidPhoneScreenshotsPath}/${index + 1}_en-IN.png`,
       );
     }),
     ...androidScreenshots.map((screenshot, index) => {
-      return fs.copy(
+      return downloadFile(
         `${rootAssetPath}/${screenshot}`,
         `${androidUSPhoneScreenshotsPath}/${index + 1}_en-IN.png`,
       );
@@ -306,7 +348,7 @@ const generateMetadata = async ({
   // Copying iOS screenshots
   const copyIosImages = Promise.all([
     ...(iosScreenshots["iphone_65"]?.map((screenshot, index) =>
-      fs.copy(
+      downloadFile(
         `${rootAssetPath}/${screenshot}`,
         `${iosScreenshotsPath}/${index}_APP_IPHONE_65_${index}.png`,
       ),
@@ -315,7 +357,7 @@ const generateMetadata = async ({
 
   const copyIosUSImages = Promise.all([
     ...(iosScreenshots["iphone_65"]?.map((screenshot, index) =>
-      fs.copy(
+      downloadFile(
         `${rootAssetPath}/${screenshot}`,
         `${iosUSScreenshotsPath}/${index}_APP_IPHONE_65_${index}.png`,
       ),
