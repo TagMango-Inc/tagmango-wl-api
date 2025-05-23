@@ -167,16 +167,7 @@ const { readFile, writeFile } = fs.promises;
             ],
             // step: 3: Copying the WL assets from WLApps/{formatedName} to deployment/{bundleId}/WLApps/{formatedName}
             [taskNames[2].id]: [
-              `cd ${customHostAppDir}`,
-              `mkdir -p icons`,
-              `cd icons`,
-              `cp ../../../../assets/${hostId}/icon.png .`,
-              `cp ../../../../assets/${hostId}/foreground.png .`,
-              `cp ../../../../assets/${hostId}/background.png .`,
-              `cp ../../../../assets/${hostId}/iosIcon.png .`,
-              `mkdir -p android ios`,
-              `npx icon-set-creator create -A --adaptive-icon-background ./background.png --adaptive-icon-foreground ./foreground.png ./icon.png`,
-              `npx icon-set-creator create -I ./iosIcon.png`,
+              `node ./scripts/create-icons.js ${hostId} ${bundle}`,
             ],
             // Generating screenshots
             [taskNames[3].id]:
@@ -248,7 +239,6 @@ const { readFile, writeFile } = fs.promises;
                 ),
               })}`,
             ],
-            //TODO
             // step: 4: Running the pre deployment and bundle script for the deployment/{bundleId} folder
             [taskNames[5].id]: [
               `cd ${customHostAppDir}`,
