@@ -6,6 +6,7 @@ import path from "path";
 import { zValidator } from "@hono/zod-validator";
 
 import Mongo from "../../src/database";
+import { getAppsByVersionCSV } from "../../src/utils/csv";
 import { Response } from "../../src/utils/statuscode";
 import {
   reorderAndroidScreenshotsSchema,
@@ -598,6 +599,23 @@ const reorderIosScreenshots = factory.createHandlers(
 const getAppsCountByVersion = factory.createHandlers(async (c) => {
   try {
     const { version: targetVersion } = c.req.param();
+    const { format, platform } = c.req.query();
+
+    // If format is csv, return CSV data
+    if (format === "csv") {
+      if (!platform) {
+        return c.json(
+          { message: "Platform is required" },
+          Response.BAD_REQUEST,
+        );
+      }
+
+      if (!targetVersion) {
+        return c.json({ message: "Version is required" }, Response.BAD_REQUEST);
+      }
+
+      return getAppsByVersionCSV(c, targetVersion, platform);
+    }
 
     const result = await Mongo.customhost
       .aggregate([
