@@ -13,6 +13,7 @@ const REMOVE_SUCCESS_LOGS_CRON = "0 0 * * SUN";
 const REMOVE_BUNDLES_CRON = "0 0 * * SUN";
 const MIGRATE_CRON = "15 21 * * *";
 const UPDATE_IOS_REVIEW_STATUS_CRON = "0 */3 * * *";
+const UPDATE_PRE_REQ_CRON = "0 11,23 * * *";
 
 export {
   customhostDeploymentDir,
@@ -23,4 +24,5 @@ export {
   REMOVE_BUNDLES_CRON,
   REMOVE_SUCCESS_LOGS_CRON,
   UPDATE_IOS_REVIEW_STATUS_CRON,
+  UPDATE_PRE_REQ_CRON,
 };

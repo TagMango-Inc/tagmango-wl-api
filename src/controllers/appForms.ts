@@ -969,6 +969,7 @@ const getLiveAppsOnOldVersion = factory.createHandlers(async (c) => {
             logo: 1,
             createdAt: 1,
             "appform.status": 1,
+            isPreReqCompleted: "$metadata.isPreReqCompleted",
             "metadata.iosDeploymentDetails.versionName": 1,
             "metadata.androidDeploymentDetails.versionName": 1,
           },

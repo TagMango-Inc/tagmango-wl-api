@@ -9,6 +9,7 @@ export const Collections = {
   MANGO: "mangos",
   POST: "posts",
   COURSE: "courses",
+  CHAPTER: "chapters",
   SUBSCRIPTION: "subscriptions",
   USER: "users",
   MANGO_ROOM: "rooms",
@@ -204,6 +205,7 @@ export interface IMetaData {
   androidDeveloperAccount?: ObjectId;
 
   isFormImported?: boolean;
+  isPreReqCompleted?: boolean;
 }
 
 export interface ICustomHost {
@@ -499,6 +501,13 @@ export interface ICourse {
   description: string;
   expireIn: number;
   publishDate: Date;
+}
+export interface IChapter {
+  _id: ObjectId;
+  title: string;
+  creator: ObjectId;
+  course: ObjectId;
+  contentType: "video" | "text" | "audio";
 }
 
 export interface ISubscription {

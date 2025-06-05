@@ -6,6 +6,7 @@ import {
   Collections,
   IAdminUser,
   IAppForm,
+  IChapter,
   ICourse,
   ICustomHost,
   IDeployment,
@@ -34,6 +35,7 @@ abstract class Mongo {
   public static mango: Collection<IMango>;
   public static post: Collection<IPost>;
   public static course: Collection<ICourse>;
+  public static chapter: Collection<IChapter>;
   public static subscription: Collection<ISubscription>;
   public static platform_users: Collection<IUser>;
   public static mango_rooms: Collection<IMangoRoom>;
@@ -66,6 +68,7 @@ abstract class Mongo {
       this.mango = this.db.collection<IMango>(Collections.MANGO);
       this.post = this.db.collection<IPost>(Collections.POST);
       this.course = this.db.collection<ICourse>(Collections.COURSE);
+      this.chapter = this.db.collection<IChapter>(Collections.CHAPTER);
       this.subscription = this.db.collection<ISubscription>(
         Collections.SUBSCRIPTION,
       );

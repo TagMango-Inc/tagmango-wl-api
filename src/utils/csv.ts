@@ -153,6 +153,7 @@ export const getLiveAppsOnOldVersionCSV = async (
             email: { $arrayElemAt: ["$creatorDetails.email", 0] },
             host: "$host",
             appName: "$appName",
+            isPreReqCompleted: "$metadata.isPreReqCompleted",
             currentVersion:
               target === "ios"
                 ? "$metadata.iosDeploymentDetails.versionName"
@@ -164,9 +165,10 @@ export const getLiveAppsOnOldVersionCSV = async (
       .toArray();
 
     // Convert to CSV format
-    const headers = "sno.,email,host,appName,platform,currentVersion\n";
+    const headers =
+      "sno.,email,host,appName,platform,currentVersion,isPreReqCompleted\n";
     const csvRows = result.map((app, index) => {
-      return `${index + 1},${app.email},${app.host},${app.appName},${target},${app.currentVersion}`;
+      return `${index + 1},${app.email},${app.host},${app.appName},${target},${app.currentVersion},${app.isPreReqCompleted}`;
     });
 
     const csvContent = headers + csvRows.join("\n");
