@@ -128,7 +128,8 @@ const getDeploymentDetails = factory.createHandlers(async (c) => {
 
 const getAllDeployments = factory.createHandlers(async (c) => {
   try {
-    const { page, limit, search, platform, status } = c.req.query();
+    const { page, limit, search, platform, status, iosAppStoreStatus } =
+      c.req.query();
 
     let PAGE = page ? parseInt(page as string) : 1;
     let LIMIT = limit ? parseInt(limit as string) : 30;
@@ -138,17 +139,70 @@ const getAllDeployments = factory.createHandlers(async (c) => {
       .aggregate([
         {
           $match: {
-            $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
-            platform: platform ?? { $in: PlatformValues },
-            status: status ?? { $in: StatusValues },
+            $and: [
+              {
+                $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
+              },
+              {
+                platform: platform ?? { $in: PlatformValues },
+              },
+              {
+                status: status ?? { $in: StatusValues },
+              },
+            ],
           },
         },
         {
           $facet: {
             totalSearchResults: [
               {
-                $count: "count",
+                $lookup: {
+                  from: "customhosts",
+                  localField: "host",
+                  foreignField: "_id",
+                  as: "host",
+                },
               },
+              { $unwind: "$host" },
+              {
+                $lookup: {
+                  from: "customhostmetadatas",
+                  let: { hostId: "$host._id" },
+                  pipeline: [
+                    {
+                      $match: {
+                        $expr: { $eq: ["$host", "$$hostId"] },
+                      },
+                    },
+                  ],
+                  as: "metadata",
+                },
+              },
+              {
+                $unwind: {
+                  path: "$metadata",
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
+                $match: {
+                  $or: [
+                    { platform: { $ne: "ios" } },
+                    {
+                      $and: [
+                        { platform: "ios" },
+                        iosAppStoreStatus
+                          ? {
+                              "metadata.iosDeploymentDetails.appStore.status":
+                                iosAppStoreStatus,
+                            }
+                          : {},
+                      ],
+                    },
+                  ],
+                },
+              },
+              { $count: "count" },
             ],
             deployments: [
               {
@@ -159,8 +213,44 @@ const getAllDeployments = factory.createHandlers(async (c) => {
                   as: "host",
                 },
               },
+              { $unwind: "$host" },
               {
-                $unwind: "$host",
+                $lookup: {
+                  from: "customhostmetadatas",
+                  let: { hostId: "$host._id" },
+                  pipeline: [
+                    {
+                      $match: {
+                        $expr: { $eq: ["$host", "$$hostId"] },
+                      },
+                    },
+                  ],
+                  as: "metadata",
+                },
+              },
+              {
+                $unwind: {
+                  path: "$metadata",
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
+                $match: {
+                  $or: [
+                    { platform: { $ne: "ios" } },
+                    {
+                      $and: [
+                        { platform: "ios" },
+                        iosAppStoreStatus
+                          ? {
+                              "metadata.iosDeploymentDetails.appStore.status":
+                                iosAppStoreStatus,
+                            }
+                          : {},
+                      ],
+                    },
+                  ],
+                },
               },
               {
                 $lookup: {
@@ -181,19 +271,9 @@ const getAllDeployments = factory.createHandlers(async (c) => {
                   from: "adminusers",
                   let: { cancelledById: "$cancelledBy" },
                   pipeline: [
-                    {
-                      $match: {
-                        $expr: { $ne: ["$$cancelledById", null] },
-                      },
-                    },
-                    {
-                      $match: {
-                        $expr: { $eq: ["$_id", "$$cancelledById"] },
-                      },
-                    },
-                    {
-                      $project: { _id: 1, name: 1 },
-                    },
+                    { $match: { $expr: { $ne: ["$$cancelledById", null] } } },
+                    { $match: { $expr: { $eq: ["$_id", "$$cancelledById"] } } },
+                    { $project: { _id: 1, name: 1 } },
                   ],
                   as: "cancelled_by_user",
                 },
@@ -220,17 +300,23 @@ const getAllDeployments = factory.createHandlers(async (c) => {
                   appName: "$host.appName",
                   appId: "$host._id",
                   logo: "$host.logo",
+                  iosAppStore: {
+                    $cond: {
+                      if: { $eq: ["$platform", "ios"] },
+                      then: {
+                        status:
+                          "$metadata.iosDeploymentDetails.appStore.status",
+                        version:
+                          "$metadata.iosDeploymentDetails.appStore.versionName",
+                      },
+                      else: null,
+                    },
+                  },
                 },
               },
-              {
-                $sort: { updatedAt: -1 },
-              },
-              {
-                $skip: (PAGE - 1) * LIMIT,
-              },
-              {
-                $limit: LIMIT,
-              },
+              { $sort: { updatedAt: -1 } },
+              { $skip: (PAGE - 1) * LIMIT },
+              { $limit: LIMIT },
             ],
           },
         },
