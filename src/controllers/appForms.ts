@@ -8,6 +8,7 @@ import Mongo from "../database";
 import authenticationMiddleware from "../middleware/authentication";
 import { JWTPayloadType } from "../types";
 import { AppFormStatus } from "../types/database";
+import { getLiveAppsOnOldVersionCSV } from "../utils/csv";
 import { enqueueMessage } from "../utils/sqs";
 import { Response } from "../utils/statuscode";
 import {
@@ -890,7 +891,7 @@ const deleteFormByIdHandler = factory.createHandlers(
 
 // get all hosts that have deployed forms but are not on the latest version
 const getLiveAppsOnOldVersion = factory.createHandlers(async (c) => {
-  const { latestVersion, target } = c.req.query();
+  const { latestVersion, target, format } = c.req.query();
 
   if (!latestVersion || !target) {
     return c.json(
@@ -899,6 +900,15 @@ const getLiveAppsOnOldVersion = factory.createHandlers(async (c) => {
         status: 400,
         statusText: "Bad Request",
       },
+    );
+  }
+
+  // If format is csv, return CSV data
+  if (format === "csv") {
+    return getLiveAppsOnOldVersionCSV(
+      c,
+      latestVersion as string,
+      target as string,
     );
   }
 
