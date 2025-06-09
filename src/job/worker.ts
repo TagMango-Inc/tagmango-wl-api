@@ -170,52 +170,66 @@ const { readFile, writeFile } = fs.promises;
               `node ./scripts/create-icons.js ${hostId} ${bundle}`,
             ],
             // Generating screenshots
+            // Cases
+            // 1. Screenshots are available and generateIAPScreenshot is false -> will not run the task
+            // 2. Screenshots are available and generateIAPScreenshot is true -> will run the task
+            // 3. Screenshots are not available -> Run task only if its platform screenshots are not available
             [taskNames[3].id]:
               isAndroidScreenshotsAvailable &&
               isIosScreenshotsAvailable &&
               isFeatureGraphicAvailable &&
               !generateIAPScreenshot
                 ? [`echo "Screenshots are available"`]
-                : [
-                    `cd ${customHostAppDir}`,
-                    `echo "Removing node_modules"`,
-                    `rm -rf node_modules`,
-                    `echo "Using Node Version"`,
-                    `node -v`,
-                    `echo "Reinstalling node_modules"`,
-                    `npm install --reset-cache --include=dev`,
-                    `echo "Using ruby version"`,
-                    `source ~/.zshrc && ruby -v`,
-                    `echo "Using bundle version"`,
-                    `source ~/.zshrc && bundle --version`,
-                    `echo "Installing bundle"`,
-                    `source ~/.zshrc && bundle install`,
-                    `echo "Using pod version"`,
-                    `source ~/.zshrc && bundle exec pod --version`,
-                    `echo "Installing pods"`,
-                    `source ~/.zshrc && bundle exec "NO_FLIPPER=1 pod install --project-directory=ios"`,
-                    `echo "Building app for e2e testing"`,
-                    `detox build --configuration ios.sim.release | xcbeautify`,
-                    `echo "Removing artifacts"`,
-                    `rm -rf artifacts`,
-                    `echo "Renaming app"`,
-                    `${generateIAPScreenshot === true ? "node ./scripts/app-screenshots.js --generateIAPScreenshot" : 'echo  "IAP Screenshot"'}`,
-                    `node ./scripts/app-screenshots.js --rename "${appName}"`,
-                    `echo "Running e2e tests"`,
-                    `detox test --configuration ios.sim.release --artifacts-location artifacts/`,
-                    `echo "Generating screenshots"`,
-                    `node ./scripts/app-screenshots.js --config ${JSON.stringify(
-                      {
-                        hostId,
-                        domain,
-                        appName,
-                        androidScreenshots: JSON.stringify(androidScreenshots),
-                        iosScreenshots: JSON.stringify(iosScreenshots),
-                        androidFeatureGraphic: androidFeatureGraphic,
-                        generateIAPScreenshot,
-                      },
-                    )}`,
-                  ],
+                : isAndroidScreenshotsAvailable &&
+                    isFeatureGraphicAvailable &&
+                    platform === "android" &&
+                    !generateIAPScreenshot
+                  ? [`echo "Android screenshots are available"`]
+                  : isIosScreenshotsAvailable &&
+                      platform === "ios" &&
+                      !generateIAPScreenshot
+                    ? [`echo "iOS screenshots are available"`]
+                    : [
+                        `cd ${customHostAppDir}`,
+                        `echo "Removing node_modules"`,
+                        `rm -rf node_modules`,
+                        `echo "Using Node Version"`,
+                        `node -v`,
+                        `echo "Reinstalling node_modules"`,
+                        `npm install --reset-cache --include=dev`,
+                        `echo "Using ruby version"`,
+                        `source ~/.zshrc && ruby -v`,
+                        `echo "Using bundle version"`,
+                        `source ~/.zshrc && bundle --version`,
+                        `echo "Installing bundle"`,
+                        `source ~/.zshrc && bundle install`,
+                        `echo "Using pod version"`,
+                        `source ~/.zshrc && bundle exec pod --version`,
+                        `echo "Installing pods"`,
+                        `source ~/.zshrc && bundle exec "NO_FLIPPER=1 pod install --project-directory=ios"`,
+                        `echo "Building app for e2e testing"`,
+                        `detox build --configuration ios.sim.release | xcbeautify`,
+                        `echo "Removing artifacts"`,
+                        `rm -rf artifacts`,
+                        `echo "Renaming app"`,
+                        `${generateIAPScreenshot === true ? "node ./scripts/app-screenshots.js --generateIAPScreenshot" : 'echo  "IAP Screenshot"'}`,
+                        `node ./scripts/app-screenshots.js --rename "${appName}"`,
+                        `echo "Running e2e tests"`,
+                        `detox test --configuration ios.sim.release --artifacts-location artifacts/`,
+                        `echo "Generating screenshots"`,
+                        `node ./scripts/app-screenshots.js --config ${JSON.stringify(
+                          {
+                            hostId,
+                            domain,
+                            appName,
+                            androidScreenshots:
+                              JSON.stringify(androidScreenshots),
+                            iosScreenshots: JSON.stringify(iosScreenshots),
+                            androidFeatureGraphic: androidFeatureGraphic,
+                            generateIAPScreenshot,
+                          },
+                        )}`,
+                      ],
             [taskNames[4].id]: [
               `node ./scripts/create-metadata.js ${JSON.stringify({
                 hostId,
