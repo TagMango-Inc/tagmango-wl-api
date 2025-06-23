@@ -8,8 +8,8 @@ import Mongo from "../database";
 import authenticationMiddleware from "../middleware/authentication";
 import { JWTPayloadType } from "../types";
 import { AppFormStatus } from "../types/database";
+import { AWSService } from "../utils/aws";
 import { getLiveAppsOnOldVersionCSV } from "../utils/csv";
-import { enqueueMessage } from "../utils/sqs";
 import { Response } from "../utils/statuscode";
 import {
   rejectFormByIdSchema,
@@ -17,6 +17,7 @@ import {
 } from "../validations/appForms";
 
 const factory = createFactory();
+const awsService = new AWSService();
 
 const writeFile = fs.promises.writeFile;
 
@@ -581,7 +582,7 @@ const rejectFormHandler = factory.createHandlers(
         },
       );
 
-      await enqueueMessage(
+      await awsService.enqueueMessage(
         "appzap.appform.reject",
         {
           host: form.host.toString(),
