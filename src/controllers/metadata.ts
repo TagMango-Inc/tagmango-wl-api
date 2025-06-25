@@ -154,6 +154,7 @@ const getAppMetadata = factory.createHandlers(async (c) => {
 
     const form = await Mongo.app_forms.findOne({
       host: new ObjectId(appId),
+      parentForm: { $exists: false },
     });
 
     return c.json(

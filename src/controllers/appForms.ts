@@ -605,26 +605,18 @@ const rejectFormHandler = factory.createHandlers(
 );
 
 /**
- * PATCH wl/forms/:appId/mark-unpublished
- * Mark the form as unpublished by app id
+ * PATCH wl/forms/:formId/mark-unpublished
+ * Mark the form as unpublished by formId id
  * Protected Route
  */
 const markFormUnpublished = factory.createHandlers(
   authenticationMiddleware,
   async (c) => {
     try {
-      const { hostId } = c.req.param();
-
-      const customHost = await Mongo.customhost.findOne({
-        _id: new ObjectId(hostId),
-      });
-
-      if (!customHost) {
-        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
-      }
+      const { formId } = c.req.param();
 
       const result = await Mongo.app_forms.updateOne(
-        { host: new ObjectId(hostId) },
+        { _id: new ObjectId(formId) },
         { $set: { status: AppFormStatus.UNPUBLISHED, updatedAt: new Date() } },
       );
       if (result.modifiedCount === 0) {
@@ -644,26 +636,18 @@ const markFormUnpublished = factory.createHandlers(
 );
 
 /**
- * PATCH wl/forms/:appId/mark-in-store-review
- * Mark the form as in-store-review by app id
+ * PATCH wl/forms/:formId/mark-in-store-review
+ * Mark the form as in-store-review by formId id
  * Protected Route
  */
 const markFormInStoreReviewHandler = factory.createHandlers(
   authenticationMiddleware,
   async (c) => {
     try {
-      const { hostId } = c.req.param();
-
-      const customHost = await Mongo.customhost.findOne({
-        _id: new ObjectId(hostId),
-      });
-
-      if (!customHost) {
-        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
-      }
+      const { formId } = c.req.param();
 
       const result = await Mongo.app_forms.updateOne(
-        { host: new ObjectId(hostId) },
+        { _id: new ObjectId(formId) },
         {
           $set: {
             status: AppFormStatus.IN_STORE_REVIEW,
@@ -688,8 +672,8 @@ const markFormInStoreReviewHandler = factory.createHandlers(
 );
 
 /**
- * PATCH wl/forms/:appId/mark-approved
- * Mark the form as deployed by app id
+ * PATCH wl/forms/:formId/mark-approved
+ * Mark the form as deployed by formId id
  * Used when app is in progress and reviewer wants to approve bypassing review
  * Protected Route
  */
@@ -697,10 +681,18 @@ const markFormApprovedHandler = factory.createHandlers(
   authenticationMiddleware,
   async (c) => {
     try {
-      const { hostId } = c.req.param();
+      const { formId } = c.req.param();
+
+      const form = await Mongo.app_forms.findOne({
+        _id: new ObjectId(formId),
+      });
+
+      if (!form) {
+        return c.json({ message: "Form not found" }, Response.NOT_FOUND);
+      }
 
       const customHost = await Mongo.customhost.findOne({
-        _id: new ObjectId(hostId),
+        _id: new ObjectId(form.host),
       });
 
       if (!customHost) {
@@ -708,7 +700,7 @@ const markFormApprovedHandler = factory.createHandlers(
       }
 
       const metadata = await Mongo.metadata.findOne({
-        host: new ObjectId(hostId),
+        host: new ObjectId(form.host),
       });
 
       if (
@@ -733,7 +725,7 @@ const markFormApprovedHandler = factory.createHandlers(
       }
 
       const result = await Mongo.app_forms.updateOne(
-        { host: new ObjectId(hostId) },
+        { _id: new ObjectId(formId) },
         {
           $set: {
             // Use $set to update the fields
@@ -798,18 +790,26 @@ const markFormApprovedHandler = factory.createHandlers(
 );
 
 /**
- * PATCH wl/forms/:appId/mark-deployed
- * Mark the form as deployed by app id
+ * PATCH wl/forms/:formId/mark-deployed
+ * Mark the form as deployed by formId id
  * Protected Route
  */
 const markFormDeployedHandler = factory.createHandlers(
   authenticationMiddleware,
   async (c) => {
     try {
-      const { hostId } = c.req.param();
+      const { formId } = c.req.param();
+
+      const form = await Mongo.app_forms.findOne({
+        _id: new ObjectId(formId),
+      });
+
+      if (!form) {
+        return c.json({ message: "Form not found" }, Response.NOT_FOUND);
+      }
 
       const customHost = await Mongo.customhost.findOne({
-        _id: new ObjectId(hostId),
+        _id: new ObjectId(form.host),
       });
 
       if (!customHost) {
@@ -827,7 +827,7 @@ const markFormDeployedHandler = factory.createHandlers(
       }
 
       const result = await Mongo.app_forms.updateOne(
-        { host: new ObjectId(hostId) },
+        { _id: new ObjectId(formId) },
         { $set: { status: AppFormStatus.DEPLOYED, updatedAt: new Date() } },
       );
       if (result.modifiedCount === 0) {

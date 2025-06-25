@@ -22,14 +22,14 @@ router.get("/live-apps-on-old-version", ...getLiveAppsOnOldVersion);
 router.get("/:formId", ...getFormByIdHandler);
 
 router.patch(
-  "/host/:hostId/mark-in-store-review",
+  "/host/:formId/mark-in-store-review",
   ...markFormInStoreReviewHandler,
 );
-router.patch("/host/:hostId/mark-approved", ...markFormApprovedHandler);
-router.patch("/host/:hostId/mark-unpublished", ...markFormUnpublished);
-router.patch("/host/:hostId/mark-deployed", ...markFormDeployedHandler);
+router.patch("/host/:formId/mark-approved", ...markFormApprovedHandler);
+router.patch("/host/:formId/mark-unpublished", ...markFormUnpublished);
+router.patch("/host/:formId/mark-deployed", ...markFormDeployedHandler);
 router.patch(
-  "/host/:hostId/mark-is-external-dev-account",
+  "/host/:formId/mark-is-external-dev-account",
   ...toggleIsExternalDevAccount,
 );
 

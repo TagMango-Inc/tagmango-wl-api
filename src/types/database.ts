@@ -631,4 +631,6 @@ export interface IAppForm {
     reason: string;
     errors: Record<string, string>;
   };
+
+  parentForm?: ObjectId;
 }

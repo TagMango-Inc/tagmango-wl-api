@@ -195,11 +195,13 @@ const patchCustomHostByIdHandler = factory.createHandlers(
       ) {
         const appForm = await Mongo.app_forms.findOne({
           host: new ObjectId(id),
+          parentForm: { $exists: false },
         });
         if (appForm && appForm.status !== AppFormStatus.DEPLOYED) {
           await Mongo.app_forms.findOneAndUpdate(
             {
               host: new ObjectId(id),
+              parentForm: { $exists: false },
             },
             {
               $set: {
