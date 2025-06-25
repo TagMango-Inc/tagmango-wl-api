@@ -6,10 +6,11 @@ import { zValidator } from "@hono/zod-validator";
 import Mongo from "../../src/database";
 import { patchCustomHostByIdSchema } from "../../src/validations/customhost";
 import { AppFormStatus } from "../types/database";
-import { enqueueMessage } from "../utils/sqs";
+import { AWSService } from "../utils/aws";
 import { Response } from "../utils/statuscode";
 
 const factory = createFactory();
+const awsService = new AWSService();
 /**
     /wl/apps/
     GET
@@ -194,11 +195,13 @@ const patchCustomHostByIdHandler = factory.createHandlers(
       ) {
         const appForm = await Mongo.app_forms.findOne({
           host: new ObjectId(id),
+          parentForm: { $exists: false },
         });
         if (appForm && appForm.status !== AppFormStatus.DEPLOYED) {
           await Mongo.app_forms.findOneAndUpdate(
             {
               host: new ObjectId(id),
+              parentForm: { $exists: false },
             },
             {
               $set: {
@@ -208,7 +211,7 @@ const patchCustomHostByIdHandler = factory.createHandlers(
               },
             },
           );
-          await enqueueMessage(
+          await awsService.enqueueMessage(
             "appzap.app.deployed",
             {
               host: updatedCustomHost._id.toString(),
