@@ -145,6 +145,7 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
         brandname: customHost.brandname,
         logo: customHost.logo,
         createdAt: customHost.createdAt,
+        isEditForm: customHost.appFormDetails.parentForm ? true : false,
         status: customHost.appFormDetails
           ? customHost.appFormDetails.status
           : AppFormStatus.IN_PROGRESS,
