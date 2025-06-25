@@ -29,7 +29,7 @@ router.patch("/host/:formId/mark-approved", ...markFormApprovedHandler);
 router.patch("/host/:formId/mark-unpublished", ...markFormUnpublished);
 router.patch("/host/:formId/mark-deployed", ...markFormDeployedHandler);
 router.patch(
-  "/host/:formId/mark-is-external-dev-account",
+  "/host/:hostId/mark-is-external-dev-account",
   ...toggleIsExternalDevAccount,
 );
 
