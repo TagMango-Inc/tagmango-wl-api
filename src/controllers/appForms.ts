@@ -827,13 +827,44 @@ const markFormDeployedHandler = factory.createHandlers(
         );
       }
 
-      const result = await Mongo.app_forms.updateOne(
-        { _id: new ObjectId(formId) },
-        { $set: { status: AppFormStatus.DEPLOYED, updatedAt: new Date() } },
-      );
-      if (result.modifiedCount === 0) {
-        return c.json({ message: "Form not found" }, Response.NOT_FOUND);
+      if (form.parentForm) {
+        // delete the old parent form
+        const res = await Mongo.app_forms.deleteOne({
+          _id: new ObjectId(form.parentForm),
+        });
+
+        if (res.deletedCount === 0) {
+          return c.json(
+            { message: "Parent form not found" },
+            Response.NOT_FOUND,
+          );
+        }
+
+        // remove parentForm from this form
+        const result = await Mongo.app_forms.updateOne(
+          { _id: new ObjectId(formId) },
+          {
+            $unset: { parentForm: "" },
+            $set: { updatedAt: new Date(), status: AppFormStatus.DEPLOYED },
+          },
+        );
+
+        if (result.modifiedCount === 0) {
+          return c.json({ message: "Form not found" }, Response.NOT_FOUND);
+        }
+
+        // TODO(rohan): remove assets of old form from s3
+      } else {
+        // update this form
+        const result = await Mongo.app_forms.updateOne(
+          { _id: new ObjectId(formId) },
+          { $set: { status: AppFormStatus.DEPLOYED, updatedAt: new Date() } },
+        );
+        if (result.modifiedCount === 0) {
+          return c.json({ message: "Form not found" }, Response.NOT_FOUND);
+        }
       }
+
       return c.json(
         { message: "Form marked as deployed successfully" },
         Response.OK,
