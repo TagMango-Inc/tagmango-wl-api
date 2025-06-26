@@ -48,6 +48,7 @@ const updateIosDeploymentDetailsSchema = z.object({
   versionName: z.string(),
   buildNumber: z.number(),
   isUnderReview: z.boolean(),
+  appleId: z.string(),
 });
 const updateIosStoreMetadataSchema = z.custom<IIosStoreSettings>();
 const updateIosInfoMetadataSchema = z.custom<IIosInfoSettings>();
