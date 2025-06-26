@@ -1085,6 +1085,66 @@ const toggleIsExternalDevAccount = factory.createHandlers(
   },
 );
 
+const releaseEditAppForm = factory.createHandlers(
+  authenticationMiddleware,
+  async (c) => {
+    try {
+      const { formId, hostId } = c.req.param();
+
+      const parentForm = await Mongo.app_forms.findOne({
+        _id: new ObjectId(formId),
+        host: new ObjectId(hostId),
+      });
+
+      if (!parentForm) {
+        return c.json(
+          { message: "App form not found for host" },
+          Response.NOT_FOUND,
+        );
+      }
+
+      if (parentForm.status !== AppFormStatus.DEPLOYED) {
+        return c.json(
+          { message: "Cannot release edit form for non-deployed app" },
+          Response.BAD_REQUEST,
+        );
+      }
+
+      const newForm = await Mongo.app_forms.insertOne({
+        host: new ObjectId(hostId),
+        status: AppFormStatus.IN_PROGRESS,
+        parentForm: new ObjectId(parentForm._id),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        logo: "",
+        customOneSignalIcon: "",
+        backgroundType: parentForm.backgroundType,
+        backgroundStartColor: parentForm.backgroundStartColor,
+        backgroundEndColor: parentForm.backgroundEndColor,
+        backgroundGradientAngle: parentForm.backgroundGradientAngle,
+        logoPadding: parentForm.logoPadding,
+        iosLogoPadding: parentForm.iosLogoPadding,
+        androidStoreSettings: parentForm.androidStoreSettings,
+        iosStoreSettings: parentForm.iosStoreSettings,
+        iosInfoSettings: parentForm.iosInfoSettings,
+      });
+
+      return c.json(
+        {
+          message: "App form released successfully",
+          formId: newForm.insertedId.toString(),
+        },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
 export {
   deleteFormByIdHandler,
   getAllFormsCount,
@@ -1096,5 +1156,6 @@ export {
   markFormInStoreReviewHandler,
   markFormUnpublished,
   rejectFormHandler,
+  releaseEditAppForm,
   toggleIsExternalDevAccount,
 };

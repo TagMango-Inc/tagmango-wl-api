@@ -412,6 +412,7 @@ const updateBuildMetadataIosSettings = factory.createHandlers(
             "iosDeploymentDetails.lastDeploymentDetails.buildNumber":
               body.buildNumber,
             "iosDeploymentDetails.isUnderReview": body.isUnderReview,
+            "iosDeploymentDetails.appleId": body.appleId,
           },
         },
       );

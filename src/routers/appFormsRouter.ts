@@ -11,6 +11,7 @@ import {
   markFormInStoreReviewHandler,
   markFormUnpublished,
   rejectFormHandler,
+  releaseEditAppForm,
   toggleIsExternalDevAccount,
 } from "../controllers/appForms";
 
@@ -32,6 +33,7 @@ router.patch(
   "/host/:hostId/mark-is-external-dev-account",
   ...toggleIsExternalDevAccount,
 );
+router.post("/host/:hostId/:formId/release-edit-form", ...releaseEditAppForm);
 
 router.delete("/:formId", ...deleteFormByIdHandler);
 
