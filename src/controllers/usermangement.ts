@@ -30,14 +30,9 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
 
     const payload: JWTPayloadType = c.get("jwtPayload");
 
-    const totalUsers = await Mongo.user
-      .find({
-        isRestricted: { $ne: true },
-      })
-      .toArray();
+    const totalUsers = await Mongo.user.find().toArray();
 
     const query = {
-      isRestricted: { $ne: true },
       ...(ROLE ? { "customhostDashboardAccess.role": ROLE } : {}),
       $or: [
         { name: { $regex: new RegExp(SEARCH, "i") } },
@@ -181,7 +176,6 @@ const updateDashboardUser = factory.createHandlers(
       const updatedUser = await Mongo.user.findOneAndUpdate(
         {
           _id: new ObjectId(userId),
-          isRestricted: { $ne: true },
         },
         {
           $set: {
@@ -231,7 +225,6 @@ const updateDashboardUserPassword = factory.createHandlers(
 
       const user = await Mongo.user.findOne({
         _id: new ObjectId(userId),
-        isRestricted: { $ne: true },
       });
 
       if (!user) {
@@ -254,7 +247,6 @@ const updateDashboardUserPassword = factory.createHandlers(
       const updatedUser = await Mongo.user.findOneAndUpdate(
         {
           _id: new ObjectId(userId),
-          isRestricted: { $ne: true },
         },
         {
           $set: {
@@ -306,7 +298,6 @@ const getCurrentUser = factory.createHandlers(async (c) => {
     const { id } = c.get("jwtPayload");
     const user = await Mongo.user.findOne({
       _id: new ObjectId(id),
-      isRestricted: { $ne: true },
     });
     if (!user) {
       return c.json(
