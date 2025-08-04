@@ -357,9 +357,20 @@ const { readFile, writeFile } = fs.promises;
           logger.info("Deployment Status Changed to Processing");
 
           let isFailedDeployment = false;
+
+          // we need to check if the bundle folder is present in the deployments/{hostId} during the restart deployment process
+          // if the folder is present then only we can skip the task
+          // if the folder is not present then we need to execute the tasks from the beginning
+          const isBundleFolderPresentForRestart = fs.existsSync(
+            `${customhostDeploymentDir}/${bundle}`,
+          );
+
           for (const task of taskNames) {
             if (task.status === "success" || task.status === "processing") {
-              continue;
+              // skipping the task if it is already successful or processing only if the bundle folder is present in the deployments/{hostId}
+              if (isBundleFolderPresentForRestart) {
+                continue;
+              }
             }
             try {
               // executing the tasks
