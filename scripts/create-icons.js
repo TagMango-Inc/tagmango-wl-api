@@ -103,6 +103,7 @@ const createIcons = async (hostId, bundle) => {
       "foreground.png",
       "background.png",
       "iosIcon.png",
+      "customOneSignalIcon.png",
     ];
 
     // Download all required files directly to icons directory
