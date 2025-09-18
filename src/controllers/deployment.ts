@@ -670,13 +670,13 @@ const createNewDeploymentHandler = factory.createHandlers(
             },
           );
         }
+      }
 
-        if (!iosDeveloperAccount) {
-          return c.json(
-            { message: "iOS Developer Account not found" },
-            Response.BAD_REQUEST,
-          );
-        }
+      if (target === "ios" && !iosDeveloperAccount) {
+        return c.json(
+          { message: "iOS Developer Account not found" },
+          Response.BAD_REQUEST,
+        );
       }
 
       // update deep links for platform
@@ -1544,15 +1544,14 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
             },
           );
         }
-
-        if (!iosDeveloperAccount) {
-          return c.json(
-            { message: "iOS Developer Account not found" },
-            Response.BAD_REQUEST,
-          );
-        }
       }
 
+      if (deployment.platform === "ios" && !iosDeveloperAccount) {
+        return c.json(
+          { message: "iOS Developer Account not found" },
+          Response.BAD_REQUEST,
+        );
+      }
       // change status of deployment to pending
       await Mongo.deployment.updateOne(
         {

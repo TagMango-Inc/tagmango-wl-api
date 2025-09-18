@@ -342,28 +342,28 @@ const { readFile, writeFile } = fs.promises;
                     },
                   );
                 }
+              }
 
-                if (!iosDeveloperAccount) {
-                  logger.error(
-                    `iOS Developer Account not found for hostId: ${hostId}`,
-                  );
-                  await Mongo.redeployment.updateOne(
-                    {
-                      _id: new ObjectId(redeploymentId),
-                    },
-                    {
-                      $inc: { "progress.completed": 1 },
-                      $push: {
-                        "progress.failed": {
-                          hostId: new ObjectId(hostId),
-                          reason: "iOS Developer Account not found",
-                        },
+              if (target === "ios" && !iosDeveloperAccount) {
+                logger.error(
+                  `iOS Developer Account not found for hostId: ${hostId}`,
+                );
+                await Mongo.redeployment.updateOne(
+                  {
+                    _id: new ObjectId(redeploymentId),
+                  },
+                  {
+                    $inc: { "progress.completed": 1 },
+                    $push: {
+                      "progress.failed": {
+                        hostId: new ObjectId(hostId),
+                        reason: "iOS Developer Account not found",
                       },
                     },
-                  );
+                  },
+                );
 
-                  continue;
-                }
+                continue;
               }
 
               const { lastDeploymentDetails } =
