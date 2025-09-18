@@ -1067,6 +1067,12 @@ const toggleIsExternalDevAccount = factory.createHandlers(
         ...metadata.iosDeploymentDetails,
         isInExternalDevAccount:
           !metadata.iosDeploymentDetails.isInExternalDevAccount,
+        isDeploymentBlocked:
+          !metadata.iosDeploymentDetails.isInExternalDevAccount,
+        deploymentBlockReason: !metadata.iosDeploymentDetails
+          .isInExternalDevAccount
+          ? "This app is in external dev account"
+          : "",
       };
     }
 
