@@ -66,6 +66,7 @@ const { readFile, writeFile } = fs.promises;
             generateIAPScreenshot,
 
             androidDeveloperAccount,
+            iosDeveloperAccount,
             isFirstDeployment,
           } = job.data;
 
@@ -102,7 +103,7 @@ const { readFile, writeFile } = fs.promises;
           };
 
           const privateKey = await fs.promises.readFile(
-            `./asc_api_pk.p8`,
+            `./developer_accounts/ios/${iosDeveloperAccount?._id}/asc_api_pk.p8`,
             "base64",
           );
 
@@ -269,6 +270,7 @@ const { readFile, writeFile } = fs.promises;
                 androidDeveloperAccount: JSON.stringify(
                   androidDeveloperAccount ?? {},
                 ),
+                iosDeveloperAccount: JSON.stringify(iosDeveloperAccount ?? {}),
               })}`,
             ],
 
@@ -292,6 +294,8 @@ const { readFile, writeFile } = fs.promises;
                         hostId,
                         bundle,
                         privateKey,
+                        issuer: iosDeveloperAccount?.ascApiKeyIssuer,
+                        keyid: iosDeveloperAccount?.ascApiKeyId,
                         appleId,
                         isFirstDeployment,
                       })}`,
@@ -305,6 +309,8 @@ const { readFile, writeFile } = fs.promises;
                         hostId,
                         bundle,
                         privateKey,
+                        issuer: iosDeveloperAccount?.ascApiKeyIssuer,
+                        keyid: iosDeveloperAccount?.ascApiKeyId,
                         appleId,
                         isFirstDeployment,
                       })}`,

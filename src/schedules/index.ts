@@ -51,14 +51,29 @@ Mongo.connect().then(() => {
           continue;
         }
 
-        const privateKey = await readFile("./asc_api_pk.p8", "utf-8");
+        const iosDeveloperAccount = await Mongo.developer_accounts_ios.findOne({
+          _id: metadata.iosDeveloperAccount,
+        });
+
+        if (!iosDeveloperAccount) {
+          console.log(
+            "ios developer account not found for bundleId",
+            metadata.host,
+          );
+          continue;
+        }
+
+        const privateKey = await readFile(
+          `./developer_accounts/ios/${iosDeveloperAccount._id}/asc_api_pk.p8`,
+          "utf-8",
+        );
 
         let token = jwt.sign({}, privateKey, {
           algorithm: "ES256",
           expiresIn: "5m",
-          issuer: "4f5cd5ab-5d30-46ec-8a09-33508575602e",
+          issuer: iosDeveloperAccount.ascApiKeyIssuer,
           audience: "appstoreconnect-v1",
-          keyid: "FW86Z62C9N",
+          keyid: iosDeveloperAccount.ascApiKeyId,
         });
 
         const res = await fetch(

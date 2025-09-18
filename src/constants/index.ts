@@ -15,9 +15,12 @@ const MIGRATE_CRON = "15 21 * * *";
 const UPDATE_IOS_REVIEW_STATUS_CRON = "0 */3 * * *";
 const UPDATE_PRE_REQ_CRON = "0 11,23 * * *";
 
+const DEFAULT_IOS_DEVELOPER_ACCOUNT_ID = "68cbf3128913609eedb102df";
+
 export {
   customhostDeploymentDir,
   DAY_FROM_NOW,
+  DEFAULT_IOS_DEVELOPER_ACCOUNT_ID,
   DEPLOYMENT_REQUIREMENTS,
   githubrepo,
   MIGRATE_CRON,

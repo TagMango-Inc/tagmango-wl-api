@@ -4,6 +4,7 @@ import { WithId } from "mongodb";
 import {
   IAndroidStoreSettings,
   IDeveloperAccountAndroid,
+  IDeveloperAccountIos,
   IIosInfoSettings,
   IIosReviewSettings,
   IIosStoreSettings,
@@ -38,6 +39,7 @@ export type BuildConfigType = {
   iosReviewSettings: IIosReviewSettings;
 
   androidDeveloperAccount?: null | WithId<IDeveloperAccountAndroid>;
+  iosDeveloperAccount?: null | WithId<IDeveloperAccountIos>;
   isFirstDeployment: boolean;
   generateIAPScreenshot: boolean;
 };

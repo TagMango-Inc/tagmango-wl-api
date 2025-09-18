@@ -7,12 +7,16 @@ import path from "path";
 
 import { zValidator } from "@hono/zod-validator";
 
-import { DEPLOYMENT_REQUIREMENTS } from "../../src/constants";
+import {
+  DEFAULT_IOS_DEVELOPER_ACCOUNT_ID,
+  DEPLOYMENT_REQUIREMENTS,
+} from "../../src/constants";
 import Mongo from "../../src/database";
 import { buildQueue, redeploymentQueue } from "../../src/job/config";
 import { JWTPayloadType } from "../../src/types";
 import {
   IDeveloperAccountAndroid,
+  IDeveloperAccountIos,
   PlatformValues,
   Status,
   StatusValues,
@@ -632,6 +636,49 @@ const createNewDeploymentHandler = factory.createHandlers(
         );
       }
 
+      let androidDeveloperAccount: WithId<IDeveloperAccountAndroid> | null =
+        null;
+      let iosDeveloperAccount: WithId<IDeveloperAccountIos> | null = null;
+
+      if (target === "android" && metadata.androidDeveloperAccount) {
+        androidDeveloperAccount =
+          await Mongo.developer_accounts_android.findOne({
+            _id: metadata.androidDeveloperAccount,
+          });
+      } else if (target === "ios") {
+        // NOTE: After migrations, all the metadata were linked to old developer account
+        // for new metadatas, we need to link to default ios developer account and save
+
+        if (metadata.iosDeveloperAccount) {
+          iosDeveloperAccount = await Mongo.developer_accounts_ios.findOne({
+            _id: metadata.iosDeveloperAccount,
+          });
+        } else {
+          iosDeveloperAccount = await Mongo.developer_accounts_ios.findOne({
+            _id: new ObjectId(DEFAULT_IOS_DEVELOPER_ACCOUNT_ID), // default ios developer account id
+          });
+
+          // save the default ios developer account id to the metadata
+          await Mongo.metadata.updateOne(
+            { host: new ObjectId(customHostId) },
+            {
+              $set: {
+                iosDeveloperAccount: new ObjectId(
+                  DEFAULT_IOS_DEVELOPER_ACCOUNT_ID,
+                ),
+              },
+            },
+          );
+        }
+
+        if (!iosDeveloperAccount) {
+          return c.json(
+            { message: "iOS Developer Account not found" },
+            Response.BAD_REQUEST,
+          );
+        }
+      }
+
       // update deep links for platform
       if (target === "android") {
         await Mongo.customhost.findOneAndUpdate(
@@ -664,7 +711,7 @@ const createNewDeploymentHandler = factory.createHandlers(
                   apps: [],
                   details: [
                     {
-                      appID: `Z9M2DKF2B7.${metadata.iosDeploymentDetails.bundleId}`,
+                      appID: `${iosDeveloperAccount?.teamId}.${metadata.iosDeploymentDetails.bundleId}`,
                       paths: ["NOT /zoom*", "*"],
                     },
                   ],
@@ -691,7 +738,9 @@ const createNewDeploymentHandler = factory.createHandlers(
         } as Record<string, string>;
 
         if (target === "ios") {
-          const apns_path = path.resolve("./apns.p8");
+          const apns_path = path.resolve(
+            `./developer_accounts/ios/${iosDeveloperAccount?._id}/apns.p8`,
+          );
           const isApnExist = await fs.pathExists(apns_path);
 
           if (!isApnExist) {
@@ -706,8 +755,8 @@ const createNewDeploymentHandler = factory.createHandlers(
             ...body,
             apns_p8: apns_p8,
             apns_bundle_id: metadata.iosDeploymentDetails.bundleId,
-            apns_team_id: process.env.ONESIGNAL_APNS_TEAM_ID as string,
-            apns_key_id: process.env.ONESIGNAL_APNS_KEY_ID as string,
+            apns_team_id: iosDeveloperAccount?.teamId as string,
+            apns_key_id: iosDeveloperAccount?.apnsKeyId as string,
             apns_env: "production",
           };
         } else if (target === "android") {
@@ -778,13 +827,19 @@ const createNewDeploymentHandler = factory.createHandlers(
           );
         }
 
-        if (!data.apns_p8 || !data.fcm_v1_service_account_json) {
+        if (
+          !data.apns_p8 ||
+          !data.fcm_v1_service_account_json ||
+          data.name !== customhost.appName
+        ) {
           // on or the other platform setup is missing for the onesignal app
 
           let body = {} as Record<string, string>;
 
           if (!data.apns_p8) {
-            const apns_path = path.resolve("./apns.p8");
+            const apns_path = path.resolve(
+              `./developer_accounts/ios/${iosDeveloperAccount?._id}/apns.p8`,
+            );
             const isApnExist = await fs.pathExists(apns_path);
 
             if (!isApnExist) {
@@ -800,8 +855,8 @@ const createNewDeploymentHandler = factory.createHandlers(
               ...body,
               apns_p8,
               apns_bundle_id: metadata.iosDeploymentDetails.bundleId,
-              apns_team_id: process.env.ONESIGNAL_APNS_TEAM_ID as string,
-              apns_key_id: process.env.ONESIGNAL_APNS_KEY_ID as string,
+              apns_team_id: iosDeveloperAccount?.teamId as string,
+              apns_key_id: iosDeveloperAccount?.apnsKeyId as string,
               apns_env: "production",
             };
           }
@@ -822,6 +877,13 @@ const createNewDeploymentHandler = factory.createHandlers(
             body = {
               ...body,
               fcm_v1_service_account_json,
+            };
+          }
+
+          if (data.name !== customhost.appName) {
+            body = {
+              ...body,
+              name: customhost.appName,
             };
           }
 
@@ -866,16 +928,18 @@ const createNewDeploymentHandler = factory.createHandlers(
         if (!iosDeploymentDetails.appleId) {
           let appleId = "";
           const privateKey = await fs.readFile(
-            path.resolve("./asc_api_pk.p8"),
+            path.resolve(
+              `./developer_accounts/ios/${iosDeveloperAccount?._id}/asc_api_pk.p8`,
+            ),
             "utf-8",
           );
 
           let token = jwt.sign({}, privateKey, {
             algorithm: "ES256",
             expiresIn: "5m",
-            issuer: "4f5cd5ab-5d30-46ec-8a09-33508575602e",
+            issuer: iosDeveloperAccount?.ascApiKeyIssuer as string,
             audience: "appstoreconnect-v1",
-            keyid: "FW86Z62C9N",
+            keyid: iosDeveloperAccount?.ascApiKeyId as string,
           });
 
           const appleRes = await fetch(
@@ -1028,16 +1092,6 @@ const createNewDeploymentHandler = factory.createHandlers(
       // TODO: can't create another job if the job already exists and processing
       // creating a new job for deployment
 
-      let androidDeveloperAccount: WithId<IDeveloperAccountAndroid> | null =
-        null;
-
-      if (target === "android" && metadata.androidDeveloperAccount) {
-        androidDeveloperAccount =
-          await Mongo.developer_accounts_android.findOne({
-            _id: metadata.androidDeveloperAccount,
-          });
-      }
-
       await buildQueue.add(
         `${createdDeployment.insertedId.toString()}-${target}-${currentVersionName}`,
         {
@@ -1072,6 +1126,7 @@ const createNewDeploymentHandler = factory.createHandlers(
           generateIAPScreenshot: generateIAPScreenshot || false,
 
           androidDeveloperAccount,
+          iosDeveloperAccount,
           isFirstDeployment,
         },
         {
@@ -1455,6 +1510,7 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
 
       let androidDeveloperAccount: WithId<IDeveloperAccountAndroid> | null =
         null;
+      let iosDeveloperAccount: WithId<IDeveloperAccountIos> | null = null;
 
       if (
         deployment.platform === "android" &&
@@ -1464,6 +1520,37 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
           await Mongo.developer_accounts_android.findOne({
             _id: metadata.androidDeveloperAccount,
           });
+      } else if (deployment.platform === "ios") {
+        // NOTE: After migrations, all the metadata were linked to old developer account
+        // for new metadatas, we need to link to default ios developer account and save
+        if (metadata.iosDeveloperAccount) {
+          iosDeveloperAccount = await Mongo.developer_accounts_ios.findOne({
+            _id: metadata.iosDeveloperAccount,
+          });
+        } else {
+          iosDeveloperAccount = await Mongo.developer_accounts_ios.findOne({
+            _id: new ObjectId(DEFAULT_IOS_DEVELOPER_ACCOUNT_ID), // default ios developer account id
+          });
+
+          // save the default ios developer account id to the metadata
+          await Mongo.metadata.updateOne(
+            { host: new ObjectId(customhost._id) },
+            {
+              $set: {
+                iosDeveloperAccount: new ObjectId(
+                  DEFAULT_IOS_DEVELOPER_ACCOUNT_ID,
+                ),
+              },
+            },
+          );
+        }
+
+        if (!iosDeveloperAccount) {
+          return c.json(
+            { message: "iOS Developer Account not found" },
+            Response.BAD_REQUEST,
+          );
+        }
       }
 
       // change status of deployment to pending
@@ -1511,6 +1598,7 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
           generateIAPScreenshot: deployment.generateIAPScreenshot || false,
 
           androidDeveloperAccount,
+          iosDeveloperAccount,
           isFirstDeployment: deployment.isFirstDeployment || false,
         },
         {

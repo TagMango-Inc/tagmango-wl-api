@@ -6,7 +6,12 @@ import { ObjectId, WithId } from "mongodb";
 import pino from "pino";
 
 import Mongo from "../../src/database";
-import { IDeveloperAccountAndroid, Status } from "../../src/types/database";
+import {
+  IDeveloperAccountAndroid,
+  IDeveloperAccountIos,
+  Status,
+} from "../../src/types/database";
+import { DEFAULT_IOS_DEVELOPER_ACCOUNT_ID } from "../constants";
 import { RedeploymentJobPayloadType } from "../types";
 import { generateDeploymentTasks } from "../utils/generateTaskDetails";
 import { buildQueue, queueRedisOptions } from "./config";
@@ -300,6 +305,67 @@ const { readFile, writeFile } = fs.promises;
                 continue;
               }
 
+              let androidDeveloperAccount: WithId<IDeveloperAccountAndroid> | null =
+                null;
+              let iosDeveloperAccount: WithId<IDeveloperAccountIos> | null =
+                null;
+
+              if (target === "android" && metadata.androidDeveloperAccount) {
+                androidDeveloperAccount =
+                  await Mongo.developer_accounts_android.findOne({
+                    _id: metadata.androidDeveloperAccount,
+                  });
+              } else if (target === "ios") {
+                // NOTE: After migrations, all the metadata were linked to old developer account
+                // for new metadatas, we need to link to default ios developer account and save
+
+                if (metadata.iosDeveloperAccount) {
+                  iosDeveloperAccount =
+                    await Mongo.developer_accounts_ios.findOne({
+                      _id: metadata.iosDeveloperAccount,
+                    });
+                } else {
+                  iosDeveloperAccount =
+                    await Mongo.developer_accounts_ios.findOne({
+                      _id: new ObjectId(DEFAULT_IOS_DEVELOPER_ACCOUNT_ID), // default ios developer account id
+                    });
+
+                  // save the default ios developer account id to the metadata
+                  await Mongo.metadata.updateOne(
+                    { host: new ObjectId(customhost._id) },
+                    {
+                      $set: {
+                        iosDeveloperAccount: new ObjectId(
+                          DEFAULT_IOS_DEVELOPER_ACCOUNT_ID,
+                        ),
+                      },
+                    },
+                  );
+                }
+
+                if (!iosDeveloperAccount) {
+                  logger.error(
+                    `iOS Developer Account not found for hostId: ${hostId}`,
+                  );
+                  await Mongo.redeployment.updateOne(
+                    {
+                      _id: new ObjectId(redeploymentId),
+                    },
+                    {
+                      $inc: { "progress.completed": 1 },
+                      $push: {
+                        "progress.failed": {
+                          hostId: new ObjectId(hostId),
+                          reason: "iOS Developer Account not found",
+                        },
+                      },
+                    },
+                  );
+
+                  continue;
+                }
+              }
+
               const { lastDeploymentDetails } =
                 target === "android"
                   ? metadata.androidDeploymentDetails
@@ -385,16 +451,6 @@ const { readFile, writeFile } = fs.promises;
                 redeploymentId: new ObjectId(redeploymentId),
               });
 
-              let androidDeveloperAccount: WithId<IDeveloperAccountAndroid> | null =
-                null;
-
-              if (target === "android" && metadata.androidDeveloperAccount) {
-                androidDeveloperAccount =
-                  await Mongo.developer_accounts_android.findOne({
-                    _id: metadata.androidDeveloperAccount,
-                  });
-              }
-
               await buildQueue.add(
                 `${createdDeployment.insertedId.toString()}-${target}-${currentVersionName}`,
                 {
@@ -427,6 +483,7 @@ const { readFile, writeFile } = fs.promises;
                   generateIAPScreenshot: false,
 
                   androidDeveloperAccount,
+                  iosDeveloperAccount,
                   isFirstDeployment: false,
                 },
                 {

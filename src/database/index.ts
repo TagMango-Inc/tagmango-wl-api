@@ -11,6 +11,7 @@ import {
   ICustomHost,
   IDeployment,
   IDeveloperAccountAndroid,
+  IDeveloperAccountIos,
   IMango,
   IMangoRoom,
   IMetaData,
@@ -40,6 +41,7 @@ abstract class Mongo {
   public static platform_users: Collection<IUser>;
   public static mango_rooms: Collection<IMangoRoom>;
   public static developer_accounts_android: Collection<IDeveloperAccountAndroid>;
+  public static developer_accounts_ios: Collection<IDeveloperAccountIos>;
   public static app_forms: Collection<IAppForm>;
 
   public static async connect(): Promise<void> {
@@ -78,6 +80,9 @@ abstract class Mongo {
         this.db.collection<IDeveloperAccountAndroid>(
           Collections.DEVELOPER_ACCOUNT_ANDROID,
         );
+      this.developer_accounts_ios = this.db.collection<IDeveloperAccountIos>(
+        Collections.DEVELOPER_ACCOUNT_IOS,
+      );
       this.app_forms = this.db.collection<IAppForm>(Collections.APP_FORM);
     } catch (error) {
       console.log(`Error connecting to database: ${error}`);

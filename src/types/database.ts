@@ -14,6 +14,7 @@ export const Collections = {
   USER: "users",
   MANGO_ROOM: "rooms",
   DEVELOPER_ACCOUNT_ANDROID: "androiddeveloperaccounts",
+  DEVELOPER_ACCOUNT_IOS: "iosdeveloperaccounts",
   APP_FORM: "appforms",
 } as const;
 
@@ -203,6 +204,7 @@ export interface IMetaData {
   iapScreenshot: string;
 
   androidDeveloperAccount?: ObjectId;
+  iosDeveloperAccount?: ObjectId;
 
   isFormImported?: boolean;
   isPreReqCompleted?: boolean;
@@ -584,6 +586,18 @@ export interface IDeveloperAccountAndroid {
   keyPassword: string;
 
   createdAt: Date;
+}
+
+export interface IDeveloperAccountIos {
+  name: string;
+  itcTeamId: string;
+  teamId: string;
+  teamName: string;
+  applicationSpecificPassword: string;
+  certificatesGithub: string;
+  apnsKeyId: string;
+  ascApiKeyId: string;
+  ascApiKeyIssuer: string;
 }
 
 export enum AppFormStatus {
