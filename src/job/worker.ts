@@ -102,10 +102,13 @@ const { readFile, writeFile } = fs.promises;
             buildNumber: number;
           };
 
-          const privateKey = await fs.promises.readFile(
-            `./developer_accounts/ios/${iosDeveloperAccount?._id}/asc_api_pk.p8`,
-            "base64",
-          );
+          let privateKey = null;
+          if (platform === "ios") {
+            privateKey = await fs.promises.readFile(
+              `./developer_accounts/ios/${iosDeveloperAccount?._id}/asc_api_pk.p8`,
+              "base64",
+            );
+          }
 
           /**
            * Fetching the task names for the deployment
