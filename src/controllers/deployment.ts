@@ -1131,6 +1131,7 @@ const createNewDeploymentHandler = factory.createHandlers(
         },
         {
           attempts: 0,
+          lifo: true,
         },
       );
       return c.json(
@@ -1602,6 +1603,7 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
         },
         {
           attempts: 0,
+          lifo: true,
         },
       );
       return c.json(
