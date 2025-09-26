@@ -51,6 +51,18 @@ const downloadFile = (url, destPath) => {
   });
 };
 
+// Function to download optional files (ignores errors)
+const downloadOptionalFile = async (url, destPath, filename) => {
+  try {
+    await downloadFile(url, destPath);
+    console.log(`✅ Downloaded optional file: ${filename}`);
+    return true;
+  } catch (error) {
+    console.log(`⚠️  Skipped optional file: ${filename} (${error.message})`);
+    return false;
+  }
+};
+
 // Function to ensure directory exists
 const ensureDir = (dir) => {
   if (!fs.existsSync(dir)) {
@@ -103,11 +115,12 @@ const createIcons = async (hostId, bundle) => {
       "foreground.png",
       "background.png",
       "iosIcon.png",
-      "customOneSignalIcon.png",
     ];
 
+    const optionalFiles = ["customOneSignalIcon.png"];
+
     // Download all required files directly to icons directory
-    console.log("\n📥 Downloading assets...");
+    console.log("\n📥 Downloading required assets...");
     try {
       await Promise.all(
         requiredFiles.map(async (file) => {
@@ -118,9 +131,21 @@ const createIcons = async (hostId, bundle) => {
         }),
       );
     } catch (error) {
-      console.error("\n❌ Error downloading assets:");
+      console.error("\n❌ Error downloading required assets:");
       console.error(error.message);
       process.exit(1);
+    }
+
+    // Download optional files (ignore errors)
+    if (optionalFiles.length > 0) {
+      console.log("\n📥 Downloading optional assets...");
+      await Promise.all(
+        optionalFiles.map(async (file) => {
+          const url = `${baseUrl}/${file}`;
+          const destPath = path.join(iconsDir, file);
+          await downloadOptionalFile(url, destPath, file);
+        }),
+      );
     }
 
     // Create Android icons
