@@ -75,10 +75,9 @@ const { readFile, writeFile } = fs.promises;
 
           // find the paths to remove after successful deployment
           // this ensures space is freed up after successful deployment
-          const username = os.userInfo().username;
-          const archivesPath = `~/Users/${username}/Library/Developer/Xcode/Archives`;
-          const derivedDataPath = `~/Users/${username}/Library/Developer/Xcode/DerivedData`;
-          const moduleCachePath = `~/Users/${username}/Library/Developer/Xcode/DerivedData/ModuleCache.noindex`;
+          const archivesPath = `~/Users/kylixmedusa/Library/Developer/Xcode/Archives`;
+          const derivedDataPath = `~/Users/kylixmedusa/Library/Developer/Xcode/DerivedData`;
+          const moduleCachePath = `~/Users/kylixmedusa/Library/Developer/Xcode/DerivedData/ModuleCache.noindex`;
 
           // get screenshots values from DB as the job starts instead of getting a copy when the job is created
           // assumption: only 1 deployment is running at a time, so we can get the latest values from the DB
@@ -355,6 +354,8 @@ const { readFile, writeFile } = fs.promises;
             [taskNames[9].id]:
               platform === "ios"
                 ? [
+                    `echo "Removing deployment folder"`,
+                    `echo ${JSON.stringify(os.userInfo())}`,
                     `rm -rf ${customhostDeploymentDir}/${bundle}`,
                     `rm -rf ${archivesPath}/*`,
                     `rm -rf ${moduleCachePath}/*`,
