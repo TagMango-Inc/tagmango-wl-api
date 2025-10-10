@@ -4,6 +4,7 @@ import { Job, Worker } from "bullmq";
 import { exec } from "child_process";
 import fs from "fs-extra";
 import { ObjectId, UpdateFilter } from "mongodb";
+import os from "os";
 import pino from "pino";
 
 import Mongo from "../../src/database";
@@ -71,6 +72,13 @@ const { readFile, writeFile } = fs.promises;
           } = job.data;
 
           const formatedAppName = name.replace(/ /g, "");
+
+          // find the paths to remove after successful deployment
+          // this ensures space is freed up after successful deployment
+          const username = os.userInfo().username;
+          const archivesPath = `~/Users/${username}/Library/Developer/Xcode/Archives`;
+          const derivedDataPath = `~/Users/${username}/Library/Developer/Xcode/DerivedData`;
+          const moduleCachePath = `~/Users/${username}/Library/Developer/Xcode/DerivedData/ModuleCache.noindex`;
 
           // get screenshots values from DB as the job starts instead of getting a copy when the job is created
           // assumption: only 1 deployment is running at a time, so we can get the latest values from the DB
@@ -344,8 +352,15 @@ const { readFile, writeFile } = fs.promises;
                     `source ~/.zshrc && bundle exec fastlane ${platform} upload`,
                   ],
             // step 7: Removing the deployment/{bundleId} folder after successful deployment
-            [taskNames[9].id]: [`rm -rf ${customhostDeploymentDir}/${bundle}`],
-            // [taskNames[6].id]: [],
+            [taskNames[9].id]:
+              platform === "ios"
+                ? [
+                    `rm -rf ${customhostDeploymentDir}/${bundle}`,
+                    `rm -rf ${archivesPath}/*`,
+                    `rm -rf ${moduleCachePath}/*`,
+                    `find ${derivedDataPath} -mindepth 1 -maxdepth 1 ! -name "ModuleCache.noindex" -exec rm -rf {} +`,
+                  ]
+                : [`rm -rf ${customhostDeploymentDir}/${bundle}`],
           };
 
           logger.info("Initiated Deployment Process");
