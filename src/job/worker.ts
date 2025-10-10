@@ -357,8 +357,8 @@ const { readFile, writeFile } = fs.promises;
                 ? [
                     `echo "Removing deployment folder"`,
                     `rm -rf ${customhostDeploymentDir}/${bundle}`,
-                    `rm -rf ${archivesPath}/*`,
-                    `rm -rf ${moduleCachePath}/*`,
+                    `find ${archivesPath} -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true`,
+                    `find ${moduleCachePath} -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true`,
                     `find ${derivedDataPath} -mindepth 1 -maxdepth 1 ! -name "ModuleCache.noindex" -exec rm -rf {} +`,
                   ]
                 : [`rm -rf ${customhostDeploymentDir}/${bundle}`],
