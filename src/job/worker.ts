@@ -157,6 +157,21 @@ const { readFile, writeFile } = fs.promises;
 
           const customHostAppDir = `${customhostDeploymentDir}/${bundle}/${githubrepo}`;
 
+          // Check if pre-built Detox app exists for this version
+          const preBuiltDetoxAppPath = `builds/detox/${releaseDetails.versionName}/TagMango.app`;
+          const isPreBuiltDetoxAppAvailable =
+            fs.existsSync(preBuiltDetoxAppPath);
+
+          if (isPreBuiltDetoxAppAvailable) {
+            logger.info(
+              `Using pre-built Detox app from ${preBuiltDetoxAppPath}`,
+            );
+          } else {
+            logger.info(
+              "Pre-built Detox app not found, will build from scratch",
+            );
+          }
+
           /**
            * Combining commands with their respective task names and is
            */
@@ -174,7 +189,8 @@ const { readFile, writeFile } = fs.promises;
               `mkdir -p ${customhostDeploymentDir}/${bundle}`,
               `cp -r root/${githubrepo} ${customhostDeploymentDir}/${bundle}`,
               `cd ${customHostAppDir}`,
-              `git checkout -b v/${releaseDetails.versionName} --track origin/v/${releaseDetails.versionName}`,
+              `git fetch --all`,
+              `git checkout v/${releaseDetails.versionName}`,
               `git pull origin v/${releaseDetails.versionName}`,
             ],
             // step: 3: Copying the WL assets from WLApps/{formatedName} to deployment/{bundleId}/WLApps/{formatedName}
@@ -186,6 +202,7 @@ const { readFile, writeFile } = fs.promises;
             // 1. Screenshots are available and generateIAPScreenshot is false -> will not run the task
             // 2. Screenshots are available and generateIAPScreenshot is true -> will run the task
             // 3. Screenshots are not available -> Run task only if its platform screenshots are not available
+            // 4. If pre-built Detox app is available, use it instead of building from scratch
             [taskNames[3].id]:
               isAndroidScreenshotsAvailable &&
               isIosScreenshotsAvailable &&
@@ -201,47 +218,88 @@ const { readFile, writeFile } = fs.promises;
                       platform === "ios" &&
                       !generateIAPScreenshot
                     ? [`echo "iOS screenshots are available"`]
-                    : [
-                        `cd ${customHostAppDir}`,
-                        `echo "Removing node_modules"`,
-                        `rm -rf node_modules`,
-                        `echo "Using Node Version"`,
-                        `node -v`,
-                        `echo "Reinstalling node_modules"`,
-                        `npm install --reset-cache --include=dev`,
-                        `echo "Using ruby version"`,
-                        `source ~/.zshrc && ruby -v`,
-                        `echo "Using bundle version"`,
-                        `source ~/.zshrc && bundle --version`,
-                        `echo "Installing bundle"`,
-                        `source ~/.zshrc && bundle install`,
-                        `echo "Using pod version"`,
-                        `source ~/.zshrc && bundle exec pod --version`,
-                        `echo "Installing pods"`,
-                        `source ~/.zshrc && bundle exec "NO_FLIPPER=1 pod install --project-directory=ios"`,
-                        `echo "Building app for e2e testing"`,
-                        `detox build --configuration ios.sim.release | xcbeautify`,
-                        `echo "Removing artifacts"`,
-                        `rm -rf artifacts`,
-                        `echo "Renaming app"`,
-                        `${generateIAPScreenshot === true ? "node ./scripts/app-screenshots.js --generateIAPScreenshot" : 'echo  "IAP Screenshot"'}`,
-                        `node ./scripts/app-screenshots.js --rename "${appName}"`,
-                        `echo "Running e2e tests"`,
-                        `detox test --configuration ios.sim.release --artifacts-location artifacts/`,
-                        `echo "Generating screenshots"`,
-                        `node ./scripts/app-screenshots.js --config ${JSON.stringify(
-                          {
-                            hostId,
-                            domain,
-                            appName,
-                            androidScreenshots:
-                              JSON.stringify(androidScreenshots),
-                            iosScreenshots: JSON.stringify(iosScreenshots),
-                            androidFeatureGraphic: androidFeatureGraphic,
-                            generateIAPScreenshot,
-                          },
-                        )}`,
-                      ],
+                    : isPreBuiltDetoxAppAvailable
+                      ? [
+                          // Use pre-built Detox app (skips bundle install, pod install, detox build)
+                          `cd ${customHostAppDir}`,
+                          `echo "Removing node_modules"`,
+                          `rm -rf node_modules`,
+                          `echo "Using Node Version"`,
+                          `node -v`,
+                          `echo "Reinstalling node_modules"`,
+                          `npm install --reset-cache --include=dev`,
+                          `echo "Using ruby version"`,
+                          `source ~/.zshrc && ruby -v`,
+                          `echo "Using bundle version"`,
+                          `source ~/.zshrc && bundle --version`,
+                          `echo "Installing bundle"`,
+                          `source ~/.zshrc && bundle install`,
+                          `echo "Using pre-built Detox app from builds/detox/${releaseDetails.versionName}"`,
+                          `mkdir -p ios/build/Build/Products/Release-iphonesimulator`,
+                          `cp -r ../../../builds/detox/${releaseDetails.versionName}/TagMango.app ios/build/Build/Products/Release-iphonesimulator/`,
+                          `echo "Removing artifacts"`,
+                          `rm -rf artifacts`,
+                          `echo "Renaming app"`,
+                          `${generateIAPScreenshot === true ? "node ./scripts/app-screenshots.js --generateIAPScreenshot" : 'echo  "IAP Screenshot"'}`,
+                          `node ./scripts/app-screenshots.js --rename "${appName}"`,
+                          `echo "Running e2e tests"`,
+                          `detox test --configuration ios.sim.release --artifacts-location artifacts/`,
+                          `echo "Generating screenshots"`,
+                          `node ./scripts/app-screenshots.js --config ${JSON.stringify(
+                            {
+                              hostId,
+                              domain,
+                              appName,
+                              androidScreenshots:
+                                JSON.stringify(androidScreenshots),
+                              iosScreenshots: JSON.stringify(iosScreenshots),
+                              androidFeatureGraphic: androidFeatureGraphic,
+                              generateIAPScreenshot,
+                            },
+                          )}`,
+                        ]
+                      : [
+                          // Full build from scratch (fallback when no pre-built app)
+                          `cd ${customHostAppDir}`,
+                          `echo "Removing node_modules"`,
+                          `rm -rf node_modules`,
+                          `echo "Using Node Version"`,
+                          `node -v`,
+                          `echo "Reinstalling node_modules"`,
+                          `npm install --reset-cache --include=dev`,
+                          `echo "Using ruby version"`,
+                          `source ~/.zshrc && ruby -v`,
+                          `echo "Using bundle version"`,
+                          `source ~/.zshrc && bundle --version`,
+                          `echo "Installing bundle"`,
+                          `source ~/.zshrc && bundle install`,
+                          `echo "Using pod version"`,
+                          `source ~/.zshrc && bundle exec pod --version`,
+                          `echo "Installing pods"`,
+                          `source ~/.zshrc && bundle exec "NO_FLIPPER=1 pod install --project-directory=ios"`,
+                          `echo "Building app for e2e testing"`,
+                          `detox build --configuration ios.sim.release | xcbeautify`,
+                          `echo "Removing artifacts"`,
+                          `rm -rf artifacts`,
+                          `echo "Renaming app"`,
+                          `${generateIAPScreenshot === true ? "node ./scripts/app-screenshots.js --generateIAPScreenshot" : 'echo  "IAP Screenshot"'}`,
+                          `node ./scripts/app-screenshots.js --rename "${appName}"`,
+                          `echo "Running e2e tests"`,
+                          `detox test --configuration ios.sim.release --artifacts-location artifacts/`,
+                          `echo "Generating screenshots"`,
+                          `node ./scripts/app-screenshots.js --config ${JSON.stringify(
+                            {
+                              hostId,
+                              domain,
+                              appName,
+                              androidScreenshots:
+                                JSON.stringify(androidScreenshots),
+                              iosScreenshots: JSON.stringify(iosScreenshots),
+                              androidFeatureGraphic: androidFeatureGraphic,
+                              generateIAPScreenshot,
+                            },
+                          )}`,
+                        ],
             [taskNames[4].id]: [
               `node ./scripts/create-metadata.js ${JSON.stringify({
                 hostId,
