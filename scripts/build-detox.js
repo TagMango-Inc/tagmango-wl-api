@@ -124,6 +124,22 @@ const buildDetox = async () => {
       throw new Error("Failed to copy built app to cache directory");
     }
 
+    // Step 7: Cleanup root project (dependencies + build artifacts)
+    console.log("\n🧹 Step 7: Cleaning up root project...");
+    const cleanupPaths = [
+      // Dependencies
+      "node_modules",
+      "vendor",
+      "ios/Pods",
+      // Build artifacts
+      "ios/build",
+      "android/build",
+      "android/app/build",
+      "android/.gradle",
+    ].join(" ");
+
+    execute(`cd ${rootProjectDir} && rm -rf ${cleanupPaths}`);
+
     console.log("\n✅ Detox build completed successfully!");
     console.log(`📂 Cached app location: ${destAppPath}`);
     console.log(`\n💡 This build will be reused for all deployments using version ${versionName}\n`);
