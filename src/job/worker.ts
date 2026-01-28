@@ -159,12 +159,17 @@ const { readFile, writeFile } = fs.promises;
 
           // Check if pre-built Detox app exists for this version
           const preBuiltDetoxAppPath = `builds/detox/${releaseDetails.versionName}/TagMango.app`;
-          const isPreBuiltDetoxAppAvailable = fs.existsSync(preBuiltDetoxAppPath);
+          const isPreBuiltDetoxAppAvailable =
+            fs.existsSync(preBuiltDetoxAppPath);
 
           if (isPreBuiltDetoxAppAvailable) {
-            logger.info(`Using pre-built Detox app from ${preBuiltDetoxAppPath}`);
+            logger.info(
+              `Using pre-built Detox app from ${preBuiltDetoxAppPath}`,
+            );
           } else {
-            logger.info("Pre-built Detox app not found, will build from scratch");
+            logger.info(
+              "Pre-built Detox app not found, will build from scratch",
+            );
           }
 
           /**
@@ -184,7 +189,8 @@ const { readFile, writeFile } = fs.promises;
               `mkdir -p ${customhostDeploymentDir}/${bundle}`,
               `cp -r root/${githubrepo} ${customhostDeploymentDir}/${bundle}`,
               `cd ${customHostAppDir}`,
-              `git checkout -b v/${releaseDetails.versionName} --track origin/v/${releaseDetails.versionName}`,
+              `git fetch --all`,
+              `git checkout v/${releaseDetails.versionName}`,
               `git pull origin v/${releaseDetails.versionName}`,
             ],
             // step: 3: Copying the WL assets from WLApps/{formatedName} to deployment/{bundleId}/WLApps/{formatedName}
