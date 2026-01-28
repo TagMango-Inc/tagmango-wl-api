@@ -8,6 +8,7 @@ import {
   getLiveAppsOnOldVersion,
   markFormApprovedHandler,
   markFormDeployedHandler,
+  markFormInReviewHandler,
   markFormInStoreReviewHandler,
   markFormUnpublished,
   rejectFormHandler,
@@ -27,6 +28,7 @@ router.patch(
   ...markFormInStoreReviewHandler,
 );
 router.patch("/host/:formId/mark-approved", ...markFormApprovedHandler);
+router.patch("/host/:formId/mark-in-review", ...markFormInReviewHandler);
 router.patch("/host/:formId/mark-unpublished", ...markFormUnpublished);
 router.patch("/host/:formId/mark-deployed", ...markFormDeployedHandler);
 router.patch(

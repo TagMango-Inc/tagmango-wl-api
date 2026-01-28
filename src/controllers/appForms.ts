@@ -637,6 +637,67 @@ const markFormUnpublished = factory.createHandlers(
 );
 
 /**
+ * PATCH wl/forms/host/:formId/mark-in-review
+ * Move the form back to in-review status
+ * Only allowed for forms with status APPROVED or IN_STORE_REVIEW
+ * Protected Route
+ */
+const markFormInReviewHandler = factory.createHandlers(
+  authenticationMiddleware,
+  async (c) => {
+    try {
+      const { formId } = c.req.param();
+
+      const form = await Mongo.app_forms.findOne({
+        _id: new ObjectId(formId),
+      });
+
+      if (!form) {
+        return c.json({ message: "Form not found" }, Response.NOT_FOUND);
+      }
+
+      if (
+        form.status !== AppFormStatus.APPROVED &&
+        form.status !== AppFormStatus.IN_STORE_REVIEW
+      ) {
+        return c.json(
+          {
+            message:
+              "Only forms with status APPROVED or IN_STORE_REVIEW can be moved to in-review",
+          },
+          Response.BAD_REQUEST,
+        );
+      }
+
+      await Mongo.app_forms.updateOne(
+        { _id: new ObjectId(formId) },
+        {
+          $set: {
+            status: AppFormStatus.IN_REVIEW,
+            submittedAt: new Date(),
+            updatedAt: new Date(),
+          },
+          $unset: {
+            approvedAt: "",
+            rejectionDetails: "",
+          },
+        },
+      );
+
+      return c.json(
+        { message: "Form moved to in-review successfully" },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
+/**
  * PATCH wl/forms/:formId/mark-in-store-review
  * Mark the form as in-store-review by formId id
  * Protected Route
@@ -1159,6 +1220,7 @@ export {
   getLiveAppsOnOldVersion,
   markFormApprovedHandler,
   markFormDeployedHandler,
+  markFormInReviewHandler,
   markFormInStoreReviewHandler,
   markFormUnpublished,
   rejectFormHandler,
