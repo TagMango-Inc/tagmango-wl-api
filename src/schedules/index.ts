@@ -7,6 +7,8 @@ import util from "util";
 
 import { Types } from "mongoose";
 import {
+  CLEANUP_DEPLOYMENT_REQUESTS_CRON,
+  DEPLOYMENT_REQUEST_RETENTION_DAYS,
   UPDATE_ANDROID_PLAY_STORE_STATUS_CRON,
   UPDATE_IOS_REVIEW_STATUS_CRON,
   UPDATE_PRE_REQ_CRON,
@@ -558,6 +560,45 @@ Mongo.connect().then(() => {
       if (browser) {
         await browser.close();
       }
+    }
+  });
+
+  // Cron to cleanup completed deployment requests older than 7 days
+  cron.schedule(CLEANUP_DEPLOYMENT_REQUESTS_CRON, async () => {
+    console.log("Running cleanup-deployment-requests schedule");
+
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - DEPLOYMENT_REQUEST_RETENTION_DAYS);
+
+    try {
+      // Delete deployment requests where all existing platforms have status "success"
+      // and updatedAt is older than cutoff date
+      const deleteResult = await Mongo.deployment_requests.deleteMany({
+        updatedAt: { $lt: cutoffDate },
+        $or: [
+          // Both platforms exist and are successful
+          {
+            "android.status": "success",
+            "ios.status": "success",
+          },
+          // Only android exists and is successful
+          {
+            "android.status": "success",
+            ios: { $exists: false },
+          },
+          // Only ios exists and is successful
+          {
+            "ios.status": "success",
+            android: { $exists: false },
+          },
+        ],
+      });
+
+      console.log(
+        `Deleted ${deleteResult.deletedCount} completed deployment requests older than ${DEPLOYMENT_REQUEST_RETENTION_DAYS} days`,
+      );
+    } catch (error) {
+      console.error("Error cleaning up deployment requests:", error);
     }
   });
 });

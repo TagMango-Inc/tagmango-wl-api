@@ -16,6 +16,7 @@ export const Collections = {
   DEVELOPER_ACCOUNT_ANDROID: "androiddeveloperaccounts",
   DEVELOPER_ACCOUNT_IOS: "iosdeveloperaccounts",
   APP_FORM: "appforms",
+  APP_DEPLOYMENT_REQUESTS: "appdeploymentrequests",
 } as const;
 
 export const Platform = {
@@ -655,4 +656,31 @@ export interface IAppForm {
   };
 
   parentForm?: ObjectId;
+}
+
+export const DeploymentRequestStatus = {
+  PENDING: "pending",
+  PROCESSING: "processing",
+  SUCCESS: "success",
+  FAILED: "failed",
+} as const;
+
+export const DeploymentRequestStatusValues = Object.values(
+  DeploymentRequestStatus,
+);
+
+export type DeploymentRequestStatus =
+  (typeof DeploymentRequestStatus)[keyof typeof DeploymentRequestStatus];
+
+export interface IPlatformDeploymentRequest {
+  status: DeploymentRequestStatus;
+}
+
+export interface IDeploymentRequest {
+  _id?: ObjectId;
+  host: ObjectId;
+  android?: IPlatformDeploymentRequest;
+  ios?: IPlatformDeploymentRequest;
+  createdAt: Date;
+  updatedAt: Date;
 }
