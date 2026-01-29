@@ -61,8 +61,22 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
             updatedAt: 1,
             androidVersionName:
               "$deploymentDetails.androidDeploymentDetails.versionName",
+            androidStoreVersionName:
+              "$deploymentDetails.androidDeploymentDetails.playStore.versionName",
             iosVersionName:
               "$deploymentDetails.iosDeploymentDetails.versionName",
+            iosStoreVersionName: {
+              $cond: {
+                if: {
+                  $eq: [
+                    "$deploymentDetails.iosDeploymentDetails.appStore.status",
+                    "READY_FOR_DISTRIBUTION",
+                  ],
+                },
+                then: "$deploymentDetails.iosDeploymentDetails.appStore.versionName",
+                else: null,
+              },
+            },
             iosUnderReview:
               "$deploymentDetails.iosDeploymentDetails.isUnderReview",
           },
