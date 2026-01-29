@@ -10,6 +10,7 @@ import {
   ICourse,
   ICustomHost,
   IDeployment,
+  IDeploymentRequest,
   IDeveloperAccountAndroid,
   IDeveloperAccountIos,
   IMango,
@@ -43,6 +44,7 @@ abstract class Mongo {
   public static developer_accounts_android: Collection<IDeveloperAccountAndroid>;
   public static developer_accounts_ios: Collection<IDeveloperAccountIos>;
   public static app_forms: Collection<IAppForm>;
+  public static deployment_requests: Collection<IDeploymentRequest>;
 
   public static async connect(): Promise<void> {
     try {
@@ -84,6 +86,9 @@ abstract class Mongo {
         Collections.DEVELOPER_ACCOUNT_IOS,
       );
       this.app_forms = this.db.collection<IAppForm>(Collections.APP_FORM);
+      this.deployment_requests = this.db.collection<IDeploymentRequest>(
+        Collections.APP_DEPLOYMENT_REQUESTS,
+      );
     } catch (error) {
       console.log(`Error connecting to database: ${error}`);
       throw new Error("Error connecting to database");

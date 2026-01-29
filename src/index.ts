@@ -13,6 +13,7 @@ import authenticationMiddleware from "./middleware/authentication";
 import appFormsRouter from "./routers/appFormsRouter";
 import authenticationRouter from "./routers/authenticationRouter";
 import customHostRouter from "./routers/customHostRouter";
+import deploymentRequestRouter from "./routers/deploymentRequestRouter";
 import developerAccountsRouter from "./routers/developerAccountsRouter";
 import iapRouter from "./routers/iapRouter";
 import metadataRouter from "./routers/metadataRouter";
@@ -52,6 +53,7 @@ Mongo.connect().then(() => {
   app.use("/output/*", authenticationMiddleware);
   app.use("/release/*", authenticationMiddleware);
   app.use("/developer-accounts/*", authenticationMiddleware);
+  app.use("/deployment-requests/*", authenticationMiddleware);
   // app.use("/forms", authenticationMiddleware);
 
   app.get("/", async (c) => {
@@ -107,6 +109,7 @@ Mongo.connect().then(() => {
   app.route("/sse", sseRouter);
   app.route("/developer-accounts", developerAccountsRouter);
   app.route("/forms", appFormsRouter);
+  app.route("/deployment-requests", deploymentRequestRouter);
 
   app.use(prettyJSON());
 
