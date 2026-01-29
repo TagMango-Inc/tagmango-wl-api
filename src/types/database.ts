@@ -120,6 +120,10 @@ export interface IAndroidDeploymentDetails {
   isInExternalDevAccount?: boolean;
   isDeploymentBlocked?: boolean;
   deploymentBlockReason?: string;
+  playStore?: {
+    versionName: string;
+    status: string;
+  };
 }
 
 export interface IIosDeploymentDetails {
@@ -135,6 +139,10 @@ export interface IIosDeploymentDetails {
   isInExternalDevAccount?: boolean;
   isDeploymentBlocked?: boolean;
   deploymentBlockReason?: string;
+  appStore?: {
+    versionName: string;
+    status: string;
+  };
 }
 
 export interface IIosStoreSettings {
