@@ -836,7 +836,7 @@ const createNewDeploymentHandler = factory.createHandlers(
 
           let body = {} as Record<string, string>;
 
-          if (!data.apns_p8) {
+          if (!data.apns_p8 && target === "ios") {
             const apns_path = path.resolve(
               `./developer_accounts/ios/${iosDeveloperAccount?._id}/apns.p8`,
             );
@@ -861,7 +861,7 @@ const createNewDeploymentHandler = factory.createHandlers(
             };
           }
 
-          if (!data.fcm_v1_service_account_json) {
+          if (!data.fcm_v1_service_account_json && target === "android") {
             const fcm_path = path.resolve("./fcm.json");
             const isFcmExist = await fs.pathExists(fcm_path);
             if (!isFcmExist) {
