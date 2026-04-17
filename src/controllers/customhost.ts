@@ -200,31 +200,20 @@ const patchCustomHostByIdHandler = factory.createHandlers(
         }
       }
 
-      // if the updatedCustomHost contains both androidShareLink and iosShareLink
-      // then find the app_form and update the status of the app_form to DEPLOYED if it is not already DEPLOYED
+      // When any of the android or ios share links are updated,
+      //  - Then we need to send email to the creator based on the action.
+      //  - Also if both link exists, then update the app form to "DEPLOYED" (ie, if not already in DEPLOYED state).
       if (
         updatedCustomHost &&
-        updatedCustomHost.androidShareLink &&
-        updatedCustomHost.iosShareLink
+        (updatedCustomHost.androidShareLink || updatedCustomHost.iosShareLink)
       ) {
         const appForm = await Mongo.app_forms.findOne({
           host: new ObjectId(id),
           parentForm: { $exists: false },
         });
+
+        // if the app form is not deployed, then enqueue the message to deploy the app
         if (appForm && appForm.status !== AppFormStatus.DEPLOYED) {
-          await Mongo.app_forms.findOneAndUpdate(
-            {
-              host: new ObjectId(id),
-              parentForm: { $exists: false },
-            },
-            {
-              $set: {
-                showAppsLiveBannerToCreator: true,
-                status: AppFormStatus.DEPLOYED,
-                updatedAt: new Date(),
-              },
-            },
-          );
           await awsService.enqueueMessage(
             "appzap.app.deployed",
             {
@@ -232,6 +221,26 @@ const patchCustomHostByIdHandler = factory.createHandlers(
             },
             {},
           );
+
+          // if the android and ios share links are present, then update the app form to deployed
+          if (
+            updatedCustomHost.androidShareLink &&
+            updatedCustomHost.iosShareLink
+          ) {
+            await Mongo.app_forms.findOneAndUpdate(
+              {
+                host: new ObjectId(id),
+                parentForm: { $exists: false },
+              },
+              {
+                $set: {
+                  showAppsLiveBannerToCreator: true,
+                  status: AppFormStatus.DEPLOYED,
+                  updatedAt: new Date(),
+                },
+              },
+            );
+          }
         }
       }
 
