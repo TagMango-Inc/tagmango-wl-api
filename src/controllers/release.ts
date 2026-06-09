@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { zValidator } from "@hono/zod-validator";
 
+import Mongo from "../database";
 import { Response } from "../utils/statuscode";
 import { updateReleaseDetailsSchema } from "../validations/release";
 
@@ -43,10 +44,27 @@ const updateReleaseDetails = factory.createHandlers(
       const rawReleaseDetails = await readFile(releaseFilePath, "utf-8");
 
       const parsedReleaseDetails = JSON.parse(rawReleaseDetails);
-      await writeFile(
-        releaseFilePath,
-        JSON.stringify({ ...parsedReleaseDetails, ...body }),
+      const mergedReleaseDetails = { ...parsedReleaseDetails, ...body };
+
+      await writeFile(releaseFilePath, JSON.stringify(mergedReleaseDetails));
+
+      // Keep the singleton appreleaseversions document in sync with the file
+      // so core-api's latestAvailableVersionName reflects the new release.
+      const now = new Date();
+      await Mongo.app_release_versions.updateOne(
+        {},
+        {
+          $set: {
+            versionName: mergedReleaseDetails.versionName,
+            buildNumber: mergedReleaseDetails.buildNumber,
+            releaseNotes: mergedReleaseDetails.releaseNotes,
+            updatedAt: now,
+          },
+          $setOnInsert: { createdAt: now },
+        },
+        { upsert: true },
       );
+
       return c.json(
         {
           message: "Release details updated successfully",
@@ -54,6 +72,7 @@ const updateReleaseDetails = factory.createHandlers(
         Response.OK,
       );
     } catch (error) {
+      console.error("Error updating release details:", error);
       return c.json(
         { message: "Internal Server Error" },
         Response.INTERNAL_SERVER_ERROR,

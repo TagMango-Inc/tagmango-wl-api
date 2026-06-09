@@ -6,6 +6,7 @@ import {
   Collections,
   IAdminUser,
   IAppForm,
+  IAppReleaseVersions,
   IChapter,
   ICourse,
   ICustomHost,
@@ -45,6 +46,7 @@ abstract class Mongo {
   public static developer_accounts_ios: Collection<IDeveloperAccountIos>;
   public static app_forms: Collection<IAppForm>;
   public static deployment_requests: Collection<IDeploymentRequest>;
+  public static app_release_versions: Collection<IAppReleaseVersions>;
 
   public static async connect(): Promise<void> {
     try {
@@ -88,6 +90,9 @@ abstract class Mongo {
       this.app_forms = this.db.collection<IAppForm>(Collections.APP_FORM);
       this.deployment_requests = this.db.collection<IDeploymentRequest>(
         Collections.APP_DEPLOYMENT_REQUESTS,
+      );
+      this.app_release_versions = this.db.collection<IAppReleaseVersions>(
+        Collections.APP_RELEASE_VERSIONS,
       );
     } catch (error) {
       console.log(`Error connecting to database: ${error}`);
