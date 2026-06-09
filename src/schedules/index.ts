@@ -111,6 +111,29 @@ Mongo.connect().then(() => {
             },
           );
           count++;
+
+          const deployedVersion =
+            metadata.iosDeploymentDetails?.lastDeploymentDetails?.versionName;
+          const isLive =
+            appVersionState === "READY_FOR_SALE" ||
+            appVersionState === "READY_FOR_DISTRIBUTION";
+
+          if (deployedVersion && appVersion === deployedVersion && isLive) {
+            const flipResult = await Mongo.deployment_requests.updateOne(
+              { host: metadata.host, "ios.status": "processing" },
+              {
+                $set: {
+                  "ios.status": "success",
+                  updatedAt: new Date(),
+                },
+              },
+            );
+            if (flipResult.modifiedCount > 0) {
+              console.log(
+                `Marked ios deployment request as success for host ${metadata.host}`,
+              );
+            }
+          }
         }
       } catch (error) {
         console.log(error);
@@ -346,7 +369,9 @@ Mongo.connect().then(() => {
       return new Promise((resolve) => setTimeout(resolve, delay));
     };
 
-    // Find all metadata with androidDeploymentDetails.bundleId that don't have playStore.versionName yet
+    // Find metadata with an android bundleId where the Play Store version is
+    // either unknown or out-of-date relative to the last AppZap-deployed version
+    // (so we re-scrape after a redeployment until the store catches up).
     const allMetadatas = await Mongo.metadata
       .find({
         $and: [
@@ -370,6 +395,14 @@ Mongo.connect().then(() => {
               {
                 "androidDeploymentDetails.playStore.versionName": {
                   $eq: "",
+                },
+              },
+              {
+                $expr: {
+                  $ne: [
+                    "$androidDeploymentDetails.lastDeploymentDetails.versionName",
+                    "$androidDeploymentDetails.playStore.versionName",
+                  ],
                 },
               },
             ],
@@ -537,6 +570,27 @@ Mongo.connect().then(() => {
                 },
               );
               count++;
+
+              const deployedVersion =
+                metadata.androidDeploymentDetails?.lastDeploymentDetails
+                  ?.versionName;
+
+              if (deployedVersion && version === deployedVersion) {
+                const flipResult = await Mongo.deployment_requests.updateOne(
+                  { host: metadata.host, "android.status": "processing" },
+                  {
+                    $set: {
+                      "android.status": "success",
+                      updatedAt: new Date(),
+                    },
+                  },
+                );
+                if (flipResult.modifiedCount > 0) {
+                  console.log(
+                    `Marked android deployment request as success for host ${metadata.host}`,
+                  );
+                }
+              }
             } else {
               console.log(`❌ ${bundleId}: Version not found`);
             }
