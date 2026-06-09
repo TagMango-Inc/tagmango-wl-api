@@ -53,12 +53,52 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
           },
         },
         {
+          $lookup: {
+            from: "users",
+            localField: "creator",
+            foreignField: "_id",
+            as: "creatorUser",
+          },
+        },
+        {
+          $unwind: {
+            path: "$creatorUser",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $lookup: {
+            from: "appforms",
+            let: { hostId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: ["$host", "$$hostId"] },
+                  parentForm: { $exists: false },
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: "appFormDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$appFormDetails",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
           $project: {
             appName: 1,
             host: 1,
             logo: 1,
             createdAt: 1,
             updatedAt: 1,
+            androidShareLink: 1,
+            iosShareLink: 1,
+            creatorEmail: "$creatorUser.email",
+            appFormStatus: "$appFormDetails.status",
             androidVersionName:
               "$deploymentDetails.androidDeploymentDetails.versionName",
             androidStoreVersionName:
