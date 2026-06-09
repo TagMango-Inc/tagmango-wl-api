@@ -39,6 +39,15 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
           },
         },
         {
+          $sort: { updatedAt: -1 },
+        },
+        {
+          $skip: (PAGE - 1) * LIMIT,
+        },
+        {
+          $limit: LIMIT,
+        },
+        {
           $lookup: {
             from: "customhostmetadatas",
             localField: "_id",
@@ -120,15 +129,6 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
             iosUnderReview:
               "$deploymentDetails.iosDeploymentDetails.isUnderReview",
           },
-        },
-        {
-          $sort: { updatedAt: -1 },
-        },
-        {
-          $skip: (PAGE - 1) * LIMIT,
-        },
-        {
-          $limit: LIMIT,
         },
       ])
       .toArray();
