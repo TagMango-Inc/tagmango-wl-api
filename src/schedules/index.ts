@@ -25,6 +25,15 @@ const { readFile, writeFile } = fs.promises;
 Mongo.connect().then(() => {
   cron.schedule(UPDATE_IOS_REVIEW_STATUS_CRON, async () => {
     console.log("Running update-ios-review-status schedule");
+
+    const releaseDoc = await Mongo.app_release_versions.findOne({});
+    const latestAvailableVersionName = releaseDoc?.versionName;
+    if (!latestAvailableVersionName) {
+      console.log(
+        "No appreleaseversions document found, deployment requests will not auto-complete this run",
+      );
+    }
+
     const allMetadatas = await Mongo.metadata
       .find({
         $and: [
@@ -112,33 +121,17 @@ Mongo.connect().then(() => {
           );
           count++;
 
-          const deployedVersion =
-            metadata.iosDeploymentDetails?.lastDeploymentDetails?.versionName;
-          const previousAppStoreVersion =
-            metadata.iosDeploymentDetails?.appStore?.versionName;
-          const previousAppStoreStatus =
-            metadata.iosDeploymentDetails?.appStore?.status;
+          // Only flip when the live App Store version matches the latest
+          // release AppZap is pushing to all hosts. Versions in review or
+          // otherwise non-live are left alone.
           const isLive =
             appVersionState === "READY_FOR_SALE" ||
             appVersionState === "READY_FOR_DISTRIBUTION";
-          const wasPreviouslyLive =
-            previousAppStoreStatus === "READY_FOR_SALE" ||
-            previousAppStoreStatus === "READY_FOR_DISTRIBUTION";
-          // Only flip when THIS run observed a transition on the store side
-          // (either a new version or the existing version going from
-          // non-live to live), so a stale match (e.g. request created against
-          // an already-in-sync state or a same-version redeploy) doesn't
-          // auto-complete.
-          const observedTransition =
-            (!!previousAppStoreVersion &&
-              previousAppStoreVersion !== appVersion) ||
-            (!!previousAppStoreStatus && !wasPreviouslyLive && isLive);
 
           if (
-            deployedVersion &&
-            appVersion === deployedVersion &&
-            isLive &&
-            observedTransition
+            latestAvailableVersionName &&
+            appVersion === latestAvailableVersionName &&
+            isLive
           ) {
             const flipResult = await Mongo.deployment_requests.updateOne(
               { host: metadata.host, "ios.status": "processing" },
@@ -390,9 +383,17 @@ Mongo.connect().then(() => {
       return new Promise((resolve) => setTimeout(resolve, delay));
     };
 
-    // Find metadata with an android bundleId where the Play Store version is
-    // either unknown or out-of-date relative to the last AppZap-deployed version
-    // (so we re-scrape after a redeployment until the store catches up).
+    const releaseDoc = await Mongo.app_release_versions.findOne({});
+    const latestAvailableVersionName = releaseDoc?.versionName;
+    if (!latestAvailableVersionName) {
+      console.log(
+        "No appreleaseversions document found, deployment requests will not auto-complete this run",
+      );
+    }
+
+    // Re-scrape hosts whose Play Store version hasn't yet caught up to the
+    // global AppZap target. When the target is unknown, fall back to scraping
+    // hosts that have never been scraped.
     const allMetadatas = await Mongo.metadata
       .find({
         $and: [
@@ -406,28 +407,26 @@ Mongo.connect().then(() => {
               $ne: "",
             },
           },
-          {
-            $or: [
-              {
+          latestAvailableVersionName
+            ? {
                 "androidDeploymentDetails.playStore.versionName": {
-                  $exists: false,
+                  $ne: latestAvailableVersionName,
                 },
+              }
+            : {
+                $or: [
+                  {
+                    "androidDeploymentDetails.playStore.versionName": {
+                      $exists: false,
+                    },
+                  },
+                  {
+                    "androidDeploymentDetails.playStore.versionName": {
+                      $eq: "",
+                    },
+                  },
+                ],
               },
-              {
-                "androidDeploymentDetails.playStore.versionName": {
-                  $eq: "",
-                },
-              },
-              {
-                $expr: {
-                  $ne: [
-                    "$androidDeploymentDetails.lastDeploymentDetails.versionName",
-                    "$androidDeploymentDetails.playStore.versionName",
-                  ],
-                },
-              },
-            ],
-          },
         ],
       })
       .toArray();
@@ -592,22 +591,11 @@ Mongo.connect().then(() => {
               );
               count++;
 
-              const deployedVersion =
-                metadata.androidDeploymentDetails?.lastDeploymentDetails
-                  ?.versionName;
-              const previousPlayStoreVersion =
-                metadata.androidDeploymentDetails?.playStore?.versionName;
-              // Only flip when THIS run observed the store version change, so a
-              // stale match (e.g. request created against an already-in-sync
-              // state or a same-version redeploy) doesn't auto-complete.
-              const observedStoreVersionChange =
-                !!previousPlayStoreVersion &&
-                previousPlayStoreVersion !== version;
-
+              // Only flip when the scraped Play Store version matches the
+              // latest release AppZap is pushing to all hosts.
               if (
-                deployedVersion &&
-                version === deployedVersion &&
-                observedStoreVersionChange
+                latestAvailableVersionName &&
+                version === latestAvailableVersionName
               ) {
                 const flipResult = await Mongo.deployment_requests.updateOne(
                   { host: metadata.host, "android.status": "processing" },
