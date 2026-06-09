@@ -114,11 +114,32 @@ Mongo.connect().then(() => {
 
           const deployedVersion =
             metadata.iosDeploymentDetails?.lastDeploymentDetails?.versionName;
+          const previousAppStoreVersion =
+            metadata.iosDeploymentDetails?.appStore?.versionName;
+          const previousAppStoreStatus =
+            metadata.iosDeploymentDetails?.appStore?.status;
           const isLive =
             appVersionState === "READY_FOR_SALE" ||
             appVersionState === "READY_FOR_DISTRIBUTION";
+          const wasPreviouslyLive =
+            previousAppStoreStatus === "READY_FOR_SALE" ||
+            previousAppStoreStatus === "READY_FOR_DISTRIBUTION";
+          // Only flip when THIS run observed a transition on the store side
+          // (either a new version or the existing version going from
+          // non-live to live), so a stale match (e.g. request created against
+          // an already-in-sync state or a same-version redeploy) doesn't
+          // auto-complete.
+          const observedTransition =
+            (!!previousAppStoreVersion &&
+              previousAppStoreVersion !== appVersion) ||
+            (!!previousAppStoreStatus && !wasPreviouslyLive && isLive);
 
-          if (deployedVersion && appVersion === deployedVersion && isLive) {
+          if (
+            deployedVersion &&
+            appVersion === deployedVersion &&
+            isLive &&
+            observedTransition
+          ) {
             const flipResult = await Mongo.deployment_requests.updateOne(
               { host: metadata.host, "ios.status": "processing" },
               {
@@ -574,8 +595,20 @@ Mongo.connect().then(() => {
               const deployedVersion =
                 metadata.androidDeploymentDetails?.lastDeploymentDetails
                   ?.versionName;
+              const previousPlayStoreVersion =
+                metadata.androidDeploymentDetails?.playStore?.versionName;
+              // Only flip when THIS run observed the store version change, so a
+              // stale match (e.g. request created against an already-in-sync
+              // state or a same-version redeploy) doesn't auto-complete.
+              const observedStoreVersionChange =
+                !!previousPlayStoreVersion &&
+                previousPlayStoreVersion !== version;
 
-              if (deployedVersion && version === deployedVersion) {
+              if (
+                deployedVersion &&
+                version === deployedVersion &&
+                observedStoreVersionChange
+              ) {
                 const flipResult = await Mongo.deployment_requests.updateOne(
                   { host: metadata.host, "android.status": "processing" },
                   {
