@@ -17,6 +17,7 @@ export const Collections = {
   DEVELOPER_ACCOUNT_IOS: "iosdeveloperaccounts",
   APP_FORM: "appforms",
   APP_DEPLOYMENT_REQUESTS: "appdeploymentrequests",
+  APP_RELEASE_VERSIONS: "appreleaseversions",
 } as const;
 
 export const Platform = {
@@ -681,6 +682,15 @@ export interface IDeploymentRequest {
   host: ObjectId;
   android?: IPlatformDeploymentRequest;
   ios?: IPlatformDeploymentRequest;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IAppReleaseVersions {
+  _id?: ObjectId;
+  versionName: string;
+  buildNumber: number;
+  releaseNotes: string;
   createdAt: Date;
   updatedAt: Date;
 }
