@@ -790,22 +790,48 @@ const createNewDeploymentHandler = factory.createHandlers(
 
         const data = await response.json();
 
-        if (data.id && data.basic_auth_key) {
-          newOneSignalId = data.id;
-          await Mongo.customhost.updateOne(
-            {
-              _id: new ObjectId(customHostId),
-            },
-            {
-              $set: {
-                onesignalAppId: data.id,
-                customOneSignalApiKey: data.basic_auth_key,
-              },
-            },
-          );
-        } else {
+        if (!data.id) {
           return c.json({ message: "Failed to create app", data }, 400);
         }
+
+        newOneSignalId = data.id;
+
+        // OneSignal no longer returns `basic_auth_key` from the create-app API.
+        // Create a dedicated API key (token) for the new app and persist its
+        // `formatted_token` — this is the REST API key used by tagmango-backend
+        // to send notifications, and OneSignal returns it in plaintext only once.
+        const tokenResponse = await fetch(
+          `https://api.onesignal.com/apps/${data.id}/auth/tokens`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Basic ${process.env.ONESIGNAL_REST_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ name: customhost.appName }),
+          },
+        );
+
+        const tokenData = await tokenResponse.json();
+
+        if (!tokenData.formatted_token) {
+          return c.json(
+            { message: "Failed to create OneSignal API key", tokenData },
+            Response.BAD_REQUEST,
+          );
+        }
+
+        await Mongo.customhost.updateOne(
+          {
+            _id: new ObjectId(customHostId),
+          },
+          {
+            $set: {
+              onesignalAppId: data.id,
+              customOneSignalApiKey: tokenData.formatted_token,
+            },
+          },
+        );
       } else if (customhost.onesignalAppId) {
         const response = await fetch(
           `https://api.onesignal.com/apps/${customhost.onesignalAppId}`,
