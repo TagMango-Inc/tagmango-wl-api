@@ -10,6 +10,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 
 import Mongo from "./database";
 import authenticationMiddleware from "./middleware/authentication";
+import authorizeMiddleware from "./middleware/authorize";
 import appFormsRouter from "./routers/appFormsRouter";
 import authenticationRouter from "./routers/authenticationRouter";
 import customHostRouter from "./routers/customHostRouter";
@@ -46,15 +47,28 @@ Mongo.connect().then(() => {
     await next();
   });
 
-  app.use("/user-management/*", authenticationMiddleware);
-  app.use("/apps/*", authenticationMiddleware);
-  app.use("/iap/*", authenticationMiddleware);
-  app.use("/metadata/*", authenticationMiddleware);
-  app.use("/output/*", authenticationMiddleware);
-  app.use("/release/*", authenticationMiddleware);
-  app.use("/developer-accounts/*", authenticationMiddleware);
-  app.use("/deployment-requests/*", authenticationMiddleware);
-  // app.use("/forms", authenticationMiddleware);
+  app.use("/user-management/*", authenticationMiddleware, authorizeMiddleware);
+  app.use("/apps/*", authenticationMiddleware, authorizeMiddleware);
+  app.use("/iap/*", authenticationMiddleware, authorizeMiddleware);
+  app.use("/metadata/*", authenticationMiddleware, authorizeMiddleware);
+  app.use("/output/*", authenticationMiddleware, authorizeMiddleware);
+  app.use("/release/*", authenticationMiddleware, authorizeMiddleware);
+  app.use(
+    "/developer-accounts/*",
+    authenticationMiddleware,
+    authorizeMiddleware,
+  );
+  app.use(
+    "/deployment-requests/*",
+    authenticationMiddleware,
+    authorizeMiddleware,
+  );
+  // forms auth was previously commented out — every /wl/forms route
+  // (list, counts, form details, live-apps) was publicly accessible.
+  // both patterns needed: "/forms" for the exact list route, "/forms/*"
+  // for subroutes.
+  app.use("/forms", authenticationMiddleware, authorizeMiddleware);
+  app.use("/forms/*", authenticationMiddleware, authorizeMiddleware);
 
   app.get("/", async (c) => {
     return c.json({
