@@ -7,6 +7,7 @@ import Mongo from "../../src/database";
 import { patchCustomHostByIdSchema } from "../../src/validations/customhost";
 import { AppFormStatus } from "../types/database";
 import { AWSService } from "../utils/aws";
+import { escapeRegExp } from "../utils/regex";
 import { Response } from "../utils/statuscode";
 
 const factory = createFactory();
@@ -26,15 +27,22 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
     let LIMIT = limit ? parseInt(limit as string) : 10;
     let SEARCH = search ? (search as string) : "";
 
+    // only run the (unindexable) regex match when there is a search term —
+    // the default page load can then use the updatedAt index directly
+    const searchRegex = new RegExp(escapeRegExp(SEARCH), "i");
     const searchedCustomhostsArray = await Mongo.customhost
       .aggregate([
         {
           $match: {
-            $or: [
-              { appName: { $regex: new RegExp(SEARCH, "i") } },
-              { host: { $regex: new RegExp(SEARCH, "i") } },
-              { brandname: { $regex: new RegExp(SEARCH, "i") } },
-            ],
+            ...(SEARCH
+              ? {
+                  $or: [
+                    { appName: { $regex: searchRegex } },
+                    { host: { $regex: searchRegex } },
+                    { brandname: { $regex: searchRegex } },
+                  ],
+                }
+              : {}),
             whitelableStatus: { $ne: "drafted" },
           },
         },
@@ -53,6 +61,18 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
             localField: "_id",
             foreignField: "host",
             as: "deploymentDetails",
+            pipeline: [
+              {
+                $project: {
+                  "androidDeploymentDetails.versionName": 1,
+                  "androidDeploymentDetails.playStore.versionName": 1,
+                  "iosDeploymentDetails.versionName": 1,
+                  "iosDeploymentDetails.isUnderReview": 1,
+                  "iosDeploymentDetails.appStore.versionName": 1,
+                  "iosDeploymentDetails.appStore.status": 1,
+                },
+              },
+            ],
           },
         },
         {
@@ -67,6 +87,7 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
             localField: "creator",
             foreignField: "_id",
             as: "creatorUser",
+            pipeline: [{ $project: { email: 1 } }],
           },
         },
         {
@@ -78,17 +99,14 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
         {
           $lookup: {
             from: "appforms",
-            let: { hostId: "$_id" },
+            localField: "_id",
+            foreignField: "host",
+            as: "appFormDetails",
             pipeline: [
-              {
-                $match: {
-                  $expr: { $eq: ["$host", "$$hostId"] },
-                  parentForm: { $exists: false },
-                },
-              },
+              { $match: { parentForm: { $exists: false } } },
+              { $project: { status: 1 } },
               { $limit: 1 },
             ],
-            as: "appFormDetails",
           },
         },
         {
@@ -199,12 +217,6 @@ const patchCustomHostByIdHandler = factory.createHandlers(
     try {
       const { id } = c.req.param();
       const body = c.req.valid("json");
-      const customHost = await Mongo.customhost.findOne({
-        _id: new ObjectId(id),
-      });
-      if (!customHost) {
-        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
-      }
       const updatedCustomHost = await Mongo.customhost.findOneAndUpdate(
         {
           _id: new ObjectId(id),
@@ -218,6 +230,9 @@ const patchCustomHostByIdHandler = factory.createHandlers(
           returnDocument: "after",
         },
       );
+      if (!updatedCustomHost) {
+        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
+      }
 
       // if the updatedCustomHost contains iosShareLink
       // then extract and update appleId from that link

@@ -1,5 +1,7 @@
-import { exec, execSync } from "child_process";
+import { exec } from "child_process";
+import { promisify } from "util";
 import fs from "fs-extra";
+import path from "path";
 import { createFactory } from "hono/factory";
 import { z } from "zod";
 
@@ -10,6 +12,7 @@ import { Response } from "../utils/statuscode";
 import { updateReleaseDetailsSchema } from "../validations/release";
 
 const { readFile, writeFile } = fs.promises;
+const execAsync = promisify(exec);
 
 const factory = createFactory();
 
@@ -84,8 +87,10 @@ const updateReleaseDetails = factory.createHandlers(
 // get device space
 const getDeviceSpace = factory.createHandlers(async (c) => {
   try {
-    // get the hardisk space of device
-    const output = execSync("df -h /", { encoding: "utf8" }); // Works on Linux & macOS
+    // get the hardisk space of device (async — execSync blocks the event loop)
+    const { stdout: output } = await execAsync("df -h /", {
+      encoding: "utf8",
+    }); // Works on Linux & macOS
     const lines = output.trim().split("\n");
 
     // Extract values from the second line
@@ -137,9 +142,20 @@ const freeupSpace = factory.createHandlers(
         );
       }
 
-      for (let i = 0; i < bundleIds.length; i++) {
-        exec(`rm -rf ./deployments/${bundleIds[i]}`);
+      // bundle ids come from the client — never interpolate them into a
+      // shell command; validate and remove via fs instead
+      const validId = /^[A-Za-z0-9._-]+$/;
+      const invalid = bundleIds.filter((id) => !validId.test(id));
+      if (invalid.length) {
+        return c.json(
+          { message: `Invalid bundle ids: ${invalid.join(", ")}` },
+          Response.BAD_REQUEST,
+        );
       }
+
+      await Promise.all(
+        bundleIds.map((id) => fs.remove(path.join("./deployments", id))),
+      );
 
       return c.json(
         {

@@ -22,6 +22,7 @@ import {
   StatusValues,
 } from "../../src/types/database";
 import { generateDeploymentTasks } from "../../src/utils/generateTaskDetails";
+import { escapeRegExp } from "../utils/regex";
 import { Response } from "../../src/utils/statuscode";
 import {
   createBulkReDeploymentSchema,
@@ -139,191 +140,177 @@ const getAllDeployments = factory.createHandlers(async (c) => {
     let LIMIT = limit ? parseInt(limit as string) : 30;
     let SEARCH = search ? (search as string) : "";
 
+    const matchStage = {
+      $and: [
+        ...(SEARCH
+          ? [{ versionName: { $regex: new RegExp(escapeRegExp(SEARCH), "i") } }]
+          : []),
+        {
+          platform: platform ?? { $in: PlatformValues },
+        },
+        {
+          status: status ?? { $in: StatusValues },
+        },
+      ],
+    };
+
+    // deployment.host IS the customhost id, so metadata (keyed by the same id)
+    // can be joined directly — the old pipeline joined customhosts first and
+    // ran both lookups for EVERY matching deployment, in BOTH facet branches.
+    // The metadata-based filter only constrains results when iosAppStoreStatus
+    // is passed; otherwise sort/paginate first and join only the page.
+    const displayStages = [
+      {
+        $lookup: {
+          from: "customhosts",
+          localField: "host",
+          foreignField: "_id",
+          as: "host",
+          pipeline: [{ $project: { appName: 1, logo: 1 } }],
+        },
+      },
+      { $unwind: "$host" },
+      {
+        $lookup: {
+          from: "adminusers",
+          localField: "user",
+          foreignField: "_id",
+          as: "user",
+          pipeline: [{ $project: { name: 1 } }],
+        },
+      },
+      {
+        $unwind: {
+          path: "$user",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "adminusers",
+          let: { cancelledById: "$cancelledBy" },
+          pipeline: [
+            { $match: { $expr: { $ne: ["$$cancelledById", null] } } },
+            { $match: { $expr: { $eq: ["$_id", "$$cancelledById"] } } },
+            { $project: { _id: 1, name: 1 } },
+          ],
+          as: "cancelled_by_user",
+        },
+      },
+      {
+        $unwind: {
+          path: "$cancelled_by_user",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          "user._id": 1,
+          "user.name": 1,
+          "cancelled_by_user._id": 1,
+          "cancelled_by_user.name": 1,
+          host: "$host._id",
+          platform: 1,
+          versionName: 1,
+          buildNumber: 1,
+          status: 1,
+          updatedAt: 1,
+          createdAt: 1,
+          appName: "$host.appName",
+          appId: "$host._id",
+          logo: "$host.logo",
+          iosAppStore: {
+            $cond: {
+              if: { $eq: ["$platform", "ios"] },
+              then: {
+                status: "$metadata.iosDeploymentDetails.appStore.status",
+                version: "$metadata.iosDeploymentDetails.appStore.versionName",
+              },
+              else: null,
+            },
+          },
+        },
+      },
+    ];
+
+    const metadataLookupStages = [
+      {
+        $lookup: {
+          from: "customhostmetadatas",
+          localField: "host",
+          foreignField: "host",
+          as: "metadata",
+          pipeline: [
+            {
+              $project: {
+                "iosDeploymentDetails.appStore.status": 1,
+                "iosDeploymentDetails.appStore.versionName": 1,
+              },
+            },
+          ],
+        },
+      },
+      {
+        $unwind: {
+          path: "$metadata",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+    ];
+
+    const pipeline = iosAppStoreStatus
+      ? [
+          // status filter depends on metadata: join (projected) before paging
+          { $match: matchStage },
+          ...metadataLookupStages,
+          {
+            $match: {
+              $or: [
+                { platform: { $ne: "ios" } },
+                {
+                  $and: [
+                    { platform: "ios" },
+                    {
+                      "metadata.iosDeploymentDetails.appStore.status":
+                        iosAppStoreStatus,
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          {
+            $facet: {
+              totalSearchResults: [{ $count: "count" }],
+              deployments: [
+                { $sort: { updatedAt: -1 } },
+                { $skip: (PAGE - 1) * LIMIT },
+                { $limit: LIMIT },
+                ...displayStages,
+              ],
+            },
+          },
+        ]
+      : [
+          // no metadata filter: paginate on indexed fields, join only the page
+          { $match: matchStage },
+          {
+            $facet: {
+              totalSearchResults: [{ $count: "count" }],
+              deployments: [
+                { $sort: { updatedAt: -1 } },
+                { $skip: (PAGE - 1) * LIMIT },
+                { $limit: LIMIT },
+                ...metadataLookupStages,
+                ...displayStages,
+              ],
+            },
+          },
+        ];
+
     const searchedDeployments = await Mongo.deployment
       .aggregate([
-        {
-          $match: {
-            $and: [
-              {
-                $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
-              },
-              {
-                platform: platform ?? { $in: PlatformValues },
-              },
-              {
-                status: status ?? { $in: StatusValues },
-              },
-            ],
-          },
-        },
-        {
-          $facet: {
-            totalSearchResults: [
-              {
-                $lookup: {
-                  from: "customhosts",
-                  localField: "host",
-                  foreignField: "_id",
-                  as: "host",
-                },
-              },
-              { $unwind: "$host" },
-              {
-                $lookup: {
-                  from: "customhostmetadatas",
-                  let: { hostId: "$host._id" },
-                  pipeline: [
-                    {
-                      $match: {
-                        $expr: { $eq: ["$host", "$$hostId"] },
-                      },
-                    },
-                  ],
-                  as: "metadata",
-                },
-              },
-              {
-                $unwind: {
-                  path: "$metadata",
-                  preserveNullAndEmptyArrays: true,
-                },
-              },
-              {
-                $match: {
-                  $or: [
-                    { platform: { $ne: "ios" } },
-                    {
-                      $and: [
-                        { platform: "ios" },
-                        iosAppStoreStatus
-                          ? {
-                              "metadata.iosDeploymentDetails.appStore.status":
-                                iosAppStoreStatus,
-                            }
-                          : {},
-                      ],
-                    },
-                  ],
-                },
-              },
-              { $count: "count" },
-            ],
-            deployments: [
-              {
-                $lookup: {
-                  from: "customhosts",
-                  localField: "host",
-                  foreignField: "_id",
-                  as: "host",
-                },
-              },
-              { $unwind: "$host" },
-              {
-                $lookup: {
-                  from: "customhostmetadatas",
-                  let: { hostId: "$host._id" },
-                  pipeline: [
-                    {
-                      $match: {
-                        $expr: { $eq: ["$host", "$$hostId"] },
-                      },
-                    },
-                  ],
-                  as: "metadata",
-                },
-              },
-              {
-                $unwind: {
-                  path: "$metadata",
-                  preserveNullAndEmptyArrays: true,
-                },
-              },
-              {
-                $match: {
-                  $or: [
-                    { platform: { $ne: "ios" } },
-                    {
-                      $and: [
-                        { platform: "ios" },
-                        iosAppStoreStatus
-                          ? {
-                              "metadata.iosDeploymentDetails.appStore.status":
-                                iosAppStoreStatus,
-                            }
-                          : {},
-                      ],
-                    },
-                  ],
-                },
-              },
-              {
-                $lookup: {
-                  from: "adminusers",
-                  localField: "user",
-                  foreignField: "_id",
-                  as: "user",
-                },
-              },
-              {
-                $unwind: {
-                  path: "$user",
-                  preserveNullAndEmptyArrays: true,
-                },
-              },
-              {
-                $lookup: {
-                  from: "adminusers",
-                  let: { cancelledById: "$cancelledBy" },
-                  pipeline: [
-                    { $match: { $expr: { $ne: ["$$cancelledById", null] } } },
-                    { $match: { $expr: { $eq: ["$_id", "$$cancelledById"] } } },
-                    { $project: { _id: 1, name: 1 } },
-                  ],
-                  as: "cancelled_by_user",
-                },
-              },
-              {
-                $unwind: {
-                  path: "$cancelled_by_user",
-                  preserveNullAndEmptyArrays: true,
-                },
-              },
-              {
-                $project: {
-                  "user._id": 1,
-                  "user.name": 1,
-                  "cancelled_by_user._id": 1,
-                  "cancelled_by_user.name": 1,
-                  host: "$host._id",
-                  platform: 1,
-                  versionName: 1,
-                  buildNumber: 1,
-                  status: 1,
-                  updatedAt: 1,
-                  createdAt: 1,
-                  appName: "$host.appName",
-                  appId: "$host._id",
-                  logo: "$host.logo",
-                  iosAppStore: {
-                    $cond: {
-                      if: { $eq: ["$platform", "ios"] },
-                      then: {
-                        status:
-                          "$metadata.iosDeploymentDetails.appStore.status",
-                        version:
-                          "$metadata.iosDeploymentDetails.appStore.versionName",
-                      },
-                      else: null,
-                    },
-                  },
-                },
-              },
-              { $sort: { updatedAt: -1 } },
-              { $skip: (PAGE - 1) * LIMIT },
-              { $limit: LIMIT },
-            ],
-          },
-        },
+        ...pipeline,
         {
           $unwind: {
             path: "$totalSearchResults",
@@ -385,7 +372,13 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
         {
           $match: {
             host: new ObjectId(appId),
-            $or: [{ versionName: { $regex: new RegExp(SEARCH, "i") } }],
+            ...(SEARCH
+              ? {
+                  versionName: {
+                    $regex: new RegExp(escapeRegExp(SEARCH), "i"),
+                  },
+                }
+              : {}),
             platform: platform ?? { $in: PlatformValues },
             status: status ?? { $in: StatusValues },
           },
@@ -398,12 +391,24 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
               },
             ],
             deployments: [
+              // paginate first — the adminusers joins then run for ≤LIMIT
+              // rows instead of every deployment of the host
+              {
+                $sort: { updatedAt: -1 },
+              },
+              {
+                $skip: (PAGE - 1) * LIMIT,
+              },
+              {
+                $limit: LIMIT,
+              },
               {
                 $lookup: {
                   from: "adminusers",
                   localField: "user",
                   foreignField: "_id",
                   as: "user",
+                  pipeline: [{ $project: { name: 1 } }],
                 },
               },
               {
@@ -454,15 +459,6 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
                   updatedAt: 1,
                   createdAt: 1,
                 },
-              },
-              {
-                $sort: { updatedAt: -1 },
-              },
-              {
-                $skip: (PAGE - 1) * LIMIT,
-              },
-              {
-                $limit: LIMIT,
               },
             ],
           },
@@ -577,20 +573,20 @@ const createNewDeploymentHandler = factory.createHandlers(
         }
       }
 
-      const user = await Mongo.user.findOne(
-        {
-          _id: new ObjectId(payload.id),
-        },
-        { projection: { name: 1 } },
-      );
-
-      const customhost = await Mongo.customhost.findOne({
-        _id: new ObjectId(customHostId),
-      });
-
-      const metadata = await Mongo.metadata.findOne({
-        host: new ObjectId(customHostId),
-      });
+      const [user, customhost, metadata] = await Promise.all([
+        Mongo.user.findOne(
+          {
+            _id: new ObjectId(payload.id),
+          },
+          { projection: { name: 1 } },
+        ),
+        Mongo.customhost.findOne({
+          _id: new ObjectId(customHostId),
+        }),
+        Mongo.metadata.findOne({
+          host: new ObjectId(customHostId),
+        }),
+      ]);
 
       if (!user) {
         return c.json({ message: "User not found" }, Response.NOT_FOUND);
@@ -1682,7 +1678,9 @@ const cancelDeploymentJobByDeploymentId = factory.createHandlers(async (c) => {
       },
     );
 
-    if (!deployment.acknowledged) {
+    // acknowledged is true even when nothing matched — matchedCount is the
+    // actual "was it found" signal
+    if (deployment.matchedCount === 0) {
       return c.json({ message: "Deployment not found" }, Response.NOT_FOUND);
     }
 
@@ -1718,6 +1716,7 @@ const getRecentDeploymentsHandler = factory.createHandlers(async (c) => {
             localField: "host",
             foreignField: "_id",
             as: "host",
+            pipeline: [{ $project: { appName: 1, logo: 1 } }],
           },
         },
         {
@@ -1759,8 +1758,8 @@ const updateFailedAndroidDeploymentStatus = factory.createHandlers(
     try {
       const { deploymentId } = c.req.valid("json");
 
-      // updating the deployment status to success
-      await Mongo.deployment.updateOne(
+      // update status and read version/build in one round trip
+      const deploymentDetails = await Mongo.deployment.findOneAndUpdate(
         {
           _id: new ObjectId(deploymentId),
         },
@@ -1770,14 +1769,8 @@ const updateFailedAndroidDeploymentStatus = factory.createHandlers(
             updatedAt: new Date(),
           },
         },
-      );
-
-      // picking version name and bunild number from the deployment
-      const deploymentDetails = await Mongo.deployment.findOne(
         {
-          _id: new ObjectId(deploymentId),
-        },
-        {
+          returnDocument: "after",
           projection: {
             versionName: 1,
             buildNumber: 1,
@@ -1790,9 +1783,10 @@ const updateFailedAndroidDeploymentStatus = factory.createHandlers(
         return c.json({ message: "Deployment not found" }, Response.NOT_FOUND);
       }
 
-      const metadata = await Mongo.metadata.findOne({
-        host: new ObjectId(deploymentDetails.host),
-      });
+      const metadata = await Mongo.metadata.findOne(
+        { host: new ObjectId(deploymentDetails.host) },
+        { projection: { "androidDeploymentDetails.bundleId": 1 } },
+      );
 
       if (!metadata) {
         return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
@@ -1832,37 +1826,45 @@ const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
   try {
     const { id: appId, creatorId } = c.req.param();
 
-    const data = await Promise.all([
-      Mongo.metadata.findOne({
-        host: new ObjectId(appId),
-        "androidStoreSettings.title": {
-          $exists: true,
-          $ne: "",
+    // all three are pure existence checks — project _id only (the customhost
+    // fetch that used to sit at index 2 was never read; it is dropped)
+    const [storeSettingsDone, logoDone, iapMango] = await Promise.all([
+      Mongo.metadata.findOne(
+        {
+          host: new ObjectId(appId),
+          "androidStoreSettings.title": {
+            $exists: true,
+            $ne: "",
+          },
+          "iosStoreSettings.name": {
+            $exists: true,
+            $ne: "",
+          },
         },
-        "iosStoreSettings.name": {
-          $exists: true,
-          $ne: "",
+        { projection: { _id: 1 } },
+      ),
+      Mongo.metadata.findOne(
+        {
+          host: new ObjectId(appId),
+          logo: {
+            $exists: true,
+            $ne: "",
+          },
         },
-      }),
-      Mongo.metadata.findOne({
-        host: new ObjectId(appId),
-        logo: {
-          $exists: true,
-          $ne: "",
+        { projection: { _id: 1 } },
+      ),
+      Mongo.mango.findOne(
+        {
+          creator: new ObjectId(creatorId),
+          isHidden: { $ne: true },
+          isStopTakingPayment: { $ne: true },
+          $or: [{ end: { $gte: new Date() } }, { end: undefined }],
+          isPublic: { $ne: true },
+          isDeleted: { $ne: true },
+          iapProductId: { $exists: true },
         },
-      }),
-      Mongo.customhost.findOne({
-        _id: new ObjectId(appId),
-      }),
-      Mongo.mango.findOne({
-        creator: new ObjectId(creatorId),
-        isHidden: { $ne: true },
-        isStopTakingPayment: { $ne: true },
-        $or: [{ end: { $gte: new Date() } }, { end: undefined }],
-        isPublic: { $ne: true },
-        isDeleted: { $ne: true },
-        iapProductId: { $exists: true },
-      }),
+        { projection: { _id: 1 } },
+      ),
     ]);
 
     return c.json(
@@ -1871,15 +1873,15 @@ const getDeploymentRequirementsChecklist = factory.createHandlers(async (c) => {
         result: [
           {
             name: DEPLOYMENT_REQUIREMENTS[0],
-            isCompleted: data[0] ? true : false,
+            isCompleted: storeSettingsDone ? true : false,
           },
           {
             name: DEPLOYMENT_REQUIREMENTS[1],
-            isCompleted: data[1] ? true : false,
+            isCompleted: logoDone ? true : false,
           },
           {
             name: DEPLOYMENT_REQUIREMENTS[3],
-            isCompleted: data[3],
+            isCompleted: iapMango ? true : false,
           },
         ],
       },

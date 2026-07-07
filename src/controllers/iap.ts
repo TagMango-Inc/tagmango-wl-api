@@ -30,15 +30,16 @@ const getAllMangoesByCreator = factory.createHandlers(async (c) => {
       },
     );
   try {
-    const demoUserIos = await Mongo.platform_users.findOne({
-      phone: 1223334444,
-      host,
-    });
-
-    const demoUserAndroid = await Mongo.platform_users.findOne({
-      phone: 1223334445,
-      host,
-    });
+    const [demoUserIos, demoUserAndroid] = await Promise.all([
+      Mongo.platform_users.findOne(
+        { phone: 1223334444, host },
+        { projection: { _id: 1 } },
+      ),
+      Mongo.platform_users.findOne(
+        { phone: 1223334445, host },
+        { projection: { _id: 1 } },
+      ),
+    ]);
 
     // Aggregate posts, courses, and subscriptions
     const [allSubscriptionsIos, allSubscriptionsAndroid] = await Promise.all([
