@@ -1,12 +1,12 @@
 import bcrypt from "bcrypt";
 import { createFactory } from "hono/factory";
-import { sign } from "hono/jwt";
 import { ObjectId } from "mongodb";
 
 import { zValidator } from "@hono/zod-validator";
 
 import Mongo from "../../src/database";
 import { JWTPayloadType } from "../../src/types";
+import { issueTokenPair } from "../utils/authTokens";
 import { escapeRegExp } from "../utils/regex";
 import { Response } from "../../src/utils/statuscode";
 import {
@@ -263,15 +263,10 @@ const updateDashboardUserPassword = factory.createHandlers(
         );
       }
 
-      const payload: JWTPayloadType = {
-        id: updatedUser._id.toString(),
+      const { token, refreshToken } = await issueTokenPair({
+        _id: updatedUser._id,
         email: updatedUser.email,
-        exp: Math.floor(Date.now() / 1000) + 60 * (60 * 24 * 15), // 15 days
-      };
-
-      const secret = process.env.JWT_SECRET as string;
-
-      const token = await sign(payload, secret);
+      });
 
       return c.json(
         {
@@ -281,6 +276,7 @@ const updateDashboardUserPassword = factory.createHandlers(
               _id: updatedUser?._id,
             },
             token,
+            refreshToken,
           },
         },
         Response.OK,

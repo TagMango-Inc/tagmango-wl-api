@@ -51,6 +51,8 @@ export interface IAdminUser {
   customhostDashboardAccess: {
     role: string;
     isRestricted: boolean;
+    /** sha256 of the currently-valid refresh token (rotated on refresh) */
+    refreshTokenHash?: string;
   };
   createdAt: Date;
   updatedAt: Date;

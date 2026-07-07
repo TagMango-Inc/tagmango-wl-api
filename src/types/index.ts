@@ -18,6 +18,8 @@ export type JWTPayloadType = {
   id: string;
   email: string;
   exp: number;
+  /** present ("refresh") only on refresh tokens — access tokens omit it */
+  type?: "refresh";
 };
 
 export type BuildConfigType = {

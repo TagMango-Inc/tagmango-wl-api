@@ -2,16 +2,79 @@ import 'dotenv/config';
 
 import bcrypt from 'bcrypt';
 import { Hono } from 'hono';
-import { sign } from 'hono/jwt';
+import { verify } from 'hono/jwt';
+import { ObjectId } from 'mongodb';
+import { z } from 'zod';
 
 import { zValidator } from '@hono/zod-validator';
 
 import Mongo from '../../src/database';
 import { JWTPayloadType } from '../../src/types';
+import { hashRefreshToken, issueTokenPair } from '../utils/authTokens';
 import { Response } from '../utils/statuscode';
 import { loginDataSchema } from '../validations/authentication';
 
 const router = new Hono();
+
+/**
+ * POST /wl/auth/refresh
+ * Exchange a valid refresh token for a new access + refresh pair.
+ * Refresh tokens are rotated (single-use) and revocable via the stored hash.
+ */
+router.post(
+  "/refresh",
+  zValidator("json", z.object({ refreshToken: z.string().min(1) })),
+  async (c) => {
+    try {
+      const { refreshToken } = c.req.valid("json");
+      const secret = process.env.JWT_SECRET as string;
+
+      let payload: JWTPayloadType;
+      try {
+        payload = await verify(refreshToken, secret);
+      } catch {
+        return c.json({ message: "unauthorized access" }, Response.UNAUTHORIZED);
+      }
+
+      if (payload.type !== "refresh") {
+        return c.json({ message: "unauthorized access" }, Response.UNAUTHORIZED);
+      }
+
+      const user = await Mongo.user.findOne(
+        {
+          _id: new ObjectId(payload.id),
+          "customhostDashboardAccess.isRestricted": { $ne: true },
+        },
+        {
+          projection: {
+            email: 1,
+            "customhostDashboardAccess.refreshTokenHash": 1,
+          },
+        },
+      );
+
+      if (
+        !user ||
+        user.customhostDashboardAccess?.refreshTokenHash !==
+          hashRefreshToken(refreshToken)
+      ) {
+        return c.json({ message: "unauthorized access" }, Response.UNAUTHORIZED);
+      }
+
+      const pair = await issueTokenPair({ _id: user._id, email: user.email });
+
+      return c.json(
+        { message: "Token refreshed", result: pair },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
 
 router.post("/login", zValidator("json", loginDataSchema), async (c) => {
   try {
@@ -44,21 +107,14 @@ router.post("/login", zValidator("json", loginDataSchema), async (c) => {
       );
     }
 
-    const payload: JWTPayloadType = {
-      id: user._id.toString(),
-      email: user.email,
-      exp: Math.floor(Date.now() / 1000) + 60 * (60 * 24 * 15), // 15 days
-    };
-
-    const secret = process.env.JWT_SECRET as string;
-
-    const token = await sign(payload, secret);
+    const { token, refreshToken } = await issueTokenPair(user);
 
     return c.json(
       {
         message: "Login successful",
         result: {
           token,
+          refreshToken,
           user: {
             _id: user._id,
             email: user.email,
