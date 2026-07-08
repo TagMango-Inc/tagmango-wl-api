@@ -229,16 +229,13 @@ const getAllMangoesByCreator = factory.createHandlers(async (c) => {
             hasPosts: { $first: "$relatedPosts" }, // Preserve posts
             hasCourses: { $push: "$relatedCourses" }, // Collect filtered courses
             hasRooms: { $first: "$relatedRooms" }, // Preserve rooms
+            // inr/usd/eurAmount and createdAt were never read by the IAP tab
             title: { $first: "$title" },
             description: { $first: "$description" },
             price: { $first: "$price" },
-            inrAmount: { $first: "$inrAmount" },
-            usdAmount: { $first: "$usdAmount" },
-            eurAmount: { $first: "$eurAmount" },
             recurringType: { $first: "$recurringType" },
             currency: { $first: "$currency" },
             iapProductId: { $first: "$iapProductId" },
-            createdAt: { $first: "$createdAt" },
             iapDescription: { $first: "$iapDescription" },
             iapPrice: { $first: "$iapPrice" },
           },

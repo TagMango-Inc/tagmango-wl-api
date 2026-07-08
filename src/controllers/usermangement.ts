@@ -45,8 +45,7 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
       _id: { $ne: new ObjectId(payload.id) },
     };
 
-    const [totalUsersCount, totalSearchResultsCount, users] = await Promise.all([
-      Mongo.user.countDocuments({}),
+    const [totalSearchResultsCount, users] = await Promise.all([
       Mongo.user.countDocuments(query),
       Mongo.user
         .aggregate([
@@ -67,7 +66,6 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
                   else: false,
                 },
               },
-              createdAt: 1,
               updatedAt: 1,
             },
           },
@@ -92,10 +90,6 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
         result: {
           users,
           totalSearchResults: totalSearchResultsCount,
-          totalUsers: totalUsersCount,
-          currentPage: PAGE,
-          nextPage: hasNextPage ? PAGE + 1 : -1,
-          limit: LIMIT,
           hasNext: hasNextPage,
         },
       },

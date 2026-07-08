@@ -186,36 +186,16 @@ const getAllDeployments = factory.createHandlers(async (c) => {
           preserveNullAndEmptyArrays: true,
         },
       },
-      {
-        $lookup: {
-          from: "adminusers",
-          let: { cancelledById: "$cancelledBy" },
-          pipeline: [
-            { $match: { $expr: { $ne: ["$$cancelledById", null] } } },
-            { $match: { $expr: { $eq: ["$_id", "$$cancelledById"] } } },
-            { $project: { _id: 1, name: 1 } },
-          ],
-          as: "cancelled_by_user",
-        },
-      },
-      {
-        $unwind: {
-          path: "$cancelled_by_user",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
+      // cancelled_by_user (a second adminusers lookup), buildNumber and
+      // updatedAt were never read by the Redeployments screen
       {
         $project: {
           "user._id": 1,
           "user.name": 1,
-          "cancelled_by_user._id": 1,
-          "cancelled_by_user.name": 1,
           host: "$host._id",
           platform: 1,
           versionName: 1,
-          buildNumber: 1,
           status: 1,
-          updatedAt: 1,
           createdAt: 1,
           appName: "$host.appName",
           appId: "$host._id",
@@ -339,11 +319,7 @@ const getAllDeployments = factory.createHandlers(async (c) => {
         message: "All Deployments for Custom Host",
         result: {
           deployments: results,
-          totalDeployments: 0, //! no need for this
           totalSearchResults: searchedDeployments[0]?.totalDeployments,
-          currentPage: PAGE,
-          nextPage: hasNextPage ? PAGE + 1 : -1,
-          limit: LIMIT,
           hasNext: hasNextPage,
         },
       },
@@ -447,6 +423,8 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
                 },
               },
               {
+                // host + buildNumber feed the isAndroidBundleAvailable
+                // computation below and are stripped from the response
                 $project: {
                   "user._id": 1,
                   "user.name": 1,
@@ -457,7 +435,6 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
                   versionName: 1,
                   buildNumber: 1,
                   status: 1,
-                  updatedAt: 1,
                   createdAt: 1,
                 },
               },
@@ -503,8 +480,9 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
               aabDetails.buildNumber === deployment.buildNumber
                 ? true
                 : false;
+            const { host, buildNumber, ...row } = deployment;
             return {
-              ...deployment,
+              ...row,
               isAndroidBundleAvailable,
             };
           })
@@ -517,11 +495,6 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
         message: "All Deployments for Custom Host",
         result: {
           deployments: modifiedResults,
-          totalDeployments: 0, //! no need for this
-          totalSearchResults: searchedDeployments[0]?.totalDeployments,
-          currentPage: PAGE,
-          nextPage: hasNextPage ? PAGE + 1 : -1,
-          limit: LIMIT,
           hasNext: hasNextPage,
         },
       },
@@ -1309,19 +1282,21 @@ const createBulkReDeploymentHandler = factory.createHandlers(
 
 const getLatestRedeploymentDetailsById = factory.createHandlers(async (c) => {
   try {
+    // polled every 5s while a bulk redeploy runs — hosts[] (every target id),
+    // succeeded[] and failed[].reason strings made each tick carry tens of KB;
+    // the UI shows status, platform · version, completed/total and a failed
+    // count (failed keeps {host} stubs so .length still works)
     const redeployment = await Mongo.redeployment.findOne(
       {},
       {
         sort: { createdAt: -1 },
         projection: {
-          user: 1,
           platform: 1,
           status: 1,
-          createdAt: 1,
-          updatedAt: 1,
           versionName: 1,
-          hosts: 1,
-          progress: 1,
+          "progress.completed": 1,
+          "progress.total": 1,
+          "progress.failed.host": 1,
         },
       },
     );
@@ -1748,7 +1723,6 @@ const getRecentDeploymentsHandler = factory.createHandlers(async (c) => {
             buildNumber: 1,
             status: 1,
             createdAt: 1,
-            updatedAt: 1,
           },
         },
       ])

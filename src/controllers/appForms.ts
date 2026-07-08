@@ -134,9 +134,7 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
                     $project: {
                       host: 1,
                       appName: 1,
-                      brandname: 1,
                       logo: 1,
-                      createdAt: 1,
                       androidShareLink: 1,
                       iosShareLink: 1,
                       platformSuspended: 1,
@@ -176,20 +174,18 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const customHosts = customHostsData.map((form: any) => {
       const customHost = form.hostDoc ?? {};
+      // brandname/createdAt/formUpdatedAt/isFormSubmitted dropped — the
+      // forms table never rendered them
       return {
         _id: customHost._id,
         host: customHost.host,
         appName: customHost.appName,
-        brandname: customHost.brandname,
         logo: customHost.logo,
-        createdAt: customHost.createdAt,
         isEditForm: form.parentForm ? true : false,
         status: form.status ?? AppFormStatus.IN_PROGRESS,
         formId: form._id,
-        formUpdatedAt: form.updatedAt ?? null,
         formSubmittedAt: form.submittedAt ?? null,
         formApprovedAt: form.approvedAt ?? null,
-        isFormSubmitted: form.isFormSubmitted ?? false,
         store: {
           playStoreLink: customHost.androidShareLink || "",
           appStoreLink: customHost.iosShareLink || "",
@@ -446,9 +442,13 @@ const getFormByIdHandler = factory.createHandlers(async (c) => {
   try {
     const { formId } = c.req.param();
 
-    const appForm = await Mongo.app_forms.findOne({
-      _id: new ObjectId(formId),
-    });
+    // parentForm / showAppsLiveBannerToCreator are never read by the preview
+    const appForm = await Mongo.app_forms.findOne(
+      {
+        _id: new ObjectId(formId),
+      },
+      { projection: { parentForm: 0, showAppsLiveBannerToCreator: 0 } },
+    );
     if (!appForm) {
       return c.json({ message: "Form not found" }, Response.NOT_FOUND);
     }
