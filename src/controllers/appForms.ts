@@ -37,8 +37,16 @@ const writeFile = fs.promises.writeFile;
  */
 const getAllFormsHandler = factory.createHandlers(async (c) => {
   try {
-    const { page, limit, search, status, isSuspended, sortByApprovedAt } =
-      c.req.query();
+    const {
+      page,
+      limit,
+      search,
+      status,
+      isSuspended,
+      sortByApprovedAt,
+      sortBy,
+      sortOrder,
+    } = c.req.query();
     let PAGE = page ? parseInt(page as string) : 1;
     let LIMIT = limit ? parseInt(limit as string) : 10;
     let SEARCH = search ? (search as string) : "";
@@ -46,6 +54,21 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
 
     // Calculate offset for pagination
     const OFFSET = (PAGE - 1) * LIMIT;
+
+    // sortBy=approvedAt|submittedAt with sortOrder=1|-1 supersedes the
+    // legacy sortByApprovedAt=1|-1 param (kept for compatibility)
+    const SORT_FIELD =
+      sortBy === "submittedAt"
+        ? "$appFormDetails.submittedAt"
+        : sortBy === "approvedAt" || Number(sortByApprovedAt)
+          ? "$appFormDetails.approvedAt"
+          : "$appFormDetails.updatedAt";
+    const SORT_ORDER =
+      Number(sortOrder) === 1 || Number(sortOrder) === -1
+        ? Number(sortOrder)
+        : Number(sortByApprovedAt)
+          ? Number(sortByApprovedAt)
+          : -1;
 
     const matchStatus = STATUS
       ? {
@@ -130,15 +153,13 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
       {
         $addFields: {
           sortField: {
-            $ifNull: sortByApprovedAt
-              ? ["$appFormDetails.approvedAt", "$createdAt"]
-              : ["$appFormDetails.updatedAt", "$createdAt"],
+            $ifNull: [SORT_FIELD, "$createdAt"],
           },
         },
       },
       {
         $sort: {
-          sortField: Number(sortByApprovedAt) ? Number(sortByApprovedAt) : -1,
+          sortField: SORT_ORDER as 1 | -1,
         },
       },
       {
