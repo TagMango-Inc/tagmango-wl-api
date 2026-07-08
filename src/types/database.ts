@@ -61,7 +61,7 @@ export interface IAdminUser {
 export interface IDeploymentTask {
   id: string;
   name: string;
-  status: Exclude<Status, "warning" | "cancelled">;
+  status: Exclude<Status, "warning">;
   logs: {
     message: string;
     type: Exclude<Status, "pending" | "processing" | "cancelled">;

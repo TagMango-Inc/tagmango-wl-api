@@ -12,6 +12,7 @@ import {
   DEPLOYMENT_REQUIREMENTS,
 } from "../../src/constants";
 import Mongo from "../../src/database";
+import { publishDeploymentCancel } from "../../src/job/cancellation";
 import { buildQueue, redeploymentQueue } from "../../src/job/config";
 import { JWTPayloadType } from "../../src/types";
 import {
@@ -1663,7 +1664,12 @@ const cancelDeploymentJobByDeploymentId = factory.createHandlers(async (c) => {
     }
     const jobStatus = await job.getState();
 
-    if (jobStatus !== "active") {
+    if (jobStatus === "active") {
+      // an active job is a live child process inside the worker — ask the
+      // worker (over Redis pub/sub) to kill its process group; the doc is
+      // marked cancelled below and the worker's writes are $ne-guarded
+      await publishDeploymentCancel(deploymentId);
+    } else {
       await job.remove();
     }
 
@@ -1686,7 +1692,15 @@ const cancelDeploymentJobByDeploymentId = factory.createHandlers(async (c) => {
       return c.json({ message: "Deployment not found" }, Response.NOT_FOUND);
     }
 
-    return c.json({ message: "Job removed successfully" }, Response.OK);
+    return c.json(
+      {
+        message:
+          jobStatus === "active"
+            ? "Cancellation requested"
+            : "Job removed successfully",
+      },
+      Response.OK,
+    );
   } catch (error) {
     return c.json(
       { message: "Internal Server Error" },

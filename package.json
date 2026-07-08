@@ -24,6 +24,7 @@
     "fs-extra": "^11.2.0",
     "googleapis": "^144.0.0",
     "hono": "^4.2.8",
+    "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.6.1",
     "mongoose": "^8.3.2",

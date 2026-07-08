@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 import { Job, Worker } from "bullmq";
-import { exec } from "child_process";
+import { spawn } from "child_process";
 import fs from "fs-extra";
 import { ObjectId, UpdateFilter } from "mongodb";
 import os from "os";
@@ -11,7 +11,23 @@ import Mongo from "../../src/database";
 import { IDeploymentTask, IMetaData } from "../../src/types/database";
 import { customhostDeploymentDir, githubrepo } from "../constants";
 import { BuildJobPayloadType, JobProgressType } from "../types";
+import {
+  clearActiveTask,
+  consumeCancelRequest,
+  isCancelRequested,
+  registerActiveTask,
+  startCancellationListener,
+} from "./cancellation";
 import { queueRedisOptions } from "./config";
+
+/** thrown by executeTask when the task's process died to a user cancel —
+ *  lets the task loop distinguish "stop quietly" from a real failure */
+class DeploymentCancelledError extends Error {
+  constructor(deploymentId: string) {
+    super(`Deployment ${deploymentId} cancelled by user`);
+    this.name = "DeploymentCancelledError";
+  }
+}
 
 const logger = pino({
   level: "debug",
@@ -468,6 +484,27 @@ const { readFile, writeFile } = fs.promises;
 
               // updating the version details for the target platform after successful deployment
             } catch (error) {
+              if (error instanceof DeploymentCancelledError) {
+                // task doc already marked cancelled by executeTask; the
+                // controller set the deployment status/cancelledBy when it
+                // published the cancel — $ne guard covers a direct kill
+                await Mongo.deployment.updateOne(
+                  {
+                    _id: new ObjectId(deploymentId),
+                    status: { $ne: "cancelled" },
+                  },
+                  {
+                    $set: {
+                      status: "cancelled",
+                      updatedAt: new Date(),
+                    },
+                  },
+                );
+                logger.info("Deployment Status Changed to Cancelled");
+                isFailedDeployment = true;
+                break;
+              }
+
               logger.error(error, `Failed to execute task -> ${task.name}`);
 
               // commenting this for now
@@ -513,10 +550,22 @@ const { readFile, writeFile } = fs.promises;
                 },
                 {
                   $set: {
-                    status: "failed",
                     updatedAt: new Date(),
                     "tasks.$.status": "failed",
                     "tasks.$.logs": curentTaskLogs,
+                  },
+                },
+              );
+              // separate write so a concurrent cancel is never overwritten
+              await Mongo.deployment.updateOne(
+                {
+                  _id: new ObjectId(deploymentId),
+                  status: { $ne: "cancelled" },
+                },
+                {
+                  $set: {
+                    status: "failed",
+                    updatedAt: new Date(),
                   },
                 },
               );
@@ -530,6 +579,8 @@ const { readFile, writeFile } = fs.promises;
           if (!isFailedDeployment) {
             await updateVersionDetails({ deploymentId, hostId, platform });
           }
+          consumeCancelRequest(deploymentId);
+          clearActiveTask();
           logger.info("Deployment Process Completed");
         },
         {
@@ -542,6 +593,7 @@ const { readFile, writeFile } = fs.promises;
         logger.error(`Job has been stalled ${job}`);
       });
 
+      startCancellationListener();
       logger.info("Worker Started");
     })
     .catch((error) => {
@@ -600,16 +652,23 @@ const executeTask = async ({
   logger.info(`Task [ ${taskName} ] started executing`);
 
   // started executing the task
-  const e = exec(commands.join(" && "), {
+  // spawn (not exec): output is consumed via streams so exec's buffering adds
+  // nothing, and detached:true puts the shell in its own process group so a
+  // cancel can kill the whole tree (zsh + fastlane + xcodebuild)
+  const e = spawn(commands.join(" && "), {
     cwd: process.cwd(),
-    maxBuffer: 1024 * 1024 * 50,
     env: {
       ...process.env,
       LC_ALL: "en_US.UTF-8",
       LANG: "en_US.UTF-8",
     },
     shell: "/bin/zsh",
+    detached: true,
   });
+  registerActiveTask(deploymentId, e);
+  // exec used to set utf8 for us; spawn emits Buffers without this
+  e.stdout?.setEncoding("utf8");
+  e.stderr?.setEncoding("utf8");
   const { stdout, stderr } = e;
   // start time of the task
   const startTime = Date.now();
@@ -699,6 +758,48 @@ const executeTask = async ({
     e.on("close", resolve);
     e.on("error", reject);
   });
+  clearActiveTask();
+
+  // the non-zero exit may be our own SIGTERM — report cancelled, not failed
+  if (code !== 0 && isCancelRequested(deploymentId)) {
+    job.updateProgress({
+      deploymentId,
+      task: {
+        id: taskId,
+        name: taskName,
+        type: "failed",
+        duration: Date.now() - startTime,
+      },
+      type: "failed",
+      message: `Task [ ${taskName} ] cancelled by user`,
+      timestamp: new Date(),
+    } as JobProgressType);
+
+    await Mongo.deployment.updateOne(
+      {
+        _id: new ObjectId(deploymentId),
+        "tasks.id": taskId,
+      },
+      {
+        $set: {
+          "tasks.$.status": "cancelled",
+          "tasks.$.logs": [
+            ...outputLogs.slice(-19),
+            {
+              message: `Task [ ${taskName} ] cancelled by user`,
+              type: "failed" as const,
+              timestamp: new Date(),
+            },
+          ],
+          "tasks.$.duration": Date.now() - startTime,
+          updatedAt: new Date(),
+        },
+      },
+    );
+
+    logger.info(`Task [ ${taskName} ] cancelled`);
+    throw new DeploymentCancelledError(deploymentId);
+  }
 
   // if the code is 0 then the task is completed successfully
   if (code === 0) {
@@ -813,9 +914,12 @@ const updateVersionDetails = async ({
     // for deployment success then update the status to success
     // and updating last deployment details for custom host
 
+    // $ne guard: a cancel that landed in the final moments must not be
+    // overwritten to success
     await Mongo.deployment.updateOne(
       {
         _id: new ObjectId(deploymentId),
+        status: { $ne: "cancelled" },
       },
       {
         $set: {
