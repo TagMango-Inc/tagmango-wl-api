@@ -1,109 +1,109 @@
-import { Job } from "bullmq";
 import { createFactory } from "hono/factory";
-import { SSEStreamingApi, streamSSE } from "hono/streaming";
+import { streamSSE } from "hono/streaming";
 
-import { buildQueue, buildQueueEvents } from "../../src/job/config";
+import { buildQueueEvents } from "../../src/job/config";
 import { JobProgressType } from "../../src/types";
 
 const factory = createFactory();
 
-const getDeploymentTaskStatusSSE = factory.createHandlers(async (c) => {
-  const { deploymentId: deploymentIdFromParam } = c.req.param();
+/**
+ * Both streams previously:
+ *  - attached `progress`/`completed` listeners per request and never removed
+ *    them (EventEmitter leak + stale closures writing to closed streams),
+ *  - ran a Redis round trip (Job.fromId) per progress event to identify the
+ *    deployment (the payload now carries deploymentId),
+ *  - closed the stream when ANY other deployment emitted, and resolved on
+ *    ANY job completing.
+ */
 
-  const jobCompletePromise = async (stream: SSEStreamingApi) => {
-    return new Promise<void>((resolve) => {
-      buildQueueEvents.on("completed", async (job) => {
-        console.log(`Job ${job.jobId} completed`, JSON.stringify(job, null, 2));
-        if (job.jobId) {
-          resolve();
-        }
-      });
-    });
-  };
+const getDeploymentTaskStatusSSE = factory.createHandlers(async (c) => {
+  const { deploymentId: watchedDeploymentId } = c.req.param();
 
   return streamSSE(c, async (stream) => {
-    buildQueueEvents.on("progress", async (job) => {
-      const jobDetails = await Job.fromId(buildQueue, job.jobId);
-
-      if (!jobDetails) return;
-
-      const jobName = jobDetails.name;
-
-      const [deploymentId, targetPlatform, lastDeploymentVersionName] =
-        jobName.split("-");
-
-      if (deploymentId === deploymentIdFromParam) {
-        const { task } = job.data as JobProgressType;
-        const message = {
-          data: `${JSON.stringify({
-            id: task.id,
-            type: task.type,
-            name: task.name,
-            duration: task.duration,
-          })}`,
-        };
-        await stream.writeSSE(message);
-      } else {
-        stream.close();
-      }
+    let finish: () => void = () => undefined;
+    const done = new Promise<void>((resolve) => {
+      finish = resolve;
     });
 
-    await jobCompletePromise(stream);
+    const onProgress = async (job: { jobId: string; data: unknown }) => {
+      const progress = job.data as JobProgressType;
+      if (progress?.deploymentId !== watchedDeploymentId) return;
+
+      const { task } = progress;
+      await stream.writeSSE({
+        data: `${JSON.stringify({
+          id: task.id,
+          type: task.type,
+          name: task.name,
+          duration: task.duration,
+        })}`,
+      });
+    };
+
+    const onCompleted = ({ jobId }: { jobId: string }) => {
+      // deterministic job ids: jobId === deploymentId
+      if (jobId === watchedDeploymentId) {
+        finish();
+      }
+    };
+
+    buildQueueEvents.on("progress", onProgress);
+    buildQueueEvents.on("completed", onCompleted);
+    stream.onAbort(finish);
+
+    try {
+      await done;
+    } finally {
+      buildQueueEvents.off("progress", onProgress);
+      buildQueueEvents.off("completed", onCompleted);
+    }
   });
 });
 
 const getDeploymentTaskLogsSSE = factory.createHandlers(async (c) => {
-  const { deploymentId: deploymentIdFromParam, taskId: taskIdFromParam } =
+  const { deploymentId: watchedDeploymentId, taskId: watchedTaskId } =
     c.req.param();
 
-  const jobCompletePromise = new Promise<void>((resolve) => {
-    // Set up event listener for job completion
-    buildQueueEvents.on("completed", async (job) => {
-      console.log(`Job ${job.jobId} completed`, JSON.stringify(job, null, 2));
-      if (job.jobId) {
-        // Assuming jobId is set elsewhere
-        resolve();
-      }
-    });
-  });
-
   return streamSSE(c, async (stream) => {
-    // listen to the progress of the job (set by job.updateProgress() in worker.ts
-    buildQueueEvents.on("progress", async (job) => {
-      const jobDetails = await Job.fromId(buildQueue, job.jobId);
-
-      if (!jobDetails) return;
-
-      const jobName = jobDetails.name;
-
-      const [deploymentId, targetPlatform] = jobName.split("-");
-
-      const {
-        task,
-        message: logMessage,
-        timestamp,
-        type,
-      } = job.data as JobProgressType;
-
-      if (
-        deploymentId === deploymentIdFromParam &&
-        task.id === taskIdFromParam
-      ) {
-        const message = {
-          data: `${JSON.stringify({
-            message: logMessage,
-            type,
-            timestamp,
-          })}`,
-        };
-        await stream.writeSSE(message);
-      } else {
-        stream.close();
-      }
+    let finish: () => void = () => undefined;
+    const done = new Promise<void>((resolve) => {
+      finish = resolve;
     });
 
-    // Wait for job to complete before closing the stream
-    await jobCompletePromise;
+    const onProgress = async (job: { jobId: string; data: unknown }) => {
+      const progress = job.data as JobProgressType;
+      if (
+        progress?.deploymentId !== watchedDeploymentId ||
+        progress?.task?.id !== watchedTaskId
+      ) {
+        return;
+      }
+
+      await stream.writeSSE({
+        data: `${JSON.stringify({
+          message: progress.message,
+          type: progress.type,
+          timestamp: progress.timestamp,
+        })}`,
+      });
+    };
+
+    const onCompleted = ({ jobId }: { jobId: string }) => {
+      if (jobId === watchedDeploymentId) {
+        finish();
+      }
+    };
+
+    buildQueueEvents.on("progress", onProgress);
+    buildQueueEvents.on("completed", onCompleted);
+    stream.onAbort(finish);
+
+    try {
+      await done;
+    } finally {
+      buildQueueEvents.off("progress", onProgress);
+      buildQueueEvents.off("completed", onCompleted);
+    }
   });
 });
 

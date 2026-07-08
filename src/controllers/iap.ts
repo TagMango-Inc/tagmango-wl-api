@@ -30,15 +30,16 @@ const getAllMangoesByCreator = factory.createHandlers(async (c) => {
       },
     );
   try {
-    const demoUserIos = await Mongo.platform_users.findOne({
-      phone: 1223334444,
-      host,
-    });
-
-    const demoUserAndroid = await Mongo.platform_users.findOne({
-      phone: 1223334445,
-      host,
-    });
+    const [demoUserIos, demoUserAndroid] = await Promise.all([
+      Mongo.platform_users.findOne(
+        { phone: 1223334444, host },
+        { projection: { _id: 1 } },
+      ),
+      Mongo.platform_users.findOne(
+        { phone: 1223334445, host },
+        { projection: { _id: 1 } },
+      ),
+    ]);
 
     // Aggregate posts, courses, and subscriptions
     const [allSubscriptionsIos, allSubscriptionsAndroid] = await Promise.all([
@@ -228,16 +229,13 @@ const getAllMangoesByCreator = factory.createHandlers(async (c) => {
             hasPosts: { $first: "$relatedPosts" }, // Preserve posts
             hasCourses: { $push: "$relatedCourses" }, // Collect filtered courses
             hasRooms: { $first: "$relatedRooms" }, // Preserve rooms
+            // inr/usd/eurAmount and createdAt were never read by the IAP tab
             title: { $first: "$title" },
             description: { $first: "$description" },
             price: { $first: "$price" },
-            inrAmount: { $first: "$inrAmount" },
-            usdAmount: { $first: "$usdAmount" },
-            eurAmount: { $first: "$eurAmount" },
             recurringType: { $first: "$recurringType" },
             currency: { $first: "$currency" },
             iapProductId: { $first: "$iapProductId" },
-            createdAt: { $first: "$createdAt" },
             iapDescription: { $first: "$iapDescription" },
             iapPrice: { $first: "$iapPrice" },
           },

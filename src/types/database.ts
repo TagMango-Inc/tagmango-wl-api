@@ -51,6 +51,8 @@ export interface IAdminUser {
   customhostDashboardAccess: {
     role: string;
     isRestricted: boolean;
+    /** sha256 of the currently-valid refresh token (rotated on refresh) */
+    refreshTokenHash?: string;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -59,7 +61,7 @@ export interface IAdminUser {
 export interface IDeploymentTask {
   id: string;
   name: string;
-  status: Exclude<Status, "warning" | "cancelled">;
+  status: Exclude<Status, "warning">;
   logs: {
     message: string;
     type: Exclude<Status, "pending" | "processing" | "cancelled">;

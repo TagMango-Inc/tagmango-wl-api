@@ -7,6 +7,7 @@ import { zValidator } from "@hono/zod-validator";
 
 import Mongo from "../../src/database";
 import { getAppsByVersionCSV } from "../../src/utils/csv";
+import { getEnterpriseHosts } from "../utils/enterpriseHostsCache";
 import { Response } from "../../src/utils/statuscode";
 import {
   reorderAndroidScreenshotsSchema,
@@ -40,13 +41,29 @@ async function processScreenshot(
   await writeFile(filePath, file);
 }
 
+/** response fields the dashboard never consumes (xref-verified); the DB
+ *  documents keep them — this is response shaping only. GET + POST /metadata
+ *  must stay in lockstep: both are merged into the same frontend state. */
+const METADATA_RESPONSE_OMISSIONS = {
+  "iosScreenshots.iphone_55": 0,
+  "iosScreenshots.iphone_67": 0,
+  isFormImported: 0,
+  "iosDeploymentDetails.isDeploymentBlocked": 0,
+  "iosDeploymentDetails.deploymentBlockReason": 0,
+  "androidDeploymentDetails.isDeploymentBlocked": 0,
+  "androidDeploymentDetails.deploymentBlockReason": 0,
+} as const;
+
 const createMetadata = factory.createHandlers(async (c) => {
   try {
     const { appId } = c.req.param();
 
-    const metadata = await Mongo.metadata.findOne({
-      host: new ObjectId(appId),
-    });
+    const metadata = await Mongo.metadata.findOne(
+      {
+        host: new ObjectId(appId),
+      },
+      { projection: METADATA_RESPONSE_OMISSIONS },
+    );
 
     if (metadata) {
       return c.json(
@@ -55,9 +72,10 @@ const createMetadata = factory.createHandlers(async (c) => {
       );
     }
 
-    const customhost = await Mongo.customhost.findOne({
-      _id: new ObjectId(appId),
-    });
+    const customhost = await Mongo.customhost.findOne(
+      { _id: new ObjectId(appId) },
+      { projection: { appName: 1 } },
+    );
 
     if (!customhost) {
       return c.json({ message: "App not found" }, Response.NOT_FOUND);
@@ -66,7 +84,7 @@ const createMetadata = factory.createHandlers(async (c) => {
     const appName = customhost.appName ?? "";
     const formattedName = appName.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 
-    const result = await Mongo.metadata.insertOne({
+    const newMetadataDoc = {
       host: new ObjectId(appId),
       logo: "",
       backgroundType: "color",
@@ -123,16 +141,17 @@ const createMetadata = factory.createHandlers(async (c) => {
       },
 
       isFormImported: false,
-    } as any);
+    };
 
-    const newMetadata = await Mongo.metadata.findOne({
-      _id: result.insertedId,
-    });
+    const result = await Mongo.metadata.insertOne(newMetadataDoc as any);
+
+    // response mirrors GET's omissions (isFormImported stays in the DB doc)
+    const { isFormImported: _omitted, ...responseDoc } = newMetadataDoc;
 
     return c.json(
       {
         message: "Metadata created successfully",
-        result: newMetadata,
+        result: { _id: result.insertedId, ...responseDoc },
       },
       Response.CREATED,
     );
@@ -148,25 +167,20 @@ const getAppMetadata = factory.createHandlers(async (c) => {
   try {
     const { appId } = c.req.param();
 
-    const metadata = await Mongo.metadata.findOne({
-      host: new ObjectId(appId),
-    });
-
-    const form = await Mongo.app_forms.findOne({
-      host: new ObjectId(appId),
-      parentForm: { $exists: false },
-    });
+    // isFormAvailableForImport (and its app_forms round trip) dropped — the
+    // dashboard never read it; screenshot trims: only iphone_65 is consumed
+    const metadata = await Mongo.metadata.findOne(
+      {
+        host: new ObjectId(appId),
+      },
+      { projection: METADATA_RESPONSE_OMISSIONS },
+    );
 
     return c.json(
       {
         message: "Metadata fetched successfully",
         result: {
           ...metadata,
-          isFormAvailableForImport: Boolean(
-            form?.status === AppFormStatus.APPROVED &&
-              form?.isFormSubmitted &&
-              !metadata?.isFormImported,
-          ),
           isMetadataCreated: Boolean(metadata),
         },
       },
@@ -187,15 +201,7 @@ const updateBuildMetadataAndroidSettings = factory.createHandlers(
       const { appId } = c.req.param();
       const body = c.req.valid("json");
 
-      const metadata = await Mongo.metadata.findOne({
-        host: new ObjectId(appId),
-      });
-
-      if (!metadata) {
-        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
-      }
-
-      await Mongo.metadata.updateOne(
+      const updateResult = await Mongo.metadata.updateOne(
         {
           host: new ObjectId(appId),
         },
@@ -209,6 +215,10 @@ const updateBuildMetadataAndroidSettings = factory.createHandlers(
           },
         },
       );
+
+      if (updateResult.matchedCount === 0) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
 
       return c.json(
         {
@@ -232,15 +242,7 @@ const updateStoreMetadataAndroidSettings = factory.createHandlers(
       const { appId } = c.req.param();
       const body = c.req.valid("json");
 
-      const metadata = await Mongo.metadata.findOne({
-        host: new ObjectId(appId),
-      });
-
-      if (!metadata) {
-        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
-      }
-
-      await Mongo.metadata.updateOne(
+      const updateResult = await Mongo.metadata.updateOne(
         {
           host: new ObjectId(appId),
         },
@@ -250,6 +252,10 @@ const updateStoreMetadataAndroidSettings = factory.createHandlers(
           },
         },
       );
+
+      if (updateResult.matchedCount === 0) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
 
       return c.json(
         {
@@ -273,18 +279,14 @@ const reorderAndroidScreenshots = factory.createHandlers(
       const { appId } = c.req.param();
       const body = c.req.valid("json");
 
-      const metadata = await Mongo.metadata.findOne({
-        host: new ObjectId(appId),
-      });
-
-      if (!metadata) {
-        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
-      }
-
-      await Mongo.metadata.updateOne(
+      const updateResult = await Mongo.metadata.updateOne(
         { host: new ObjectId(appId) },
         { $set: { androidScreenshots: body.screenshots } },
       );
+
+      if (updateResult.matchedCount === 0) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
 
       return c.json(
         {
@@ -311,15 +313,7 @@ const updateAndroidDeveloperAccountForApp = factory.createHandlers(
       const { appId } = c.req.param();
       const { developerAccountId } = c.req.valid("json");
 
-      const metadata = await Mongo.metadata.findOne({
-        host: new ObjectId(appId),
-      });
-
-      if (!metadata) {
-        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
-      }
-
-      await Mongo.metadata.updateOne(
+      const updateResult = await Mongo.metadata.updateOne(
         { host: new ObjectId(appId) },
         {
           $set: {
@@ -327,6 +321,10 @@ const updateAndroidDeveloperAccountForApp = factory.createHandlers(
           },
         },
       );
+
+      if (updateResult.matchedCount === 0) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
 
       return c.json(
         {
@@ -350,15 +348,7 @@ const updateIosAppleId = factory.createHandlers(
       const { appId } = c.req.param();
       const body = c.req.valid("json");
 
-      const metadata = await Mongo.metadata.findOne({
-        host: new ObjectId(appId),
-      });
-
-      if (!metadata) {
-        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
-      }
-
-      await Mongo.metadata.updateOne(
+      const updateResult = await Mongo.metadata.updateOne(
         {
           host: new ObjectId(appId),
         },
@@ -368,6 +358,10 @@ const updateIosAppleId = factory.createHandlers(
           },
         },
       );
+
+      if (updateResult.matchedCount === 0) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
 
       return c.json(
         {
@@ -392,15 +386,7 @@ const updateBuildMetadataIosSettings = factory.createHandlers(
       const { appId } = c.req.param();
       const body = c.req.valid("json");
 
-      const metadata = await Mongo.metadata.findOne({
-        host: new ObjectId(appId),
-      });
-
-      if (!metadata) {
-        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
-      }
-
-      await Mongo.metadata.updateOne(
+      const updateResult = await Mongo.metadata.updateOne(
         {
           host: new ObjectId(appId),
         },
@@ -416,6 +402,10 @@ const updateBuildMetadataIosSettings = factory.createHandlers(
           },
         },
       );
+
+      if (updateResult.matchedCount === 0) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
 
       return c.json(
         {
@@ -439,15 +429,7 @@ const updateStoreMetadataIosSettings = factory.createHandlers(
       const { appId } = c.req.param();
       const body = c.req.valid("json");
 
-      const metadata = await Mongo.metadata.findOne({
-        host: new ObjectId(appId),
-      });
-
-      if (!metadata) {
-        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
-      }
-
-      await Mongo.metadata.updateOne(
+      const updateResult = await Mongo.metadata.updateOne(
         {
           host: new ObjectId(appId),
         },
@@ -457,6 +439,10 @@ const updateStoreMetadataIosSettings = factory.createHandlers(
           },
         },
       );
+
+      if (updateResult.matchedCount === 0) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
 
       return c.json(
         {
@@ -480,15 +466,7 @@ const updateInfoMetadataIosSettings = factory.createHandlers(
       const { appId } = c.req.param();
       const body = c.req.valid("json");
 
-      const metadata = await Mongo.metadata.findOne({
-        host: new ObjectId(appId),
-      });
-
-      if (!metadata) {
-        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
-      }
-
-      await Mongo.metadata.updateOne(
+      const updateResult = await Mongo.metadata.updateOne(
         {
           host: new ObjectId(appId),
         },
@@ -498,6 +476,10 @@ const updateInfoMetadataIosSettings = factory.createHandlers(
           },
         },
       );
+
+      if (updateResult.matchedCount === 0) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
 
       return c.json(
         {
@@ -521,15 +503,7 @@ const updateReviewMetadataIosSettings = factory.createHandlers(
       const { appId } = c.req.param();
       const body = c.req.valid("json");
 
-      const metadata = await Mongo.metadata.findOne({
-        host: new ObjectId(appId),
-      });
-
-      if (!metadata) {
-        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
-      }
-
-      await Mongo.metadata.updateOne(
+      const updateResult = await Mongo.metadata.updateOne(
         {
           host: new ObjectId(appId),
         },
@@ -539,6 +513,10 @@ const updateReviewMetadataIosSettings = factory.createHandlers(
           },
         },
       );
+
+      if (updateResult.matchedCount === 0) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
 
       return c.json(
         {
@@ -562,15 +540,7 @@ const reorderIosScreenshots = factory.createHandlers(
       const { appId } = c.req.param();
       const { screenshots, type } = c.req.valid("json");
 
-      const metadata = await Mongo.metadata.findOne({
-        host: new ObjectId(appId),
-      });
-
-      if (!metadata) {
-        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
-      }
-
-      await Mongo.metadata.updateOne(
+      const updateResult = await Mongo.metadata.updateOne(
         { host: new ObjectId(appId) },
         {
           $set: {
@@ -578,6 +548,10 @@ const reorderIosScreenshots = factory.createHandlers(
           },
         },
       );
+
+      if (updateResult.matchedCount === 0) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
 
       return c.json(
         {
@@ -619,75 +593,62 @@ const getAppsCountByVersion = factory.createHandlers(async (c) => {
       return getAppsByVersionCSV(c, targetVersion, platform);
     }
 
-    const result = await Mongo.customhost
-      .aggregate([
-        {
-          $match: {
-            platformSuspended: { $ne: true },
-          },
-        },
-        {
-          $lookup: {
-            from: "users",
-            localField: "creator",
-            foreignField: "_id",
-            as: "creatorDetails",
-          },
-        },
-        {
-          $match: {
-            "creatorDetails.whitelabelPlanType": "enterprise-plan",
-          },
-        },
-        {
-          $lookup: {
-            from: "customhostmetadatas",
-            localField: "_id",
-            foreignField: "host",
-            as: "metadata",
-          },
-        },
-        {
-          $unwind: "$metadata",
-        },
-        {
-          $facet: {
-            androidCount: [
-              {
-                $match: {
-                  androidShareLink: { $type: "string", $ne: "" },
-                  "metadata.androidDeploymentDetails.versionName":
-                    targetVersion,
-                },
-              },
-              { $count: "count" },
-            ],
-            iosCount: [
-              {
-                $match: {
-                  iosShareLink: { $type: "string", $ne: "" },
-                  "metadata.iosDeploymentDetails.versionName": targetVersion,
-                },
-              },
-              { $count: "count" },
+    // start from metadata (small collection) instead of scanning every
+    // customhost with a users-$lookup just to produce two integers
+    const [enterprise, versionMatches] = await Promise.all([
+      getEnterpriseHosts(),
+      Mongo.metadata
+        .find(
+          {
+            $or: [
+              { "androidDeploymentDetails.versionName": targetVersion },
+              { "iosDeploymentDetails.versionName": targetVersion },
             ],
           },
-        },
-        {
-          $project: {
-            android: {
-              $ifNull: [{ $arrayElemAt: ["$androidCount.count", 0] }, 0],
+          {
+            projection: {
+              host: 1,
+              "androidDeploymentDetails.versionName": 1,
+              "iosDeploymentDetails.versionName": 1,
             },
-            ios: { $ifNull: [{ $arrayElemAt: ["$iosCount.count", 0] }, 0] },
           },
-        },
-      ])
-      .toArray();
+        )
+        .toArray(),
+    ]);
+
+    const activeIdSet = new Set(enterprise.activeIds.map((id) => String(id)));
+    const candidates = versionMatches.filter((m) =>
+      activeIdSet.has(String(m.host)),
+    );
+
+    const androidHostIds = candidates
+      .filter(
+        (m) => m.androidDeploymentDetails?.versionName === targetVersion,
+      )
+      .map((m) => m.host);
+    const iosHostIds = candidates
+      .filter((m) => m.iosDeploymentDetails?.versionName === targetVersion)
+      .map((m) => m.host);
+
+    const [android, ios] = await Promise.all([
+      androidHostIds.length
+        ? Mongo.customhost.countDocuments({
+            _id: { $in: androidHostIds },
+            androidShareLink: { $type: "string", $ne: "" },
+          })
+        : Promise.resolve(0),
+      iosHostIds.length
+        ? Mongo.customhost.countDocuments({
+            _id: { $in: iosHostIds },
+            iosShareLink: { $type: "string", $ne: "" },
+          })
+        : Promise.resolve(0),
+    ]);
 
     return c.json(
       {
         message: "Apps count fetched successfully",
-        result: result[0],
+        result: { android, ios },
       },
       Response.OK,
     );

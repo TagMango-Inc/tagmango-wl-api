@@ -9,26 +9,15 @@ const runSchedule = async () => {
   date.setDate(date.getDate() - DAY_FROM_NOW);
   const updatedDate = date;
 
-  const deploymentsToUpdate = await Mongo.deployment
-    .find({
+  // clear logs in-place — no need to load full docs (incl. all logs) into
+  // memory and write whole task arrays back
+  const resp = await Mongo.deployment.updateMany(
+    {
       updatedAt: { $lt: updatedDate },
       status: "success",
-    })
-    .toArray();
-
-  const updatedDocuments = deploymentsToUpdate.map((doc) => {
-    const updatedTasks = doc.tasks.map((task) => ({ ...task, logs: [] }));
-    return { ...doc, tasks: updatedTasks };
-  });
-
-  const bulkWriteOps = updatedDocuments.map((doc) => ({
-    updateOne: {
-      filter: { _id: doc._id },
-      update: { $set: { tasks: doc.tasks } },
     },
-  }));
-
-  const resp = await Mongo.deployment.bulkWrite(bulkWriteOps);
+    { $set: { "tasks.$[].logs": [] } },
+  );
 
   console.log(
     `Logs removed for ${resp.modifiedCount} deployments on ${new Date()} before ${updatedDate}`,

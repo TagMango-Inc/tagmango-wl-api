@@ -22,6 +22,7 @@ import {
   ISubscription,
   IUser,
 } from "../../src/types/database";
+import ensureIndexes from "./ensureIndexes";
 
 abstract class Mongo {
   private static client: MongoClient;
@@ -93,6 +94,11 @@ abstract class Mongo {
       );
       this.app_release_versions = this.db.collection<IAppReleaseVersions>(
         Collections.APP_RELEASE_VERSIONS,
+      );
+
+      // fire-and-forget: index creation must never block or crash startup
+      ensureIndexes(this.db).catch((err) =>
+        console.error("ensureIndexes failed:", err),
       );
     } catch (error) {
       console.log(`Error connecting to database: ${error}`);

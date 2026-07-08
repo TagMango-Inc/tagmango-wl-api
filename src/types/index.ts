@@ -18,6 +18,8 @@ export type JWTPayloadType = {
   id: string;
   email: string;
   exp: number;
+  /** present ("refresh") only on refresh tokens — access tokens omit it */
+  type?: "refresh";
 };
 
 export type BuildConfigType = {
@@ -58,6 +60,9 @@ export type RedeploymentJobPayloadType = {
 };
 
 export type JobProgressType = {
+  /** carried in the payload so SSE consumers don't need a Redis round trip
+   *  (Job.fromId) per event to figure out which deployment emitted it */
+  deploymentId: string;
   task: {
     id: string;
     name: string;

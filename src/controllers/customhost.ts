@@ -7,10 +7,46 @@ import Mongo from "../../src/database";
 import { patchCustomHostByIdSchema } from "../../src/validations/customhost";
 import { AppFormStatus } from "../types/database";
 import { AWSService } from "../utils/aws";
+import { escapeRegExp } from "../utils/regex";
 import { Response } from "../utils/statuscode";
 
 const factory = createFactory();
 const awsService = new AWSService();
+
+/**
+ * Whitelist of customhost fields the dashboard actually consumes (xref-verified
+ * against every Settings tab). The raw doc has ~85 fields including secrets
+ * (whatsappApiKey/whatsappSecretKey, sendGrid ids, certificateArn) and heavy
+ * blobs (pwaManifest, deploymentMetadata) that must not reach the browser.
+ * GET and PATCH must stay in lockstep — the PATCH response is spread-merged
+ * into the frontend's app state.
+ */
+const CUSTOM_HOST_FIELDS = {
+  appName: 1,
+  host: 1,
+  logo: 1,
+  offeringTitle: 1,
+  offeringTitles: 1,
+  androidShareLink: 1,
+  iosShareLink: 1,
+  loginScreenTitle: 1,
+  colors: 1,
+  theme: 1,
+  gcpConfig: 1,
+  onesignalAppId: 1,
+  customOneSignalApiKey: 1,
+  isPWAEnabled: 1,
+  androidDeepLinkConfig: 1,
+  iosDeepLinkConfig: 1,
+  supportAddress: 1,
+  customSupportLink: 1,
+  enableSupportWidget: 1,
+  supportWidget: 1,
+  creator: 1,
+  routingConfig: 1,
+  iapMangoes: 1,
+  isCommunityFeatureActive: 1,
+} as const;
 /**
     /wl/apps/
     GET
@@ -26,15 +62,22 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
     let LIMIT = limit ? parseInt(limit as string) : 10;
     let SEARCH = search ? (search as string) : "";
 
+    // only run the (unindexable) regex match when there is a search term —
+    // the default page load can then use the updatedAt index directly
+    const searchRegex = new RegExp(escapeRegExp(SEARCH), "i");
     const searchedCustomhostsArray = await Mongo.customhost
       .aggregate([
         {
           $match: {
-            $or: [
-              { appName: { $regex: new RegExp(SEARCH, "i") } },
-              { host: { $regex: new RegExp(SEARCH, "i") } },
-              { brandname: { $regex: new RegExp(SEARCH, "i") } },
-            ],
+            ...(SEARCH
+              ? {
+                  $or: [
+                    { appName: { $regex: searchRegex } },
+                    { host: { $regex: searchRegex } },
+                    { brandname: { $regex: searchRegex } },
+                  ],
+                }
+              : {}),
             whitelableStatus: { $ne: "drafted" },
           },
         },
@@ -53,6 +96,18 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
             localField: "_id",
             foreignField: "host",
             as: "deploymentDetails",
+            pipeline: [
+              {
+                $project: {
+                  "androidDeploymentDetails.versionName": 1,
+                  "androidDeploymentDetails.playStore.versionName": 1,
+                  "iosDeploymentDetails.versionName": 1,
+                  "iosDeploymentDetails.isUnderReview": 1,
+                  "iosDeploymentDetails.appStore.versionName": 1,
+                  "iosDeploymentDetails.appStore.status": 1,
+                },
+              },
+            ],
           },
         },
         {
@@ -61,42 +116,9 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
             preserveNullAndEmptyArrays: true,
           },
         },
-        {
-          $lookup: {
-            from: "users",
-            localField: "creator",
-            foreignField: "_id",
-            as: "creatorUser",
-          },
-        },
-        {
-          $unwind: {
-            path: "$creatorUser",
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-        {
-          $lookup: {
-            from: "appforms",
-            let: { hostId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: { $eq: ["$host", "$$hostId"] },
-                  parentForm: { $exists: false },
-                },
-              },
-              { $limit: 1 },
-            ],
-            as: "appFormDetails",
-          },
-        },
-        {
-          $unwind: {
-            path: "$appFormDetails",
-            preserveNullAndEmptyArrays: true,
-          },
-        },
+        // creatorEmail / appFormStatus (users + appforms lookups) moved to
+        // GET /:id/export-details — they were consumed only by the per-row
+        // CSV export, not the table
         {
           $project: {
             appName: 1,
@@ -106,8 +128,6 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
             updatedAt: 1,
             androidShareLink: 1,
             iosShareLink: 1,
-            creatorEmail: "$creatorUser.email",
-            appFormStatus: "$appFormDetails.status",
             androidVersionName:
               "$deploymentDetails.androidDeploymentDetails.versionName",
             androidStoreVersionName:
@@ -151,6 +171,58 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
 });
 
 /**
+    /wl/apps/:id/export-details
+    GET
+    CSV-export-only columns (creatorEmail, appFormStatus) fetched on demand
+    when the user clicks the per-row CSV button — keeps the users/appforms
+    joins out of the hot list pipeline.
+    Protected Route
+*/
+const getCustomHostExportDetailsHandler = factory.createHandlers(async (c) => {
+  try {
+    const { id } = c.req.param();
+    const hostId = new ObjectId(id);
+
+    const customHost = await Mongo.customhost.findOne(
+      { _id: hostId },
+      { projection: { creator: 1 } },
+    );
+    if (!customHost) {
+      return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
+    }
+
+    const [creator, appForm] = await Promise.all([
+      customHost.creator
+        ? Mongo.platform_users.findOne(
+            { _id: new ObjectId(customHost.creator) },
+            { projection: { email: 1 } },
+          )
+        : null,
+      Mongo.app_forms.findOne(
+        { host: hostId, parentForm: { $exists: false } },
+        { projection: { status: 1 } },
+      ),
+    ]);
+
+    return c.json(
+      {
+        message: "Export Details",
+        result: {
+          creatorEmail: creator?.email ?? null,
+          appFormStatus: appForm?.status ?? null,
+        },
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
+/**
     /wl/apps/{:id
     GET
     Get custom host by id
@@ -159,17 +231,25 @@ const getAllCustomHostsHandler = factory.createHandlers(async (c) => {
 const getCustomHostByIdHandler = factory.createHandlers(async (c) => {
   try {
     const { id } = c.req.param();
-    const customHost = await Mongo.customhost.findOne({
-      _id: new ObjectId(id),
-    });
+    const customHost = await Mongo.customhost.findOne(
+      {
+        _id: new ObjectId(id),
+      },
+      { projection: CUSTOM_HOST_FIELDS },
+    );
 
     if (!customHost) {
       return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
     }
 
-    const creatorDetails = await Mongo.platform_users.findOne({
-      _id: new ObjectId(customHost?.creator),
-    });
+    // full platform-user doc previously shipped otp + refreshTokens to the
+    // browser; the UI shows name/email/phone only
+    const creatorDetails = await Mongo.platform_users.findOne(
+      {
+        _id: new ObjectId(customHost?.creator),
+      },
+      { projection: { name: 1, email: 1, phone: 1 } },
+    );
 
     return c.json(
       {
@@ -199,12 +279,6 @@ const patchCustomHostByIdHandler = factory.createHandlers(
     try {
       const { id } = c.req.param();
       const body = c.req.valid("json");
-      const customHost = await Mongo.customhost.findOne({
-        _id: new ObjectId(id),
-      });
-      if (!customHost) {
-        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
-      }
       const updatedCustomHost = await Mongo.customhost.findOneAndUpdate(
         {
           _id: new ObjectId(id),
@@ -216,8 +290,12 @@ const patchCustomHostByIdHandler = factory.createHandlers(
         },
         {
           returnDocument: "after",
+          projection: CUSTOM_HOST_FIELDS,
         },
       );
+      if (!updatedCustomHost) {
+        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
+      }
 
       // if the updatedCustomHost contains iosShareLink
       // then extract and update appleId from that link
@@ -300,5 +378,6 @@ const patchCustomHostByIdHandler = factory.createHandlers(
 export {
   getAllCustomHostsHandler,
   getCustomHostByIdHandler,
+  getCustomHostExportDetailsHandler,
   patchCustomHostByIdHandler,
 };

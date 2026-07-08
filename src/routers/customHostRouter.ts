@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import {
   getAllCustomHostsHandler,
   getCustomHostByIdHandler,
+  getCustomHostExportDetailsHandler,
   patchCustomHostByIdHandler,
 } from "../../src/controllers/customhost";
 import {
@@ -37,6 +38,7 @@ router.get("/recent-deployments", ...getRecentDeploymentsHandler);
 router.get("/deployments", ...getAllDeployments);
 router.get("/latest-redeployment-details", ...getLatestRedeploymentDetailsById);
 router.get("/:id", ...getCustomHostByIdHandler);
+router.get("/:id/export-details", ...getCustomHostExportDetailsHandler);
 router.patch("/:id", ...patchCustomHostByIdHandler);
 router.get("/:id/deployment-details/:target", ...getDeploymentDetails);
 router.get("/:id/deployments", ...getAllDeploymentsHandler);

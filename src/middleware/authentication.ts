@@ -21,14 +21,19 @@ const authenticationMiddleware = factory.createMiddleware(async (c, next) => {
     const token = authorizationHeader.split(" ")[1];
     const secret = process.env.JWT_SECRET as string;
     const payload: JWTPayloadType = await verify(token, secret);
-    const user = await Mongo.user.findOne({
-      _id: new ObjectId(payload.id),
-    });
+    const user = await Mongo.user.findOne(
+      {
+        _id: new ObjectId(payload.id),
+        "customhostDashboardAccess.isRestricted": { $ne: true },
+      },
+      { projection: { _id: 1, "customhostDashboardAccess.role": 1 } },
+    );
 
     if (!user) {
       return c.json({ message: "unauthorized access" }, Response.UNAUTHORIZED);
     }
     c.set("jwtPayload", payload);
+    c.set("userRole", user.customhostDashboardAccess?.role);
     await next();
   } catch (error) {
     if (error instanceof JwtTokenInvalid || error instanceof JwtTokenExpired) {

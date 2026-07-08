@@ -5,6 +5,7 @@ import { zValidator } from "@hono/zod-validator";
 
 import Mongo from "../database";
 import { updateDeploymentRequestStatusSchema } from "../validations/deploymentRequest";
+import { escapeRegExp } from "../utils/regex";
 import { Response } from "../utils/statuscode";
 
 const factory = createFactory();
@@ -59,10 +60,10 @@ const listDeploymentRequestsHandler = factory.createHandlers(async (c) => {
             {
               $match: {
                 $or: [
-                  { "hostDetails.appName": { $regex: new RegExp(SEARCH, "i") } },
-                  { "hostDetails.host": { $regex: new RegExp(SEARCH, "i") } },
+                  { "hostDetails.appName": { $regex: new RegExp(escapeRegExp(SEARCH), "i") } },
+                  { "hostDetails.host": { $regex: new RegExp(escapeRegExp(SEARCH), "i") } },
                   {
-                    "hostDetails.brandname": { $regex: new RegExp(SEARCH, "i") },
+                    "hostDetails.brandname": { $regex: new RegExp(escapeRegExp(SEARCH), "i") },
                   },
                 ],
               },
@@ -86,7 +87,6 @@ const listDeploymentRequestsHandler = factory.createHandlers(async (c) => {
           android: 1,
           ios: 1,
           createdAt: 1,
-          updatedAt: 1,
           appName: "$hostDetails.appName",
           brandname: "$hostDetails.brandname",
           hostUrl: "$hostDetails.host",
@@ -115,10 +115,10 @@ const listDeploymentRequestsHandler = factory.createHandlers(async (c) => {
             {
               $match: {
                 $or: [
-                  { "hostDetails.appName": { $regex: new RegExp(SEARCH, "i") } },
-                  { "hostDetails.host": { $regex: new RegExp(SEARCH, "i") } },
+                  { "hostDetails.appName": { $regex: new RegExp(escapeRegExp(SEARCH), "i") } },
+                  { "hostDetails.host": { $regex: new RegExp(escapeRegExp(SEARCH), "i") } },
                   {
-                    "hostDetails.brandname": { $regex: new RegExp(SEARCH, "i") },
+                    "hostDetails.brandname": { $regex: new RegExp(escapeRegExp(SEARCH), "i") },
                   },
                 ],
               },
@@ -142,8 +142,6 @@ const listDeploymentRequestsHandler = factory.createHandlers(async (c) => {
         result: {
           deploymentRequests,
           pagination: {
-            page: PAGE,
-            limit: LIMIT,
             total,
             hasMore: PAGE * LIMIT < total,
           },

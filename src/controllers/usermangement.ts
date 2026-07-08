@@ -1,12 +1,13 @@
 import bcrypt from "bcrypt";
 import { createFactory } from "hono/factory";
-import { sign } from "hono/jwt";
 import { ObjectId } from "mongodb";
 
 import { zValidator } from "@hono/zod-validator";
 
 import Mongo from "../../src/database";
 import { JWTPayloadType } from "../../src/types";
+import { issueTokenPair } from "../utils/authTokens";
+import { escapeRegExp } from "../utils/regex";
 import { Response } from "../../src/utils/statuscode";
 import {
   createUserSchema,
@@ -30,66 +31,65 @@ const getAllDashboardUsers = factory.createHandlers(async (c) => {
 
     const payload: JWTPayloadType = c.get("jwtPayload");
 
-    const totalUsers = await Mongo.user.find().toArray();
-
+    const searchRegex = new RegExp(escapeRegExp(SEARCH), "i");
     const query = {
       ...(ROLE ? { "customhostDashboardAccess.role": ROLE } : {}),
-      $or: [
-        { name: { $regex: new RegExp(SEARCH, "i") } },
-        { email: { $regex: new RegExp(SEARCH, "i") } },
-      ],
+      ...(SEARCH
+        ? {
+            $or: [
+              { name: { $regex: searchRegex } },
+              { email: { $regex: searchRegex } },
+            ],
+          }
+        : {}),
       _id: { $ne: new ObjectId(payload.id) },
     };
 
-    const users = await Mongo.user
-      .aggregate([
-        {
-          $match: query,
-        },
-        {
-          $project: {
-            _id: 1,
-            name: 1,
-            email: 1,
-            role: "$customhostDashboardAccess.role",
-            isRestricted: "$customhostDashboardAccess.isRestricted",
-            isEmailVerified: {
-              $cond: {
-                if: { $eq: [{ $type: "$password" }, "string"] },
-                then: true,
-                else: false,
-              },
-            },
-            createdAt: 1,
-            updatedAt: 1,
+    const [totalSearchResultsCount, users] = await Promise.all([
+      Mongo.user.countDocuments(query),
+      Mongo.user
+        .aggregate([
+          {
+            $match: query,
           },
-        },
-        {
-          $sort: { updatedAt: -1 },
-        },
-        {
-          $skip: (PAGE - 1) * LIMIT,
-        },
-        {
-          $limit: LIMIT,
-        },
-      ])
-      .toArray();
+          {
+            $project: {
+              _id: 1,
+              name: 1,
+              email: 1,
+              role: "$customhostDashboardAccess.role",
+              isRestricted: "$customhostDashboardAccess.isRestricted",
+              isEmailVerified: {
+                $cond: {
+                  if: { $eq: [{ $type: "$password" }, "string"] },
+                  then: true,
+                  else: false,
+                },
+              },
+              updatedAt: 1,
+            },
+          },
+          {
+            $sort: { updatedAt: -1 },
+          },
+          {
+            $skip: (PAGE - 1) * LIMIT,
+          },
+          {
+            $limit: LIMIT,
+          },
+        ])
+        .toArray(),
+    ]);
 
-    const totalSearchResults = await Mongo.user.find(query).toArray();
-
-    const hasNextPage = totalSearchResults.length > PAGE * LIMIT;
+    const hasNextPage = totalSearchResultsCount > PAGE * LIMIT;
 
     return c.json(
       {
         message: "All Users",
         result: {
           users,
-          totalSearchResults: totalSearchResults.length,
-          totalUsers: totalUsers.length,
-          currentPage: PAGE,
-          nextPage: hasNextPage ? PAGE + 1 : -1,
-          limit: LIMIT,
+          totalSearchResults: totalSearchResultsCount,
           hasNext: hasNextPage,
         },
       },
@@ -173,6 +173,14 @@ const updateDashboardUser = factory.createHandlers(
     try {
       const { action, userId, role } = c.req.valid("json");
 
+      const payload: JWTPayloadType = c.get("jwtPayload");
+      if (userId === payload.id) {
+        return c.json(
+          { message: "You cannot modify your own access" },
+          Response.FORBIDDEN,
+        );
+      }
+
       const updatedUser = await Mongo.user.findOneAndUpdate(
         {
           _id: new ObjectId(userId),
@@ -223,26 +231,10 @@ const updateDashboardUserPassword = factory.createHandlers(
 
       const { password } = c.req.valid("json");
 
-      const user = await Mongo.user.findOne({
-        _id: new ObjectId(userId),
-      });
-
-      if (!user) {
-        return c.json(
-          {
-            message: "User not found",
-          },
-          Response.NOT_FOUND,
-        );
-      }
-
       // use bcrypt to hash the password
-
       const salt = await bcrypt.genSalt(5);
 
       const hashedPassword = await bcrypt.hash(password, salt);
-
-      user.password = hashedPassword;
 
       const updatedUser = await Mongo.user.findOneAndUpdate(
         {
@@ -253,17 +245,22 @@ const updateDashboardUserPassword = factory.createHandlers(
             password: hashedPassword,
           },
         },
+        { returnDocument: "after", projection: { email: 1 } },
       );
 
-      const payload: JWTPayloadType = {
-        id: user._id.toString(),
-        email: user.email,
-        exp: Math.floor(Date.now() / 1000) + 60 * (60 * 24 * 15), // 15 days
-      };
+      if (!updatedUser) {
+        return c.json(
+          {
+            message: "User not found",
+          },
+          Response.NOT_FOUND,
+        );
+      }
 
-      const secret = process.env.JWT_SECRET as string;
-
-      const token = await sign(payload, secret);
+      const { token, refreshToken } = await issueTokenPair({
+        _id: updatedUser._id,
+        email: updatedUser.email,
+      });
 
       return c.json(
         {
@@ -273,6 +270,7 @@ const updateDashboardUserPassword = factory.createHandlers(
               _id: updatedUser?._id,
             },
             token,
+            refreshToken,
           },
         },
         Response.OK,

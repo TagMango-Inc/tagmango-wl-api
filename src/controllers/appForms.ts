@@ -10,6 +10,8 @@ import { JWTPayloadType } from "../types";
 import { AppFormStatus } from "../types/database";
 import { AWSService } from "../utils/aws";
 import { getLiveAppsOnOldVersionCSV } from "../utils/csv";
+import { getEnterpriseHosts } from "../utils/enterpriseHostsCache";
+import { escapeRegExp } from "../utils/regex";
 import { Response } from "../utils/statuscode";
 import {
   rejectFormByIdSchema,
@@ -36,8 +38,16 @@ const writeFile = fs.promises.writeFile;
  */
 const getAllFormsHandler = factory.createHandlers(async (c) => {
   try {
-    const { page, limit, search, status, isSuspended, sortByApprovedAt } =
-      c.req.query();
+    const {
+      page,
+      limit,
+      search,
+      status,
+      isSuspended,
+      sortByApprovedAt,
+      sortBy,
+      sortOrder,
+    } = c.req.query();
     let PAGE = page ? parseInt(page as string) : 1;
     let LIMIT = limit ? parseInt(limit as string) : 10;
     let SEARCH = search ? (search as string) : "";
@@ -46,145 +56,155 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
     // Calculate offset for pagination
     const OFFSET = (PAGE - 1) * LIMIT;
 
-    const matchStatus = STATUS
-      ? {
-          $or: [
-            {
-              appFormDetails: { $exists: false },
-              $expr: { $eq: [STATUS, AppFormStatus.IN_PROGRESS] },
-            },
-            {
-              appFormDetails: { $exists: true },
-              "appFormDetails.status": STATUS,
-            },
-          ],
-        }
-      : {};
+    // sortBy=approvedAt|submittedAt with sortOrder=1|-1 supersedes the
+    // legacy sortByApprovedAt=1|-1 param (kept for compatibility)
+    const SORT_FIELD =
+      sortBy === "submittedAt"
+        ? "$submittedAt"
+        : sortBy === "approvedAt" || Number(sortByApprovedAt)
+          ? "$approvedAt"
+          : "$updatedAt";
+    const SORT_ORDER =
+      Number(sortOrder) === 1 || Number(sortOrder) === -1
+        ? Number(sortOrder)
+        : Number(sortByApprovedAt)
+          ? Number(sortByApprovedAt)
+          : -1;
+
+    // The old pipeline drove from customhosts and ran a users-$lookup over
+    // ~9k hosts plus an appforms-$lookup over ~3k enterprise hosts on EVERY
+    // request (~4.5s). The enterprise-host set is now cached in-process and
+    // the pipeline drives from appforms directly (indexed on host), joining
+    // customhosts/metadata only for the returned page.
+    const enterprise = await getEnterpriseHosts();
+    let targetHostIds = isSuspended
+      ? enterprise.suspendedIds
+      : enterprise.activeIds;
+
+    if (SEARCH) {
+      const searchRegex = new RegExp(escapeRegExp(SEARCH), "i");
+      const matched = await Mongo.customhost
+        .find(
+          {
+            _id: { $in: targetHostIds },
+            $or: [
+              { appName: { $regex: searchRegex } },
+              { host: { $regex: searchRegex } },
+              { brandname: { $regex: searchRegex } },
+            ],
+          },
+          { projection: { _id: 1 } },
+        )
+        .toArray();
+      targetHostIds = matched.map((m) => m._id);
+    }
 
     const pipeline = [
       {
         $match: {
-          $or: [
-            { appName: { $regex: new RegExp(SEARCH, "i") } },
-            { host: { $regex: new RegExp(SEARCH, "i") } },
-            { brandname: { $regex: new RegExp(SEARCH, "i") } },
-          ],
-          ...(isSuspended
-            ? { platformSuspended: true }
-            : { platformSuspended: { $ne: true } }),
+          host: { $in: targetHostIds },
+          ...(STATUS ? { status: STATUS } : {}),
         },
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "creator",
-          foreignField: "_id",
-          as: "creatorDetails",
-        },
-      },
-      {
-        $match: {
-          "creatorDetails.whitelabelPlanType": "enterprise-plan",
-        },
-      },
-      {
-        $lookup: {
-          from: "appforms",
-          localField: "_id",
-          foreignField: "host",
-          as: "appFormDetails",
-        },
-      },
-      {
-        $unwind: {
-          path: "$appFormDetails",
-        },
-      },
-      {
-        $match: matchStatus,
       },
       {
         $addFields: {
           sortField: {
-            $ifNull: sortByApprovedAt
-              ? ["$appFormDetails.approvedAt", "$createdAt"]
-              : ["$appFormDetails.updatedAt", "$createdAt"],
+            $ifNull: [SORT_FIELD, "$createdAt"],
           },
         },
       },
       {
-        $lookup: {
-          from: "customhostmetadatas",
-          localField: "_id",
-          foreignField: "host",
-          as: "metadataDetails",
-        },
-      },
-      {
         $sort: {
-          sortField: Number(sortByApprovedAt) ? Number(sortByApprovedAt) : -1,
+          sortField: SORT_ORDER as 1 | -1,
         },
       },
       {
         $facet: {
-          data: [{ $skip: OFFSET }, { $limit: LIMIT }],
+          data: [
+            { $skip: OFFSET },
+            { $limit: LIMIT },
+            {
+              $lookup: {
+                from: "customhosts",
+                localField: "host",
+                foreignField: "_id",
+                as: "hostDoc",
+                pipeline: [
+                  {
+                    $project: {
+                      host: 1,
+                      appName: 1,
+                      logo: 1,
+                      androidShareLink: 1,
+                      iosShareLink: 1,
+                      platformSuspended: 1,
+                    },
+                  },
+                ],
+              },
+            },
+            { $unwind: "$hostDoc" },
+            {
+              $lookup: {
+                from: "customhostmetadatas",
+                localField: "host",
+                foreignField: "host",
+                as: "metadataDetails",
+                pipeline: [
+                  {
+                    $project: {
+                      "iosDeploymentDetails.appStore.status": 1,
+                      "iosDeploymentDetails.isInExternalDevAccount": 1,
+                      "androidDeploymentDetails.isInExternalDevAccount": 1,
+                    },
+                  },
+                ],
+              },
+            },
+          ],
           totalCount: [{ $count: "count" }],
         },
       },
     ];
 
-    const customHostsArr = await Mongo.customhost.aggregate(pipeline).toArray();
+    const customHostsArr = await Mongo.app_forms.aggregate(pipeline).toArray();
 
     const customHostsData = customHostsArr[0]?.data ?? [];
 
-    const customHosts = customHostsData.map((customHost: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const customHosts = customHostsData.map((form: any) => {
+      const customHost = form.hostDoc ?? {};
+      // brandname/createdAt/formUpdatedAt/isFormSubmitted dropped — the
+      // forms table never rendered them
       return {
         _id: customHost._id,
         host: customHost.host,
         appName: customHost.appName,
-        brandname: customHost.brandname,
         logo: customHost.logo,
-        createdAt: customHost.createdAt,
-        isEditForm: customHost.appFormDetails.parentForm ? true : false,
-        status: customHost.appFormDetails
-          ? customHost.appFormDetails.status
-          : AppFormStatus.IN_PROGRESS,
-        formId: customHost.appFormDetails
-          ? customHost.appFormDetails._id
-          : null,
-        formUpdatedAt: customHost.appFormDetails
-          ? customHost.appFormDetails.updatedAt
-          : null,
-        formSubmittedAt:
-          customHost.appFormDetails && customHost.appFormDetails.submittedAt
-            ? customHost.appFormDetails.submittedAt
-            : null,
-        formApprovedAt:
-          customHost.appFormDetails && customHost.appFormDetails.approvedAt
-            ? customHost.appFormDetails.approvedAt
-            : null,
-        isFormSubmitted: customHost.appFormDetails
-          ? customHost.appFormDetails.isFormSubmitted ?? false
-          : false,
+        isEditForm: form.parentForm ? true : false,
+        status: form.status ?? AppFormStatus.IN_PROGRESS,
+        formId: form._id,
+        formSubmittedAt: form.submittedAt ?? null,
+        formApprovedAt: form.approvedAt ?? null,
         store: {
           playStoreLink: customHost.androidShareLink || "",
           appStoreLink: customHost.iosShareLink || "",
         },
         platformSuspended: customHost.platformSuspended,
         appStoreStatus:
-          (customHost?.metadataDetails.length > 0 &&
-            customHost?.metadataDetails[0]?.iosDeploymentDetails?.appStore
+          (form?.metadataDetails?.length > 0 &&
+            form?.metadataDetails[0]?.iosDeploymentDetails?.appStore
               ?.status) ||
           "",
         externalDevAccount: {
           android:
-            (customHost?.metadataDetails.length > 0 &&
-              customHost?.metadataDetails[0]?.androidDeploymentDetails
+            (form?.metadataDetails?.length > 0 &&
+              form?.metadataDetails[0]?.androidDeploymentDetails
                 ?.isInExternalDevAccount) ??
             false,
           ios:
-            (customHost?.metadataDetails.length > 0 &&
-              customHost?.metadataDetails[0]?.iosDeploymentDetails
+            (form?.metadataDetails?.length > 0 &&
+              form?.metadataDetails[0]?.iosDeploymentDetails
                 ?.isInExternalDevAccount) ??
             false,
         },
@@ -211,19 +231,15 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
 
 const getAllFormsCount = factory.createHandlers(async (c) => {
   try {
+    const enterprise = await getEnterpriseHosts();
+
     const allStatusCountsPromise = Mongo.app_forms
       .aggregate([
         {
-          $lookup: {
-            from: "customhosts",
-            localField: "host",
-            foreignField: "_id",
-            as: "hostDetails",
-          },
-        },
-        {
+          // suspended hosts come from the in-process cache — the old
+          // pipeline joined customhosts for every form on every call
           $match: {
-            "hostDetails.platformSuspended": { $ne: true },
+            host: { $nin: enterprise.allSuspendedIds },
           },
         },
         {
@@ -252,16 +268,11 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
     const allIosReviewStatusPromise = Mongo.app_forms
       .aggregate([
         {
-          $lookup: {
-            from: "customhosts",
-            localField: "host",
-            foreignField: "_id",
-            as: "hostDetails",
-          },
-        },
-        {
+          // native-field filter first: only in-store-review forms need joins;
+          // suspension exclusion via the cached id set (no customhosts join)
           $match: {
-            "hostDetails.platformSuspended": { $ne: true },
+            status: AppFormStatus.IN_STORE_REVIEW,
+            host: { $nin: enterprise.allSuspendedIds },
           },
         },
         {
@@ -270,6 +281,9 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
             localField: "host",
             foreignField: "host",
             as: "metadataDetails",
+            pipeline: [
+              { $project: { "iosDeploymentDetails.appStore.status": 1 } },
+            ],
           },
         },
         {
@@ -289,9 +303,6 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
                 "metadataDetails.iosDeploymentDetails.appStore.status": {
                   $ne: "",
                 },
-              },
-              {
-                status: AppFormStatus.IN_STORE_REVIEW,
               },
             ],
           },
@@ -319,93 +330,64 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
       ])
       .toArray();
 
-    const customHostsPromise = Mongo.customhost
+    // one pass over enterprise hosts (from the cache — no users join)
+    // computes the suspended count AND the android/ios live-link counts
+    const hostCountsPromise = Mongo.customhost
       .aggregate([
         {
-          $lookup: {
-            from: "users",
-            localField: "creator",
-            foreignField: "_id",
-            as: "creatorDetails",
-          },
-        },
-        {
           $match: {
-            "creatorDetails.whitelabelPlanType": "enterprise-plan",
-            platformSuspended: true,
-          },
-        },
-        {
-          $count: "suspendedPlatformCount",
-        },
-      ])
-      .toArray();
-
-    const iosAndAndroidCountsPromise = Mongo.customhost
-      .aggregate([
-        {
-          $lookup: {
-            from: "users",
-            localField: "creator",
-            foreignField: "_id",
-            as: "creatorDetails",
-          },
-        },
-        {
-          $match: {
-            "creatorDetails.whitelabelPlanType": "enterprise-plan",
-            platformSuspended: { $ne: true },
-          },
-        },
-        {
-          $project: {
-            androidShareLinkCount: {
-              $cond: {
-                if: {
-                  $and: [
-                    { $ifNull: ["$androidShareLink", false] },
-                    { $ne: ["$androidShareLink", ""] },
-                  ],
-                },
-                then: 1,
-                else: 0,
-              },
-            },
-            iosShareLinkCount: {
-              $cond: {
-                if: {
-                  $and: [
-                    { $ifNull: ["$iosShareLink", false] },
-                    { $ne: ["$iosShareLink", ""] },
-                  ],
-                },
-                then: 1,
-                else: 0,
-              },
+            _id: {
+              $in: [...enterprise.activeIds, ...enterprise.suspendedIds],
             },
           },
         },
         {
           $group: {
-            _id: null, // We only want the total count, so we don't need to group by a specific field
-            totalAndroidShareLinks: { $sum: "$androidShareLinkCount" },
-            totalIosShareLinks: { $sum: "$iosShareLinkCount" },
+            _id: null,
+            suspendedPlatformCount: {
+              $sum: { $cond: [{ $eq: ["$platformSuspended", true] }, 1, 0] },
+            },
+            totalAndroidShareLinks: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $ne: ["$platformSuspended", true] },
+                      { $ifNull: ["$androidShareLink", false] },
+                      { $ne: ["$androidShareLink", ""] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            totalIosShareLinks: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $ne: ["$platformSuspended", true] },
+                      { $ifNull: ["$iosShareLink", false] },
+                      { $ne: ["$iosShareLink", ""] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
           },
         },
       ])
       .toArray();
 
-    const [
-      allStatusCounts,
-      customHosts,
-      iosAndAndroidCounts,
-      allIosReviewStatusCount,
-    ] = await Promise.all([
-      allStatusCountsPromise,
-      customHostsPromise,
-      iosAndAndroidCountsPromise,
-      allIosReviewStatusPromise,
-    ]);
+    const [allStatusCounts, hostCounts, allIosReviewStatusCount] =
+      await Promise.all([
+        allStatusCountsPromise,
+        hostCountsPromise,
+        allIosReviewStatusPromise,
+      ]);
 
     return c.json(
       {
@@ -424,22 +406,18 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
                 }),
             ...(allIosReviewStatusCount.length > 0 &&
               allIosReviewStatusCount[0].statuses),
-            total: Object.values(allStatusCounts[0].statuses).reduce(
-              (acc: any, curr: any) => acc + curr,
-              0,
-            ),
+            total:
+              allStatusCounts.length > 0
+                ? Object.values(allStatusCounts[0].statuses).reduce(
+                    (acc: any, curr: any) => acc + curr,
+                    0,
+                  )
+                : 0,
             suspended:
-              customHosts?.length > 0
-                ? customHosts[0].suspendedPlatformCount
-                : 0,
-            ios:
-              iosAndAndroidCounts?.length > 0
-                ? iosAndAndroidCounts[0].totalIosShareLinks
-                : 0,
+              hostCounts?.length > 0 ? hostCounts[0].suspendedPlatformCount : 0,
+            ios: hostCounts?.length > 0 ? hostCounts[0].totalIosShareLinks : 0,
             android:
-              iosAndAndroidCounts?.length > 0
-                ? iosAndAndroidCounts[0].totalAndroidShareLinks
-                : 0,
+              hostCounts?.length > 0 ? hostCounts[0].totalAndroidShareLinks : 0,
           },
         },
       },
@@ -464,30 +442,50 @@ const getFormByIdHandler = factory.createHandlers(async (c) => {
   try {
     const { formId } = c.req.param();
 
-    const appForm = await Mongo.app_forms.findOne({
-      _id: new ObjectId(formId),
-    });
+    // parentForm / showAppsLiveBannerToCreator are never read by the preview
+    const appForm = await Mongo.app_forms.findOne(
+      {
+        _id: new ObjectId(formId),
+      },
+      { projection: { parentForm: 0, showAppsLiveBannerToCreator: 0 } },
+    );
     if (!appForm) {
       return c.json({ message: "Form not found" }, Response.NOT_FOUND);
     }
 
-    const customHost = await Mongo.customhost.findOne({
-      _id: new ObjectId(appForm.host),
-    });
+    const [customHost, reviewer] = await Promise.all([
+      Mongo.customhost.findOne(
+        { _id: new ObjectId(appForm.host) },
+        {
+          projection: {
+            host: 1,
+            appName: 1,
+            brandname: 1,
+            logo: 1,
+            createdAt: 1,
+            androidShareLink: 1,
+            iosShareLink: 1,
+          },
+        },
+      ),
+      appForm.rejectionDetails && appForm.rejectionDetails.reviewer
+        ? Mongo.user.findOne(
+            { _id: new ObjectId(appForm.rejectionDetails.reviewer) },
+            { projection: { name: 1, email: 1 } },
+          )
+        : Promise.resolve(null),
+    ]);
 
     if (!customHost) {
       return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
     }
 
-    let reviewer = null;
-    if (appForm.rejectionDetails && appForm.rejectionDetails.reviewer) {
-      reviewer = await Mongo.user.findOne({
-        _id: new ObjectId(appForm.rejectionDetails.reviewer),
-      });
-
-      if (!reviewer) {
-        return c.json({ message: "Reviewer not found" }, Response.NOT_FOUND);
-      }
+    if (
+      appForm.rejectionDetails &&
+      appForm.rejectionDetails.reviewer &&
+      !reviewer
+    ) {
+      return c.json({ message: "Reviewer not found" }, Response.NOT_FOUND);
     }
 
     return c.json(
@@ -546,15 +544,11 @@ const rejectFormHandler = factory.createHandlers(
       const { reason, errors } = c.req.valid("json");
       const payload: JWTPayloadType = c.get("jwtPayload");
 
-      const user = await Mongo.user.findOne({ _id: new ObjectId(payload.id) });
-
-      if (!user) {
-        return c.json({ message: "User not found" }, Response.NOT_FOUND);
-      }
-
-      const form = await Mongo.app_forms.findOne({
-        _id: new ObjectId(formId),
-      });
+      // the auth middleware has already verified the user exists
+      const form = await Mongo.app_forms.findOne(
+        { _id: new ObjectId(formId) },
+        { projection: { status: 1, host: 1 } },
+      );
 
       if (!form) {
         return c.json({ message: "Form not found" }, Response.NOT_FOUND);
@@ -745,25 +739,42 @@ const markFormApprovedHandler = factory.createHandlers(
     try {
       const { formId } = c.req.param();
 
-      const form = await Mongo.app_forms.findOne({
-        _id: new ObjectId(formId),
-      });
+      const form = await Mongo.app_forms.findOne(
+        { _id: new ObjectId(formId) },
+        { projection: { host: 1 } },
+      );
 
       if (!form) {
         return c.json({ message: "Form not found" }, Response.NOT_FOUND);
       }
 
-      const customHost = await Mongo.customhost.findOne({
-        _id: new ObjectId(form.host),
-      });
+      const [customHost, metadata] = await Promise.all([
+        Mongo.customhost.findOne(
+          { _id: new ObjectId(form.host) },
+          { projection: { host: 1 } },
+        ),
+        Mongo.metadata.findOne(
+          { host: new ObjectId(form.host) },
+          {
+            projection: {
+              logo: 1,
+              customOneSignalIcon: 1,
+              backgroundType: 1,
+              backgroundStartColor: 1,
+              backgroundEndColor: 1,
+              backgroundGradientAngle: 1,
+              logoPadding: 1,
+              iosLogoPadding: 1,
+              androidStoreSettings: 1,
+              iosStoreSettings: 1,
+            },
+          },
+        ),
+      ]);
 
       if (!customHost) {
         return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
       }
-
-      const metadata = await Mongo.metadata.findOne({
-        host: new ObjectId(form.host),
-      });
 
       if (
         !metadata ||
@@ -862,17 +873,19 @@ const markFormDeployedHandler = factory.createHandlers(
     try {
       const { formId } = c.req.param();
 
-      const form = await Mongo.app_forms.findOne({
-        _id: new ObjectId(formId),
-      });
+      const form = await Mongo.app_forms.findOne(
+        { _id: new ObjectId(formId) },
+        { projection: { host: 1, parentForm: 1 } },
+      );
 
       if (!form) {
         return c.json({ message: "Form not found" }, Response.NOT_FOUND);
       }
 
-      const customHost = await Mongo.customhost.findOne({
-        _id: new ObjectId(form.host),
-      });
+      const customHost = await Mongo.customhost.findOne(
+        { _id: new ObjectId(form.host) },
+        { projection: { androidShareLink: 1, iosShareLink: 1 } },
+      );
 
       if (!customHost) {
         return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
@@ -950,9 +963,10 @@ const deleteFormByIdHandler = factory.createHandlers(
     try {
       const { formId } = c.req.param();
 
-      const form = await Mongo.app_forms.findOne({
-        _id: new ObjectId(formId),
-      });
+      const form = await Mongo.app_forms.findOne(
+        { _id: new ObjectId(formId) },
+        { projection: { status: 1 } },
+      );
 
       if (!form) {
         return c.json({ message: "Form not found" }, Response.NOT_FOUND);
@@ -1006,70 +1020,72 @@ const getLiveAppsOnOldVersion = factory.createHandlers(async (c) => {
     );
   }
 
-  let latestVersionQuery = "",
-    shareLinkQuery = {};
-  if (target === "ios") {
-    latestVersionQuery = "metadata.iosDeploymentDetails.versionName";
-    shareLinkQuery = { iosShareLink: { $type: "string", $ne: "" } };
-  } else {
-    latestVersionQuery = "metadata.androidDeploymentDetails.versionName";
-    shareLinkQuery = { androidShareLink: { $type: "string", $ne: "" } };
-  }
+  const versionField =
+    target === "ios"
+      ? "iosDeploymentDetails.versionName"
+      : "androidDeploymentDetails.versionName";
+  const shareLinkField = target === "ios" ? "iosShareLink" : "androidShareLink";
+  const shareLinkQuery = {
+    [shareLinkField]: { $type: "string", $ne: "" },
+  } as Record<string, unknown>;
 
   try {
-    const result = await Mongo.customhost
-      .aggregate([
-        {
-          $match: {
-            platformSuspended: { $ne: true },
-            ...shareLinkQuery,
+    // 1. old-version candidates straight from metadata (small collection),
+    // 2. intersect with the cached enterprise-active host set,
+    // 3. fetch appName + share-link check only for the matching hosts.
+    // The old version scanned every customhost, joined full user docs and
+    // returned ~2.6MB (mostly base64 logos the dashboard never used); the
+    // response now carries only the fields the dialog consumes.
+    const [enterprise, oldVersionMetadata] = await Promise.all([
+      getEnterpriseHosts(),
+      Mongo.metadata
+        .find(
+          { [versionField]: { $ne: latestVersion } },
+          {
+            projection: {
+              host: 1,
+              isPreReqCompleted: 1,
+              "iosDeploymentDetails.versionName": 1,
+              "androidDeploymentDetails.versionName": 1,
+            },
           },
-        },
+        )
+        .toArray(),
+    ]);
+
+    const activeIdSet = new Set(enterprise.activeIds.map((id) => String(id)));
+    const candidates = oldVersionMetadata.filter((m) =>
+      activeIdSet.has(String(m.host)),
+    );
+
+    const liveHosts = await Mongo.customhost
+      .find(
         {
-          $lookup: {
-            from: "users",
-            localField: "creator",
-            foreignField: "_id",
-            as: "creatorDetails",
-          },
+          _id: { $in: candidates.map((m) => m.host) },
+          ...shareLinkQuery,
         },
-        {
-          $match: {
-            "creatorDetails.whitelabelPlanType": "enterprise-plan",
-          },
-        },
-        {
-          $lookup: {
-            from: "customhostmetadatas",
-            localField: "_id",
-            foreignField: "host",
-            as: "metadata",
-          },
-        },
-        {
-          $unwind: "$metadata",
-        },
-        {
-          $match: {
-            [latestVersionQuery]: { $ne: latestVersion },
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            host: 1,
-            appName: 1,
-            brandname: 1,
-            logo: 1,
-            createdAt: 1,
-            "appform.status": 1,
-            isPreReqCompleted: "$metadata.isPreReqCompleted",
-            "metadata.iosDeploymentDetails.versionName": 1,
-            "metadata.androidDeploymentDetails.versionName": 1,
-          },
-        },
-      ])
+        { projection: { appName: 1 } },
+      )
       .toArray();
+    const liveHostNames = new Map(
+      liveHosts.map((h) => [String(h._id), h.appName]),
+    );
+
+    const result = candidates
+      .filter((m) => liveHostNames.has(String(m.host)))
+      .map((m) => ({
+        _id: m.host,
+        appName: liveHostNames.get(String(m.host)),
+        isPreReqCompleted: m.isPreReqCompleted,
+        metadata: {
+          iosDeploymentDetails: {
+            versionName: m.iosDeploymentDetails?.versionName,
+          },
+          androidDeploymentDetails: {
+            versionName: m.androidDeploymentDetails?.versionName,
+          },
+        },
+      }));
 
     return c.json(
       {
@@ -1109,37 +1125,42 @@ const toggleIsExternalDevAccount = factory.createHandlers(
       );
     }
 
-    const metadata = await Mongo.metadata.findOne({
-      host: new ObjectId(hostId),
-    });
+    const metadata = await Mongo.metadata.findOne(
+      { host: new ObjectId(hostId) },
+      {
+        projection: {
+          "androidDeploymentDetails.isInExternalDevAccount": 1,
+          "iosDeploymentDetails.isInExternalDevAccount": 1,
+        },
+      },
+    );
 
     if (!metadata) {
       return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
     }
 
-    if (platform === "android") {
-      metadata.androidDeploymentDetails = {
-        ...metadata.androidDeploymentDetails,
-        isInExternalDevAccount:
-          !metadata.androidDeploymentDetails?.isInExternalDevAccount,
-      };
-    } else {
-      metadata.iosDeploymentDetails = {
-        ...metadata.iosDeploymentDetails,
-        isInExternalDevAccount:
-          !metadata.iosDeploymentDetails.isInExternalDevAccount,
-        isDeploymentBlocked:
-          !metadata.iosDeploymentDetails.isInExternalDevAccount,
-        deploymentBlockReason: !metadata.iosDeploymentDetails
-          .isInExternalDevAccount
-          ? "This app is in external dev account"
-          : "",
-      };
-    }
+    // $set only the toggled nested fields — writing the whole document back
+    // (previous behavior) races with concurrent settings saves
+    const update =
+      platform === "android"
+        ? {
+            "androidDeploymentDetails.isInExternalDevAccount":
+              !metadata.androidDeploymentDetails?.isInExternalDevAccount,
+          }
+        : {
+            "iosDeploymentDetails.isInExternalDevAccount":
+              !metadata.iosDeploymentDetails?.isInExternalDevAccount,
+            "iosDeploymentDetails.isDeploymentBlocked":
+              !metadata.iosDeploymentDetails?.isInExternalDevAccount,
+            "iosDeploymentDetails.deploymentBlockReason": !metadata
+              .iosDeploymentDetails?.isInExternalDevAccount
+              ? "This app is in external dev account"
+              : "",
+          };
 
     await Mongo.metadata.updateOne(
       { host: new ObjectId(hostId) },
-      { $set: metadata },
+      { $set: update },
     );
 
     return c.json(
