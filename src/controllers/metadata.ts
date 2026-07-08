@@ -7,6 +7,7 @@ import { zValidator } from "@hono/zod-validator";
 
 import Mongo from "../../src/database";
 import { getAppsByVersionCSV } from "../../src/utils/csv";
+import { getEnterpriseHosts } from "../utils/enterpriseHostsCache";
 import { Response } from "../../src/utils/statuscode";
 import {
   reorderAndroidScreenshotsSchema,
@@ -582,87 +583,62 @@ const getAppsCountByVersion = factory.createHandlers(async (c) => {
       return getAppsByVersionCSV(c, targetVersion, platform);
     }
 
-    const result = await Mongo.customhost
-      .aggregate([
-        {
-          $match: {
-            platformSuspended: { $ne: true },
-          },
-        },
-        {
-          $lookup: {
-            from: "users",
-            localField: "creator",
-            foreignField: "_id",
-            as: "creatorDetails",
-            pipeline: [
-              { $match: { whitelabelPlanType: "enterprise-plan" } },
-              { $project: { _id: 1 } },
+    // start from metadata (small collection) instead of scanning every
+    // customhost with a users-$lookup just to produce two integers
+    const [enterprise, versionMatches] = await Promise.all([
+      getEnterpriseHosts(),
+      Mongo.metadata
+        .find(
+          {
+            $or: [
+              { "androidDeploymentDetails.versionName": targetVersion },
+              { "iosDeploymentDetails.versionName": targetVersion },
             ],
           },
-        },
-        {
-          $match: {
-            "creatorDetails.0": { $exists: true },
-          },
-        },
-        {
-          $lookup: {
-            from: "customhostmetadatas",
-            localField: "_id",
-            foreignField: "host",
-            as: "metadata",
-            pipeline: [
-              {
-                $project: {
-                  "androidDeploymentDetails.versionName": 1,
-                  "iosDeploymentDetails.versionName": 1,
-                },
-              },
-            ],
-          },
-        },
-        {
-          $unwind: "$metadata",
-        },
-        {
-          $facet: {
-            androidCount: [
-              {
-                $match: {
-                  androidShareLink: { $type: "string", $ne: "" },
-                  "metadata.androidDeploymentDetails.versionName":
-                    targetVersion,
-                },
-              },
-              { $count: "count" },
-            ],
-            iosCount: [
-              {
-                $match: {
-                  iosShareLink: { $type: "string", $ne: "" },
-                  "metadata.iosDeploymentDetails.versionName": targetVersion,
-                },
-              },
-              { $count: "count" },
-            ],
-          },
-        },
-        {
-          $project: {
-            android: {
-              $ifNull: [{ $arrayElemAt: ["$androidCount.count", 0] }, 0],
+          {
+            projection: {
+              host: 1,
+              "androidDeploymentDetails.versionName": 1,
+              "iosDeploymentDetails.versionName": 1,
             },
-            ios: { $ifNull: [{ $arrayElemAt: ["$iosCount.count", 0] }, 0] },
           },
-        },
-      ])
-      .toArray();
+        )
+        .toArray(),
+    ]);
+
+    const activeIdSet = new Set(enterprise.activeIds.map((id) => String(id)));
+    const candidates = versionMatches.filter((m) =>
+      activeIdSet.has(String(m.host)),
+    );
+
+    const androidHostIds = candidates
+      .filter(
+        (m) => m.androidDeploymentDetails?.versionName === targetVersion,
+      )
+      .map((m) => m.host);
+    const iosHostIds = candidates
+      .filter((m) => m.iosDeploymentDetails?.versionName === targetVersion)
+      .map((m) => m.host);
+
+    const [android, ios] = await Promise.all([
+      androidHostIds.length
+        ? Mongo.customhost.countDocuments({
+            _id: { $in: androidHostIds },
+            androidShareLink: { $type: "string", $ne: "" },
+          })
+        : Promise.resolve(0),
+      iosHostIds.length
+        ? Mongo.customhost.countDocuments({
+            _id: { $in: iosHostIds },
+            iosShareLink: { $type: "string", $ne: "" },
+          })
+        : Promise.resolve(0),
+    ]);
 
     return c.json(
       {
         message: "Apps count fetched successfully",
-        result: result[0],
+        result: { android, ios },
       },
       Response.OK,
     );

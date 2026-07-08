@@ -10,6 +10,7 @@ import { JWTPayloadType } from "../types";
 import { AppFormStatus } from "../types/database";
 import { AWSService } from "../utils/aws";
 import { getLiveAppsOnOldVersionCSV } from "../utils/csv";
+import { getEnterpriseHosts } from "../utils/enterpriseHostsCache";
 import { escapeRegExp } from "../utils/regex";
 import { Response } from "../utils/statuscode";
 import {
@@ -59,10 +60,10 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
     // legacy sortByApprovedAt=1|-1 param (kept for compatibility)
     const SORT_FIELD =
       sortBy === "submittedAt"
-        ? "$appFormDetails.submittedAt"
+        ? "$submittedAt"
         : sortBy === "approvedAt" || Number(sortByApprovedAt)
-          ? "$appFormDetails.approvedAt"
-          : "$appFormDetails.updatedAt";
+          ? "$approvedAt"
+          : "$updatedAt";
     const SORT_ORDER =
       Number(sortOrder) === 1 || Number(sortOrder) === -1
         ? Number(sortOrder)
@@ -70,85 +71,40 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
           ? Number(sortByApprovedAt)
           : -1;
 
-    const matchStatus = STATUS
-      ? {
-          $or: [
-            {
-              appFormDetails: { $exists: false },
-              $expr: { $eq: [STATUS, AppFormStatus.IN_PROGRESS] },
-            },
-            {
-              appFormDetails: { $exists: true },
-              "appFormDetails.status": STATUS,
-            },
-          ],
-        }
-      : {};
+    // The old pipeline drove from customhosts and ran a users-$lookup over
+    // ~9k hosts plus an appforms-$lookup over ~3k enterprise hosts on EVERY
+    // request (~4.5s). The enterprise-host set is now cached in-process and
+    // the pipeline drives from appforms directly (indexed on host), joining
+    // customhosts/metadata only for the returned page.
+    const enterprise = await getEnterpriseHosts();
+    let targetHostIds = isSuspended
+      ? enterprise.suspendedIds
+      : enterprise.activeIds;
 
-    const searchRegex = new RegExp(escapeRegExp(SEARCH), "i");
+    if (SEARCH) {
+      const searchRegex = new RegExp(escapeRegExp(SEARCH), "i");
+      const matched = await Mongo.customhost
+        .find(
+          {
+            _id: { $in: targetHostIds },
+            $or: [
+              { appName: { $regex: searchRegex } },
+              { host: { $regex: searchRegex } },
+              { brandname: { $regex: searchRegex } },
+            ],
+          },
+          { projection: { _id: 1 } },
+        )
+        .toArray();
+      targetHostIds = matched.map((m) => m._id);
+    }
+
     const pipeline = [
       {
         $match: {
-          // only apply the (unindexable) regex filter when actually searching
-          ...(SEARCH
-            ? {
-                $or: [
-                  { appName: { $regex: searchRegex } },
-                  { host: { $regex: searchRegex } },
-                  { brandname: { $regex: searchRegex } },
-                ],
-              }
-            : {}),
-          ...(isSuspended
-            ? { platformSuspended: true }
-            : { platformSuspended: { $ne: true } }),
+          host: { $in: targetHostIds },
+          ...(STATUS ? { status: STATUS } : {}),
         },
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "creator",
-          foreignField: "_id",
-          as: "creatorDetails",
-          // filter inside the lookup so full user docs never enter the pipeline
-          pipeline: [
-            { $match: { whitelabelPlanType: "enterprise-plan" } },
-            { $project: { _id: 1 } },
-          ],
-        },
-      },
-      {
-        $match: {
-          "creatorDetails.0": { $exists: true },
-        },
-      },
-      {
-        $lookup: {
-          from: "appforms",
-          localField: "_id",
-          foreignField: "host",
-          as: "appFormDetails",
-          pipeline: [
-            {
-              $project: {
-                status: 1,
-                parentForm: 1,
-                updatedAt: 1,
-                submittedAt: 1,
-                approvedAt: 1,
-                isFormSubmitted: 1,
-              },
-            },
-          ],
-        },
-      },
-      {
-        $unwind: {
-          path: "$appFormDetails",
-        },
-      },
-      {
-        $match: matchStatus,
       },
       {
         $addFields: {
@@ -167,13 +123,33 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
           data: [
             { $skip: OFFSET },
             { $limit: LIMIT },
-            // metadata is only needed for the returned page — joining it
-            // here (post skip/limit) instead of pre-sort joins ≤LIMIT docs
-            // rather than every enterprise host
+            {
+              $lookup: {
+                from: "customhosts",
+                localField: "host",
+                foreignField: "_id",
+                as: "hostDoc",
+                pipeline: [
+                  {
+                    $project: {
+                      host: 1,
+                      appName: 1,
+                      brandname: 1,
+                      logo: 1,
+                      createdAt: 1,
+                      androidShareLink: 1,
+                      iosShareLink: 1,
+                      platformSuspended: 1,
+                    },
+                  },
+                ],
+              },
+            },
+            { $unwind: "$hostDoc" },
             {
               $lookup: {
                 from: "customhostmetadatas",
-                localField: "_id",
+                localField: "host",
                 foreignField: "host",
                 as: "metadataDetails",
                 pipeline: [
@@ -193,11 +169,13 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
       },
     ];
 
-    const customHostsArr = await Mongo.customhost.aggregate(pipeline).toArray();
+    const customHostsArr = await Mongo.app_forms.aggregate(pipeline).toArray();
 
     const customHostsData = customHostsArr[0]?.data ?? [];
 
-    const customHosts = customHostsData.map((customHost: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const customHosts = customHostsData.map((form: any) => {
+      const customHost = form.hostDoc ?? {};
       return {
         _id: customHost._id,
         host: customHost.host,
@@ -205,46 +183,32 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
         brandname: customHost.brandname,
         logo: customHost.logo,
         createdAt: customHost.createdAt,
-        isEditForm: customHost.appFormDetails.parentForm ? true : false,
-        status: customHost.appFormDetails
-          ? customHost.appFormDetails.status
-          : AppFormStatus.IN_PROGRESS,
-        formId: customHost.appFormDetails
-          ? customHost.appFormDetails._id
-          : null,
-        formUpdatedAt: customHost.appFormDetails
-          ? customHost.appFormDetails.updatedAt
-          : null,
-        formSubmittedAt:
-          customHost.appFormDetails && customHost.appFormDetails.submittedAt
-            ? customHost.appFormDetails.submittedAt
-            : null,
-        formApprovedAt:
-          customHost.appFormDetails && customHost.appFormDetails.approvedAt
-            ? customHost.appFormDetails.approvedAt
-            : null,
-        isFormSubmitted: customHost.appFormDetails
-          ? customHost.appFormDetails.isFormSubmitted ?? false
-          : false,
+        isEditForm: form.parentForm ? true : false,
+        status: form.status ?? AppFormStatus.IN_PROGRESS,
+        formId: form._id,
+        formUpdatedAt: form.updatedAt ?? null,
+        formSubmittedAt: form.submittedAt ?? null,
+        formApprovedAt: form.approvedAt ?? null,
+        isFormSubmitted: form.isFormSubmitted ?? false,
         store: {
           playStoreLink: customHost.androidShareLink || "",
           appStoreLink: customHost.iosShareLink || "",
         },
         platformSuspended: customHost.platformSuspended,
         appStoreStatus:
-          (customHost?.metadataDetails.length > 0 &&
-            customHost?.metadataDetails[0]?.iosDeploymentDetails?.appStore
+          (form?.metadataDetails?.length > 0 &&
+            form?.metadataDetails[0]?.iosDeploymentDetails?.appStore
               ?.status) ||
           "",
         externalDevAccount: {
           android:
-            (customHost?.metadataDetails.length > 0 &&
-              customHost?.metadataDetails[0]?.androidDeploymentDetails
+            (form?.metadataDetails?.length > 0 &&
+              form?.metadataDetails[0]?.androidDeploymentDetails
                 ?.isInExternalDevAccount) ??
             false,
           ios:
-            (customHost?.metadataDetails.length > 0 &&
-              customHost?.metadataDetails[0]?.iosDeploymentDetails
+            (form?.metadataDetails?.length > 0 &&
+              form?.metadataDetails[0]?.iosDeploymentDetails
                 ?.isInExternalDevAccount) ??
             false,
         },
@@ -271,20 +235,15 @@ const getAllFormsHandler = factory.createHandlers(async (c) => {
 
 const getAllFormsCount = factory.createHandlers(async (c) => {
   try {
+    const enterprise = await getEnterpriseHosts();
+
     const allStatusCountsPromise = Mongo.app_forms
       .aggregate([
         {
-          $lookup: {
-            from: "customhosts",
-            localField: "host",
-            foreignField: "_id",
-            as: "hostDetails",
-            pipeline: [{ $project: { platformSuspended: 1 } }],
-          },
-        },
-        {
+          // suspended hosts come from the in-process cache — the old
+          // pipeline joined customhosts for every form on every call
           $match: {
-            "hostDetails.platformSuspended": { $ne: true },
+            host: { $nin: enterprise.allSuspendedIds },
           },
         },
         {
@@ -313,23 +272,11 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
     const allIosReviewStatusPromise = Mongo.app_forms
       .aggregate([
         {
-          // native-field filter first: only in-store-review forms need joins
+          // native-field filter first: only in-store-review forms need joins;
+          // suspension exclusion via the cached id set (no customhosts join)
           $match: {
             status: AppFormStatus.IN_STORE_REVIEW,
-          },
-        },
-        {
-          $lookup: {
-            from: "customhosts",
-            localField: "host",
-            foreignField: "_id",
-            as: "hostDetails",
-            pipeline: [{ $project: { platformSuspended: 1 } }],
-          },
-        },
-        {
-          $match: {
-            "hostDetails.platformSuspended": { $ne: true },
+            host: { $nin: enterprise.allSuspendedIds },
           },
         },
         {
@@ -387,26 +334,15 @@ const getAllFormsCount = factory.createHandlers(async (c) => {
       ])
       .toArray();
 
-    // one pass over enterprise hosts computes the suspended count AND the
-    // android/ios live-link counts (previously two identical full scans,
-    // each joining full user docs)
+    // one pass over enterprise hosts (from the cache — no users join)
+    // computes the suspended count AND the android/ios live-link counts
     const hostCountsPromise = Mongo.customhost
       .aggregate([
         {
-          $lookup: {
-            from: "users",
-            localField: "creator",
-            foreignField: "_id",
-            as: "creatorDetails",
-            pipeline: [
-              { $match: { whitelabelPlanType: "enterprise-plan" } },
-              { $project: { _id: 1 } },
-            ],
-          },
-        },
-        {
           $match: {
-            "creatorDetails.0": { $exists: true },
+            _id: {
+              $in: [...enterprise.activeIds, ...enterprise.suspendedIds],
+            },
           },
         },
         {
@@ -1084,83 +1020,72 @@ const getLiveAppsOnOldVersion = factory.createHandlers(async (c) => {
     );
   }
 
-  let latestVersionQuery = "",
-    shareLinkQuery = {};
-  if (target === "ios") {
-    latestVersionQuery = "metadata.iosDeploymentDetails.versionName";
-    shareLinkQuery = { iosShareLink: { $type: "string", $ne: "" } };
-  } else {
-    latestVersionQuery = "metadata.androidDeploymentDetails.versionName";
-    shareLinkQuery = { androidShareLink: { $type: "string", $ne: "" } };
-  }
+  const versionField =
+    target === "ios"
+      ? "iosDeploymentDetails.versionName"
+      : "androidDeploymentDetails.versionName";
+  const shareLinkField = target === "ios" ? "iosShareLink" : "androidShareLink";
+  const shareLinkQuery = {
+    [shareLinkField]: { $type: "string", $ne: "" },
+  } as Record<string, unknown>;
 
   try {
-    const result = await Mongo.customhost
-      .aggregate([
-        {
-          $match: {
-            platformSuspended: { $ne: true },
-            ...shareLinkQuery,
+    // 1. old-version candidates straight from metadata (small collection),
+    // 2. intersect with the cached enterprise-active host set,
+    // 3. fetch appName + share-link check only for the matching hosts.
+    // The old version scanned every customhost, joined full user docs and
+    // returned ~2.6MB (mostly base64 logos the dashboard never used); the
+    // response now carries only the fields the dialog consumes.
+    const [enterprise, oldVersionMetadata] = await Promise.all([
+      getEnterpriseHosts(),
+      Mongo.metadata
+        .find(
+          { [versionField]: { $ne: latestVersion } },
+          {
+            projection: {
+              host: 1,
+              isPreReqCompleted: 1,
+              "iosDeploymentDetails.versionName": 1,
+              "androidDeploymentDetails.versionName": 1,
+            },
           },
-        },
+        )
+        .toArray(),
+    ]);
+
+    const activeIdSet = new Set(enterprise.activeIds.map((id) => String(id)));
+    const candidates = oldVersionMetadata.filter((m) =>
+      activeIdSet.has(String(m.host)),
+    );
+
+    const liveHosts = await Mongo.customhost
+      .find(
         {
-          $lookup: {
-            from: "users",
-            localField: "creator",
-            foreignField: "_id",
-            as: "creatorDetails",
-            pipeline: [
-              { $match: { whitelabelPlanType: "enterprise-plan" } },
-              { $project: { _id: 1 } },
-            ],
-          },
+          _id: { $in: candidates.map((m) => m.host) },
+          ...shareLinkQuery,
         },
-        {
-          $match: {
-            "creatorDetails.0": { $exists: true },
-          },
-        },
-        {
-          $lookup: {
-            from: "customhostmetadatas",
-            localField: "_id",
-            foreignField: "host",
-            as: "metadata",
-            pipeline: [
-              {
-                $project: {
-                  isPreReqCompleted: 1,
-                  "iosDeploymentDetails.versionName": 1,
-                  "androidDeploymentDetails.versionName": 1,
-                },
-              },
-            ],
-          },
-        },
-        {
-          $unwind: "$metadata",
-        },
-        {
-          $match: {
-            [latestVersionQuery]: { $ne: latestVersion },
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            host: 1,
-            appName: 1,
-            brandname: 1,
-            logo: 1,
-            createdAt: 1,
-            "appform.status": 1,
-            isPreReqCompleted: "$metadata.isPreReqCompleted",
-            "metadata.iosDeploymentDetails.versionName": 1,
-            "metadata.androidDeploymentDetails.versionName": 1,
-          },
-        },
-      ])
+        { projection: { appName: 1 } },
+      )
       .toArray();
+    const liveHostNames = new Map(
+      liveHosts.map((h) => [String(h._id), h.appName]),
+    );
+
+    const result = candidates
+      .filter((m) => liveHostNames.has(String(m.host)))
+      .map((m) => ({
+        _id: m.host,
+        appName: liveHostNames.get(String(m.host)),
+        isPreReqCompleted: m.isPreReqCompleted,
+        metadata: {
+          iosDeploymentDetails: {
+            versionName: m.iosDeploymentDetails?.versionName,
+          },
+          androidDeploymentDetails: {
+            versionName: m.androidDeploymentDetails?.versionName,
+          },
+        },
+      }));
 
     return c.json(
       {
