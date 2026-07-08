@@ -85,10 +85,11 @@ const { readFile, writeFile } = fs.promises;
               });
 
               if (recentActiveDeployment) {
-                const { _id, versionName, platform } = recentActiveDeployment;
-                const jobName = `${_id}-${platform}-${versionName}`;
-                const jobs = await buildQueue.getJobs();
-                const job = jobs.find((job) => job.name === jobName);
+                // deterministic job ids: direct lookup instead of scanning
+                // the whole queue once per host
+                const job = await buildQueue.getJob(
+                  recentActiveDeployment._id.toString(),
+                );
                 if (job) {
                   const jobStatus = await job.getState();
                   if (jobStatus === "active" || jobStatus === "waiting") {
@@ -488,6 +489,7 @@ const { readFile, writeFile } = fs.promises;
                 },
                 {
                   attempts: 0,
+                  jobId: createdDeployment.insertedId.toString(),
                 },
               );
 
@@ -500,7 +502,7 @@ const { readFile, writeFile } = fs.promises;
                 {
                   $inc: { "progress.completed": 1 },
                   $push: {
-                    "progress.success": new ObjectId(hostId),
+                    "progress.succeeded": new ObjectId(hostId),
                   },
                 },
               );

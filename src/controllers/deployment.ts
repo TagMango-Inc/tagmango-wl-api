@@ -558,10 +558,10 @@ const createNewDeploymentHandler = factory.createHandlers(
       });
 
       if (recentActiveDeployment) {
-        const { _id, versionName, platform } = recentActiveDeployment;
-        const jobName = `${_id}-${platform}-${versionName}`;
-        const jobs = await buildQueue.getJobs();
-        const job = jobs.find((job) => job.name === jobName);
+        // deterministic job ids: direct lookup instead of a full queue scan
+        const job = await buildQueue.getJob(
+          recentActiveDeployment._id.toString(),
+        );
         if (job) {
           const jobStatus = await job.getState();
           if (jobStatus === "active" || jobStatus === "waiting") {
@@ -1154,6 +1154,9 @@ const createNewDeploymentHandler = factory.createHandlers(
         {
           attempts: 0,
           lifo: true,
+          // deterministic id: lets SSE/cancel/dup-checks use getJob(id)
+          // instead of scanning the whole queue
+          jobId: createdDeployment.insertedId.toString(),
         },
       );
       return c.json(
@@ -1209,10 +1212,10 @@ const createBulkReDeploymentHandler = factory.createHandlers(
       });
 
       if (recentActiveDeployment) {
-        const { _id, versionName, platform } = recentActiveDeployment;
-        const jobName = `${_id}-${platform}-${versionName}`;
-        const jobs = await redeploymentQueue.getJobs();
-        const job = jobs.find((job) => job.name === jobName);
+        // deterministic job ids: direct lookup instead of a full queue scan
+        const job = await redeploymentQueue.getJob(
+          recentActiveDeployment._id.toString(),
+        );
         if (job) {
           const jobStatus = await job.getState();
           if (jobStatus === "active" || jobStatus === "waiting") {
@@ -1274,6 +1277,7 @@ const createBulkReDeploymentHandler = factory.createHandlers(
         },
         {
           attempts: 0,
+          jobId: createdReDeployment.insertedId.toString(),
         },
       );
 
@@ -1626,6 +1630,7 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
         {
           attempts: 0,
           lifo: true,
+          jobId: deploymentId,
         },
       );
       return c.json(
@@ -1648,13 +1653,10 @@ const cancelDeploymentJobByDeploymentId = factory.createHandlers(async (c) => {
   try {
     const { deploymentId, target, version } = c.req.param();
 
-    const jobNameTobeDeleted = `${deploymentId}-${target}-${version}`;
-
-    const allJobs = await buildQueue.getJobs(["waiting", "active"]);
-
-    const job = allJobs.find((job) => job.name === jobNameTobeDeleted);
-
     const payload: JWTPayloadType = c.get("jwtPayload");
+
+    // deterministic job ids: direct lookup instead of a full queue scan
+    const job = await buildQueue.getJob(deploymentId);
 
     if (!job) {
       return c.json({ message: "Job not found" }, Response.NOT_FOUND);

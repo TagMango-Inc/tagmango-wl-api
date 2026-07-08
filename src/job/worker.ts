@@ -571,6 +571,7 @@ const executeTask = async ({
 
   // sending job progress to sse
   job.updateProgress({
+    deploymentId,
     task: {
       id: taskId,
       name: taskName,
@@ -623,6 +624,7 @@ const executeTask = async ({
       // updating the progress of the job so i can listen to the progress of the job through queue events
       // can be listen using queue events on progress listener
       job.updateProgress({
+    deploymentId,
         task: {
           id: taskId,
           name: taskName,
@@ -673,6 +675,7 @@ const executeTask = async ({
       // updating the progress of the job so i can listen to the progress of the job through queue events
       // can be listen using queue events on progress listener
       job.updateProgress({
+    deploymentId,
         task: {
           id: taskId,
           name: taskName,
@@ -701,6 +704,7 @@ const executeTask = async ({
   if (code === 0) {
     // sending job progress to sse
     job.updateProgress({
+    deploymentId,
       task: {
         id: taskId,
         name: taskName,
@@ -743,6 +747,7 @@ const executeTask = async ({
 
     // add logs to the task and update the status to failed
     job.updateProgress({
+    deploymentId,
       task: {
         id: taskId,
         name: taskName,

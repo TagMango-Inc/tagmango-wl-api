@@ -60,6 +60,9 @@ export type RedeploymentJobPayloadType = {
 };
 
 export type JobProgressType = {
+  /** carried in the payload so SSE consumers don't need a Redis round trip
+   *  (Job.fromId) per event to figure out which deployment emitted it */
+  deploymentId: string;
   task: {
     id: string;
     name: string;

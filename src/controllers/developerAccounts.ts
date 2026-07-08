@@ -1,4 +1,4 @@
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import fs from "fs-extra";
 import { createFactory } from "hono/factory";
 import { ObjectId } from "mongodb";
@@ -12,7 +12,9 @@ import { createDeveloperAccountAndroidSchema } from "../validations/developerAcc
 
 const factory = createFactory();
 
-const execAsync = util.promisify(exec);
+// execFile with an argv array — account fields and passwords are user
+// input and were previously interpolated into shell strings
+const execFileAsync = util.promisify(execFile);
 const writeFileAsync = fs.promises.writeFile;
 
 /**
@@ -22,7 +24,11 @@ const writeFileAsync = fs.promises.writeFile;
 const getAllDeveloperAccountsAndroidHandler = factory.createHandlers(
   async (c) => {
     try {
-      const accounts = await Mongo.developer_accounts_android.find().toArray();
+      // keyAlias/keyPassword are signing credentials — they never leave the
+      // server (the dashboard only ever sets them on create)
+      const accounts = await Mongo.developer_accounts_android
+        .find({}, { projection: { keyAlias: 0, keyPassword: 0 } })
+        .toArray();
       return c.json({
         message: "Developer Accounts Android",
         result: accounts ?? [],
@@ -49,9 +55,10 @@ const getDeveloperAccountAndroidByIdHandler = factory.createHandlers(
         return c.json({ message: "Invalid ID" }, Response.BAD_REQUEST);
       }
 
-      const account = await Mongo.developer_accounts_android.findOne({
-        _id: new ObjectId(id),
-      });
+      const account = await Mongo.developer_accounts_android.findOne(
+        { _id: new ObjectId(id) },
+        { projection: { keyAlias: 0, keyPassword: 0 } },
+      );
 
       if (!account) {
         return c.json({ message: "Invalid ID" }, Response.BAD_REQUEST);
@@ -103,16 +110,35 @@ const createNewDeveloperAccountAndroidHandler = factory.createHandlers(
         createdAt: new Date(),
       });
 
-      // use these values to create a new jks file using keytool
-      // keytool -genkey -v -keystore my-key.jks -alias alias_name -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Aayush Agarwal, OU=Development, O=TagMango, L=Kolkata, ST=West Bengal, C=IN" -storepass myStorePass123 -keypass myStorePass123
-      await execAsync(
-        `keytool -genkey -v -keystore keystore.jks -alias ${keyAlias} -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=${name}, OU=${organizationalUnit}, O=${organization}, L=${city}, ST=${state}, C=${countryCode}" -storepass ${keyPassword} -keypass ${keyPassword}`,
-      );
+      // keytool -genkey -v -keystore my-key.jks -alias alias_name -keyalg RSA
+      // -keysize 2048 -validity 10000 -dname "CN=…" -storepass … -keypass …
+      await execFileAsync("keytool", [
+        "-genkey",
+        "-v",
+        "-keystore",
+        "keystore.jks",
+        "-alias",
+        keyAlias,
+        "-keyalg",
+        "RSA",
+        "-keysize",
+        "2048",
+        "-validity",
+        "10000",
+        "-dname",
+        `CN=${name}, OU=${organizationalUnit}, O=${organization}, L=${city}, ST=${state}, C=${countryCode}`,
+        "-storepass",
+        keyPassword,
+        "-keypass",
+        keyPassword,
+      ]);
 
       // move the jks file to the required directory
       await fs.ensureDir(`./developer_accounts/android/${account.insertedId}`);
-      await execAsync(
-        `mv keystore.jks ./developer_accounts/android/${account.insertedId}/keystore.jks`,
+      await fs.move(
+        "keystore.jks",
+        `./developer_accounts/android/${account.insertedId}/keystore.jks`,
+        { overwrite: true },
       );
 
       // write fastlane config to developer_accounts/android/[account_id]/fastlane-android.json as a json file
@@ -147,16 +173,31 @@ const getUploadKeyCertificate = factory.createHandlers(async (c) => {
       return c.json({ message: "Account not found" }, Response.BAD_REQUEST);
     }
 
-    // use these values to create a new jks file using keytool
-    // keytool -export -rfc -keystore keystore.jks -alias upload -file upload_certificate.pem
-    await fs.ensureDir(`./developer_accounts/android/${account._id}`);
+    const accountDir = `./developer_accounts/android/${account._id}`;
+    await fs.ensureDir(accountDir);
 
-    await execAsync(
-      `cd ./developer_accounts/android/${account._id} && keytool -export -rfc -keystore keystore.jks -alias ${account.keyAlias} -file upload_certificate.pem -storepass ${account.keyPassword} -keypass ${account.keyPassword}`,
+    // keytool -export -rfc -keystore keystore.jks -alias upload -file upload_certificate.pem
+    await execFileAsync(
+      "keytool",
+      [
+        "-export",
+        "-rfc",
+        "-keystore",
+        "keystore.jks",
+        "-alias",
+        account.keyAlias,
+        "-file",
+        "upload_certificate.pem",
+        "-storepass",
+        account.keyPassword,
+        "-keypass",
+        account.keyPassword,
+      ],
+      { cwd: accountDir },
     );
 
     const certificate = await fs.readFile(
-      `./developer_accounts/android/${account._id}/upload_certificate.pem`,
+      `${accountDir}/upload_certificate.pem`,
       "utf-8",
     );
 

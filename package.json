@@ -17,7 +17,6 @@
     "@aws-sdk/lib-storage": "^3.832.0",
     "@hono/node-server": "^1.11.1",
     "@hono/zod-validator": "^0.4.3",
-    "zod": "^3.23.4",
     "bcrypt": "^5.1.1",
     "bullmq": "^5.7.8",
     "circular-json": "^0.5.9",
@@ -26,7 +25,6 @@
     "googleapis": "^144.0.0",
     "hono": "^4.2.8",
     "jsonwebtoken": "^9.0.2",
-    "meilisearch": "^0.40.0",
     "mongodb": "^6.6.1",
     "mongoose": "^8.3.2",
     "node-cron": "^3.0.3",
@@ -39,7 +37,8 @@
     "unzipper": "^0.11.4",
     "util": "^0.12.5",
     "uuid": "^9.0.1",
-    "xml2js": "^0.6.2"
+    "xml2js": "^0.6.2",
+    "zod": "^3.23.4"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
