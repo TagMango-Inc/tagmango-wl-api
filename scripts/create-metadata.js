@@ -66,7 +66,9 @@ const { writeFile, readFile } = fs.promises;
 // * secondary_category.txt
 // * secondary_first_sub_category.txt
 // * secondary_second_sub_category.txt
-// * screenshots/
+// (screenshots are written to fastlane/screenshots/ios/<locale>/ — deliberately
+//  outside metadata/ios/ so deliver does not enumerate them twice)
+// * fastlane/screenshots/ios/
 //     * en-GB/
 //         * 0_APP_IPHONE_65_0.jpg
 //         * 1_APP_IPHONE_65_1.jpg
@@ -179,8 +181,9 @@ const generateMetadata = async ({
   const iosStorePath = `${iosPath}/en-GB`;
   const iosUSStorePath = `${iosPath}/en-US`;
   const iosReviewPath = `${iosPath}/review_information`;
-  const iosScreenshotsPath = `${iosPath}/screenshots/en-GB`;
-  const iosUSScreenshotsPath = `${iosPath}/screenshots/en-US`;
+  const iosScreenshotsRootPath = `${fastlanePath}/screenshots/ios`;
+  const iosScreenshotsPath = `${iosScreenshotsRootPath}/en-GB`;
+  const iosUSScreenshotsPath = `${iosScreenshotsRootPath}/en-US`;
 
   const rootAssetPath = `https://tagmango.com/appzap-assets/metadata/${hostId}`;
 
