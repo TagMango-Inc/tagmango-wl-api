@@ -601,6 +601,35 @@ const { readFile, writeFile } = fs.promises;
     });
 })();
 
+// A deployment document carries the logs of all its tasks and Mongo caps a
+// document at 16MB, so each task only keeps its tail. The previous 20-entry cap
+// was small enough that a successful fastlane run kept nothing but the summary
+// table - the screenshot upload section, where CST-3770 lives, was always gone
+// by the time anyone looked. Bound the tail by characters as well as entries so
+// a chatty task (xcodebuild) cannot blow the document limit on its own:
+// 10 tasks * 400k chars leaves plenty of headroom.
+const MAX_TASK_LOG_ENTRIES = 500;
+const MAX_TASK_LOG_CHARS = 400_000;
+
+type TaskLogs = Pick<IDeploymentTask, "logs">["logs"];
+
+const trimTaskLogs = (logs: TaskLogs): TaskLogs => {
+  const recent = logs.slice(-MAX_TASK_LOG_ENTRIES);
+
+  let chars = 0;
+  let start = recent.length;
+
+  while (start > 0) {
+    const next = chars + (recent[start - 1].message?.length ?? 0);
+    // always keep the newest entry, however long it is
+    if (next > MAX_TASK_LOG_CHARS && start < recent.length) break;
+    chars = next;
+    start -= 1;
+  }
+
+  return recent.slice(start);
+};
+
 const executeTask = async ({
   commands,
   taskId,
@@ -784,7 +813,7 @@ const executeTask = async ({
         $set: {
           "tasks.$.status": "cancelled",
           "tasks.$.logs": [
-            ...outputLogs.slice(-19),
+            ...trimTaskLogs(outputLogs),
             {
               message: `Task [ ${taskName} ] cancelled by user`,
               type: "failed" as const,
@@ -817,8 +846,8 @@ const executeTask = async ({
       timestamp: new Date(),
     } as JobProgressType);
 
-    // shrink the outpuLogs array since mongo has a limit of 16mb per document
-    outputLogs = outputLogs.slice(-20);
+    // shrink the outputLogs array since mongo has a limit of 16mb per document
+    outputLogs = trimTaskLogs(outputLogs);
 
     // update the task status to success and add logs to the task
     await Mongo.deployment.updateOne(
@@ -860,8 +889,8 @@ const executeTask = async ({
       timestamp: new Date(),
     } as JobProgressType);
 
-    // shrink the outpuLogs array since mongo has a limit of 16mb per document
-    const combinedLogs = [...outputLogs, ...errorLogs].slice(-20);
+    // shrink the outputLogs array since mongo has a limit of 16mb per document
+    const combinedLogs = trimTaskLogs([...outputLogs, ...errorLogs]);
 
     // update the task status to failed and add logs to the task
     await Mongo.deployment.updateOne(
