@@ -66,14 +66,15 @@ const { writeFile, readFile } = fs.promises;
 // * secondary_category.txt
 // * secondary_first_sub_category.txt
 // * secondary_second_sub_category.txt
-// (screenshots are written to fastlane/screenshots/ios/<locale>/ — deliberately
-//  outside metadata/ios/ so deliver does not enumerate them twice)
+// (screenshots live in fastlane/screenshots/ios/<locale>/, which is what
+//  screenshots_path points at in the Fastfile. The extension follows the real
+//  image format of each asset - see downloadImage.)
 // * fastlane/screenshots/ios/
 //     * en-GB/
-//         * 0_APP_IPHONE_65_0.jpg
-//         * 1_APP_IPHONE_65_1.jpg
-//         * 2_APP_IPHONE_65_2.jpg
-//         * 3_APP_IPHONE_65_3.jpg
+//         * 0_APP_IPHONE_65_0.png
+//         * 1_APP_IPHONE_65_1.png
+//         * 2_APP_IPHONE_65_2.png
+//         * 3_APP_IPHONE_65_3.png
 //         * 4_APP_IPHONE_65_4.jpg
 
 const androidStoreFiles = [
@@ -115,6 +116,65 @@ const iosInfoFiles = [
   "secondary_first_sub_category",
   "secondary_second_sub_category",
 ];
+
+// Stored asset names always end in .png, but the bytes behind them can be JPEG
+// (the dashboard keeps the .png name whatever the merchant uploads). deliver
+// aborts the whole upload when a screenshot's extension disagrees with its
+// actual format, so the extension is derived from the magic bytes instead.
+const detectImageExtension = (buffer) => {
+  const isPng =
+    buffer.length > 8 &&
+    buffer[0] === 0x89 &&
+    buffer.toString("latin1", 1, 4) === "PNG";
+  if (isPng) return "png";
+
+  const isJpeg =
+    buffer.length > 3 &&
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff;
+  if (isJpeg) return "jpg";
+
+  return null;
+};
+
+const downloadBuffer = async (url) => {
+  return new Promise((resolve, reject) => {
+    https
+      .get(url, (response) => {
+        if (response.statusCode !== 200) {
+          reject(
+            new Error(`Failed to download ${url}: ${response.statusCode}`),
+          );
+          return;
+        }
+
+        const chunks = [];
+        response.on("data", (chunk) => chunks.push(chunk));
+        response.on("end", () => resolve(Buffer.concat(chunks)));
+        response.on("error", reject);
+      })
+      .on("error", reject);
+  });
+};
+
+// Downloads an image and writes it as `${outputPathWithoutExtension}.{png,jpg}`,
+// picking the extension from the downloaded bytes. Returns the written path.
+const downloadImage = async (url, outputPathWithoutExtension) => {
+  const buffer = await downloadBuffer(url);
+  const extension = detectImageExtension(buffer);
+
+  if (!extension) {
+    throw new Error(
+      `Unsupported image format for ${url} - App Store Connect only accepts PNG and JPEG screenshots`,
+    );
+  }
+
+  const outputPath = `${outputPathWithoutExtension}.${extension}`;
+  await fs.ensureDir(path.dirname(outputPath));
+  await writeFile(outputPath, buffer);
+  return outputPath;
+};
 
 const downloadFile = async (url, outputPath) => {
   try {
@@ -348,24 +408,20 @@ const generateMetadata = async ({
     }),
   ]);
 
-  // Copying iOS screenshots
-  const copyIosImages = Promise.all([
-    ...(iosScreenshots["iphone_65"]?.map((screenshot, index) =>
-      downloadFile(
+  // Copying iOS screenshots - both localizations get the same set, so each
+  // asset is downloaded once and copied across.
+  const copyIosImages = Promise.all(
+    (iosScreenshots["iphone_65"] || []).map(async (screenshot, index) => {
+      const writtenPath = await downloadImage(
         `${rootAssetPath}/${screenshot}`,
-        `${iosScreenshotsPath}/${index}_APP_IPHONE_65_${index}.png`,
-      ),
-    ) || []),
-  ]);
-
-  const copyIosUSImages = Promise.all([
-    ...(iosScreenshots["iphone_65"]?.map((screenshot, index) =>
-      downloadFile(
-        `${rootAssetPath}/${screenshot}`,
-        `${iosUSScreenshotsPath}/${index}_APP_IPHONE_65_${index}.png`,
-      ),
-    ) || []),
-  ]);
+        `${iosScreenshotsPath}/${index}_APP_IPHONE_65_${index}`,
+      );
+      await fs.copy(
+        writtenPath,
+        `${iosUSScreenshotsPath}/${path.basename(writtenPath)}`,
+      );
+    }),
+  );
 
   // Execute all operations without waiting for each other to finish
   return Promise.all([
@@ -381,7 +437,6 @@ const generateMetadata = async ({
     iosInfoPromise,
     copyAndroidImages,
     copyIosImages,
-    copyIosUSImages,
   ]);
 };
 
