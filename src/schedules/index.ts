@@ -7,6 +7,7 @@ import util from "util";
 
 import { Types } from "mongoose";
 import {
+  CLEANUP_DEPLOYMENT_FOLDERS_CRON,
   CLEANUP_DEPLOYMENT_REQUESTS_CRON,
   DEPLOYMENT_REQUEST_RETENTION_DAYS,
   UPDATE_ANDROID_PLAY_STORE_STATUS_CRON,
@@ -14,6 +15,7 @@ import {
   UPDATE_PRE_REQ_CRON,
 } from "../constants";
 import Mongo from "../database";
+import { cleanupDeploymentFolders } from "./cleanup-deployment-folders";
 
 const execAsync = util.promisify(exec);
 
@@ -675,5 +677,11 @@ Mongo.connect().then(() => {
     } catch (error) {
       console.error("Error cleaning up deployment requests:", error);
     }
+  });
+
+  // Cron to remove deployments/{bundleId} folders older than 72 hours
+  cron.schedule(CLEANUP_DEPLOYMENT_FOLDERS_CRON, async () => {
+    console.log("Running cleanup-deployment-folders schedule");
+    await cleanupDeploymentFolders();
   });
 });
