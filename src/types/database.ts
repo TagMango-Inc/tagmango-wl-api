@@ -68,6 +68,15 @@ export interface IDeploymentTask {
     timestamp: Date;
   }[];
   duration: number;
+  perf?: IDeploymentTaskPerf;
+}
+/** timings recorded inside a task, for before/after measurement */
+export interface IDeploymentTaskPerf {
+  /** one entry per shell command of the task, in order; ok=false for the one that failed */
+  commands: { label: string; ms: number; ok: boolean }[];
+  /** steps reported by the tools themselves: app-build.js operations, fastlane actions */
+  steps: { source: "app-build" | "fastlane"; name: string; ms: number }[];
+  diskFreeGb: { start: number | null; end: number | null };
 }
 export interface IDeployment {
   host: ObjectId;

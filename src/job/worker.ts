@@ -19,6 +19,7 @@ import {
   startCancellationListener,
 } from "./cancellation";
 import { queueRedisOptions } from "./config";
+import { createTaskPerf, diskFreeGb, instrumentCommands } from "./taskPerf";
 
 /** thrown by executeTask when the task's process died to a user cancel —
  *  lets the task loop distinguish "stop quietly" from a real failure */
@@ -684,7 +685,10 @@ const executeTask = async ({
   // spawn (not exec): output is consumed via streams so exec's buffering adds
   // nothing, and detached:true puts the shell in its own process group so a
   // cancel can kill the whole tree (zsh + fastlane + xcodebuild)
-  const e = spawn(commands.join(" && "), {
+  const diskFreeStart = await diskFreeGb();
+  const perf = createTaskPerf(commands);
+
+  const e = spawn(instrumentCommands(commands).join(" && "), {
     cwd: process.cwd(),
     env: {
       ...process.env,
@@ -706,7 +710,9 @@ const executeTask = async ({
   let errorLogs: Pick<IDeploymentTask, "logs">["logs"] = [];
 
   if (stdout) {
-    stdout.on("data", (data) => {
+    stdout.on("data", (raw: string) => {
+      const data = perf.onStdout(raw);
+      if (!data) return;
       logger.info(data);
 
       // updating the progress of the job so i can listen to the progress of the job through queue events
@@ -788,6 +794,7 @@ const executeTask = async ({
     e.on("error", reject);
   });
   clearActiveTask();
+  const taskPerf = await perf.finish(diskFreeStart);
 
   // the non-zero exit may be our own SIGTERM — report cancelled, not failed
   if (code !== 0 && isCancelRequested(deploymentId)) {
@@ -821,6 +828,7 @@ const executeTask = async ({
             },
           ],
           "tasks.$.duration": Date.now() - startTime,
+          "tasks.$.perf": taskPerf,
           updatedAt: new Date(),
         },
       },
@@ -860,6 +868,7 @@ const executeTask = async ({
           "tasks.$.status": "success",
           "tasks.$.logs": outputLogs,
           "tasks.$.duration": Date.now() - startTime,
+          "tasks.$.perf": taskPerf,
           updatedAt: new Date(),
         },
       },
@@ -903,6 +912,7 @@ const executeTask = async ({
           "tasks.$.status": "failed",
           "tasks.$.logs": combinedLogs,
           "tasks.$.duration": Date.now() - startTime,
+          "tasks.$.perf": taskPerf,
           updatedAt: new Date(),
         },
       },
