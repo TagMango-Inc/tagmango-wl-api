@@ -9,6 +9,7 @@ import {
 } from "../constants";
 import Mongo from "../database";
 import { Status } from "../types/database";
+import { LOW_PRIORITY, XCODE_TRASH } from "../utils/trash";
 
 const execFileAsync = util.promisify(execFile);
 
@@ -17,9 +18,10 @@ const deploymentsDir = path.resolve(customhostDeploymentDir);
 // deployments/ atomically, then deleted
 const trashDir = path.join(deploymentsDir, ".trash");
 
-// each folder is a full RN project copy (node_modules, Pods, build output),
-// so deletion is disk-bound — a few in parallel is enough
-const REMOVE_CONCURRENCY = 4;
+// each folder is a full RN project copy (node_modules, Pods, build output);
+// deleting several at once floods fseventsd and starves the running build,
+// so one at a time at background priority
+const REMOVE_CONCURRENCY = 1;
 
 let isRunning = false;
 
@@ -52,8 +54,10 @@ const getActiveBundles = async () => {
   );
 };
 
-// native rm is far faster than fs.rm on trees with hundreds of thousands of files
-const removeDir = (dir: string) => execFileAsync("rm", ["-rf", dir]);
+// native rm is far faster than fs.rm on trees with hundreds of thousands of
+// files; background QoS lets a build take the disk first
+const removeDir = (dir: string) =>
+  execFileAsync(LOW_PRIORITY[0], [...LOW_PRIORITY.slice(1), "rm", "-rf", dir]);
 
 const runWithConcurrency = async <T>(
   items: T[],
@@ -118,12 +122,18 @@ export const cleanupDeploymentFolders = async () => {
       }),
     );
 
-    // also picks up anything left behind by an earlier interrupted run
-    const trashed = await fs.readdir(trashDir);
+    // also picks up anything left behind by an earlier interrupted run, and
+    // Xcode output the worker moved aside
+    const trashed = [
+      ...(await fs.readdir(trashDir)).map((name) => path.join(trashDir, name)),
+      ...((await fs.pathExists(XCODE_TRASH)) ? await fs.readdir(XCODE_TRASH) : []).map(
+        (name) => path.join(XCODE_TRASH, name),
+      ),
+    ];
     let removed = 0;
     await runWithConcurrency(trashed, REMOVE_CONCURRENCY, async (name) => {
       try {
-        await removeDir(path.join(trashDir, name));
+        await removeDir(name);
         removed++;
       } catch (error) {
         console.error(`Failed to remove deployment folder ${name}:`, error);
