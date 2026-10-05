@@ -1,7 +1,7 @@
 import "dotenv/config";
 
-import { Job, Worker } from "bullmq";
-import { spawn } from "child_process";
+import { DelayedError, Job, Worker } from "bullmq";
+import { execFile, spawn } from "child_process";
 import fs from "fs-extra";
 import { ObjectId, UpdateFilter } from "mongodb";
 import os from "os";
@@ -20,6 +20,13 @@ import {
 } from "./cancellation";
 import { queueRedisOptions } from "./config";
 import { createTaskPerf, diskFreeGb, instrumentCommands } from "./taskPerf";
+import {
+  DEPLOYMENT_TRASH,
+  purgeTrashInBackgroundCommand,
+  trashCommand,
+  trashStaleEntriesCommand,
+  XCODE_TRASH,
+} from "../utils/trash";
 
 /** thrown by executeTask when the task's process died to a user cancel —
  *  lets the task loop distinguish "stop quietly" from a real failure */
@@ -54,12 +61,29 @@ const logger = pino({
 
 const { readFile, writeFile } = fs.promises;
 
+// A full disk fails every queued job within seconds (1,771 deployments on
+// 23 and 26 Sep 2026). Below this floor a job is put back and the worker
+// pauses instead. An Android build needs ~9 GB while it runs.
+const MIN_FREE_DISK_GB = Number(process.env.WL_MIN_FREE_DISK_GB ?? 40);
+const LOW_DISK_RETRY_MS = 10 * 60 * 1000;
+let lowDiskPausedUntil = 0;
+
+/** frees what is already in trash; nothing is building, so at normal priority */
+const purgeTrashNow = () =>
+  new Promise<void>((resolve) =>
+    execFile(
+      "/bin/zsh",
+      ["-c", `rm -rf ${DEPLOYMENT_TRASH}/*(DN) ${XCODE_TRASH}/*(DN)`],
+      () => resolve(),
+    ),
+  );
+
 (async () => {
   Mongo.connect()
     .then(() => {
       const worker = new Worker<BuildJobPayloadType>(
         "buildQueue",
-        async (job) => {
+        async (job, token) => {
           const {
             deploymentId,
             hostId,
@@ -88,6 +112,24 @@ const { readFile, writeFile } = fs.promises;
             isFirstDeployment,
           } = job.data;
 
+          let freeGb = await diskFreeGb();
+          if (freeGb !== null && freeGb < MIN_FREE_DISK_GB) {
+            await purgeTrashNow();
+            freeGb = await diskFreeGb();
+          }
+          if (freeGb !== null && freeGb < MIN_FREE_DISK_GB) {
+            logger.error(
+              `Only ${freeGb} GB free (floor ${MIN_FREE_DISK_GB} GB): putting deployment ${deploymentId} back and pausing for ${LOW_DISK_RETRY_MS / 60000} min`,
+            );
+            await job.moveToDelayed(Date.now() + LOW_DISK_RETRY_MS, token);
+            if (Date.now() > lowDiskPausedUntil) {
+              lowDiskPausedUntil = Date.now() + LOW_DISK_RETRY_MS;
+              worker.pause(true);
+              setTimeout(() => worker.resume(), LOW_DISK_RETRY_MS);
+            }
+            throw new DelayedError();
+          }
+
           const formatedAppName = name.replace(/ /g, "");
 
           // find the paths to remove after successful deployment
@@ -95,7 +137,6 @@ const { readFile, writeFile } = fs.promises;
           const username = os.userInfo().username;
           const archivesPath = `/Users/${username}/Library/Developer/Xcode/Archives`;
           const derivedDataPath = `/Users/${username}/Library/Developer/Xcode/DerivedData`;
-          const moduleCachePath = `/Users/${username}/Library/Developer/Xcode/DerivedData/ModuleCache.noindex`;
 
           // get screenshots values from DB as the job starts instead of getting a copy when the job is created
           // assumption: only 1 deployment is running at a time, so we can get the latest values from the DB
@@ -202,7 +243,9 @@ const { readFile, writeFile } = fs.promises;
             ],
             // step: 2: Copying the lastest root project to deployment/{bundleId} folder
             [taskNames[1].id]: [
-              `rm -rf ${customhostDeploymentDir}/${bundle}`, // temporary fix
+              // a leftover folder from an earlier attempt is moved aside, not
+              // deleted inline (see utils/trash)
+              trashCommand(`${customhostDeploymentDir}/${bundle}`, DEPLOYMENT_TRASH),
               `mkdir -p ${customhostDeploymentDir}/${bundle}`,
               `cp -r root/${githubrepo} ${customhostDeploymentDir}/${bundle}`,
               `cd ${customHostAppDir}`,
@@ -427,16 +470,23 @@ const { readFile, writeFile } = fs.promises;
                     `source ~/.zshrc && bundle exec fastlane ${platform} upload`,
                   ],
             // step 7: Removing the deployment/{bundleId} folder after successful deployment
+            // the workspace is moved to trash and deleted at background
+            // priority, so the next build doesn't wait for it. Xcode output
+            // older than an hour goes too; the clang module cache stays, it is
+            // shared and content-addressed, so the next build reuses it.
             [taskNames[9].id]:
               platform === "ios"
                 ? [
                     `echo "Removing deployment folder"`,
-                    `rm -rf ${customhostDeploymentDir}/${bundle}`,
-                    `find ${archivesPath} -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true`,
-                    `find ${moduleCachePath} -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true`,
-                    `find ${derivedDataPath} -mindepth 1 -maxdepth 1 ! -name "ModuleCache.noindex" -exec rm -rf {} +`,
+                    trashCommand(`${customhostDeploymentDir}/${bundle}`, DEPLOYMENT_TRASH),
+                    trashStaleEntriesCommand(archivesPath, XCODE_TRASH),
+                    trashStaleEntriesCommand(derivedDataPath, XCODE_TRASH, "ModuleCache.noindex"),
+                    purgeTrashInBackgroundCommand(DEPLOYMENT_TRASH, XCODE_TRASH),
                   ]
-                : [`rm -rf ${customhostDeploymentDir}/${bundle}`],
+                : [
+                    trashCommand(`${customhostDeploymentDir}/${bundle}`, DEPLOYMENT_TRASH),
+                    purgeTrashInBackgroundCommand(DEPLOYMENT_TRASH),
+                  ],
           };
 
           logger.info("Initiated Deployment Process");

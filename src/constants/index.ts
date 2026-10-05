@@ -10,7 +10,7 @@ const DEPLOYMENT_REQUIREMENTS = [
 
 const DAY_FROM_NOW = 4;
 const REMOVE_SUCCESS_LOGS_CRON = "0 0 * * SUN";
-const REMOVE_BUNDLES_CRON = "0 0 * * SUN";
+const REMOVE_BUNDLES_CRON = "30 0 * * *"; // daily
 const UPDATE_IOS_REVIEW_STATUS_CRON = "0 */3 * * *";
 const UPDATE_PRE_REQ_CRON = "0 11,23 * * *";
 const UPDATE_ANDROID_PLAY_STORE_STATUS_CRON = "0 */6 * * *"; // Every 6 hours

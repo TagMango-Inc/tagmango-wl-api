@@ -16,6 +16,7 @@ import {
 } from "../constants";
 import Mongo from "../database";
 import { cleanupDeploymentFolders } from "./cleanup-deployment-folders";
+import { scheduleRemoveBundles } from "./remove-bundle";
 
 const execAsync = util.promisify(exec);
 
@@ -23,8 +24,20 @@ const { readFile, writeFile } = fs.promises;
 
 // list all the cron jobs to be run here
 
+// pm2 runs this file as a cluster; every instance would run every job (two
+// ASC/Play status sweeps, two cleanups racing on the same folders). Only the
+// first instance schedules anything.
+const isPrimaryInstance = (process.env.NODE_APP_INSTANCE ?? "0") === "0";
+if (!isPrimaryInstance) {
+  console.log(`cron instance ${process.env.NODE_APP_INSTANCE}: idle, instance 0 runs the schedules`);
+  // stay up so pm2 doesn't restart it in a loop
+  setInterval(() => {}, 1 << 30);
+}
+
 // cron to update ios review status
-Mongo.connect().then(() => {
+(isPrimaryInstance ? Mongo.connect() : new Promise<never>(() => {})).then(() => {
+  scheduleRemoveBundles();
+
   cron.schedule(UPDATE_IOS_REVIEW_STATUS_CRON, async () => {
     console.log("Running update-ios-review-status schedule");
 

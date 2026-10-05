@@ -1,43 +1,64 @@
-import { exec } from "child_process";
 import fs from "fs-extra";
 import cron from "node-cron";
-import util from "util";
+import path from "path";
 
 import { DAY_FROM_NOW, REMOVE_BUNDLES_CRON } from "../constants";
 import { AABDetailsType } from "../types";
 
-const execAsync = util.promisify(exec);
-
 const { readFile, writeFile } = fs.promises;
-cron.schedule(REMOVE_BUNDLES_CRON, async () => {
-  const date = new Date();
-  date.setDate(date.getDate() - DAY_FROM_NOW);
-  const updatedDate = date;
 
-  console.log("Running remove-bundle schedule");
+const AAB_DIR = "./outputs/android";
+const AAB_INDEX = "./data/android-aab.json";
 
-  const rawAABDetails = await readFile("./data/android-aab.json", "utf-8");
-  const parsedDetails: AABDetailsType = JSON.parse(rawAABDetails);
+/**
+ * First-deploy Android bundles are kept for DAY_FROM_NOW days for download
+ * from the dashboard, then removed along with their index entry. Files with
+ * no index entry (left by an older run) go once they are as old.
+ */
+export const removeExpiredBundles = async () => {
+  const cutoff = Date.now() - DAY_FROM_NOW * 24 * 60 * 60 * 1000;
 
-  const updatedDetails = Object.keys(parsedDetails).reduce((acc, key) => {
-    if (new Date(parsedDetails[key].createdAt) < updatedDate) {
-      return acc;
-    }
-    return { ...acc, [key]: parsedDetails[key] };
-  }, {} as AABDetailsType);
+  let index: AABDetailsType = {};
+  try {
+    index = JSON.parse(await readFile(AAB_INDEX, "utf-8"));
+  } catch {
+    // no index yet: only the orphan sweep below applies
+  }
 
-  await writeFile(
-    "./data/android-aab.json",
-    JSON.stringify(updatedDetails, null, 2),
+  const expired = Object.keys(index).filter(
+    (hostId) => new Date(index[hostId].createdAt).getTime() < cutoff,
   );
+  if (expired.length) {
+    const kept = { ...index };
+    expired.forEach((hostId) => delete kept[hostId]);
+    await writeFile(AAB_INDEX, JSON.stringify(kept, null, 2));
+  }
 
-  for await (const key of Object.keys(parsedDetails)) {
-    if (new Date(parsedDetails[key].createdAt) < updatedDate) {
-      await execAsync(`rm -rf ./outputs/android/${key}.aab`);
+  const files = (await fs.pathExists(AAB_DIR)) ? await fs.readdir(AAB_DIR) : [];
+  let removed = 0;
+  for (const file of files.filter((f) => f.endsWith(".aab"))) {
+    const hostId = path.basename(file, ".aab");
+    const isExpired = expired.includes(hostId);
+    const isOrphan =
+      !index[hostId] &&
+      (await fs.stat(path.join(AAB_DIR, file))).mtimeMs < cutoff;
+    if (isExpired || isOrphan) {
+      await fs.remove(path.join(AAB_DIR, file));
+      removed++;
     }
   }
 
   console.log(
-    `Removed ${Object.keys(parsedDetails).length - Object.keys(updatedDetails).length} bundles`,
+    `remove-bundle: ${expired.length} expired index entries, ${removed} .aab files removed`,
   );
-});
+};
+
+export const scheduleRemoveBundles = () =>
+  cron.schedule(REMOVE_BUNDLES_CRON, async () => {
+    console.log("Running remove-bundle schedule");
+    try {
+      await removeExpiredBundles();
+    } catch (error) {
+      console.error("Error removing expired bundles:", error);
+    }
+  });
