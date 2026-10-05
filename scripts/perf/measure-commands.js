@@ -42,7 +42,7 @@ const normalise = (label) =>
     .db()
     .collection("wldeployments")
     .find(
-      { createdAt: { $gte: since, $lt: until }, "tasks.perf": { $exists: true } },
+      { updatedAt: { $gte: since, $lt: until }, "tasks.perf": { $exists: true } },
       { projection: { platform: 1, isFirstDeployment: 1, status: 1, "tasks.perf": 1 } },
     )
     .toArray();

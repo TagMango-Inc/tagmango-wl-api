@@ -60,7 +60,7 @@ else
   [[ -z $others ]] || fail "main has other unreleased changes, deploy those first: $others"
 
   pm2 describe $WORKER > /dev/null 2>&1 || fail "pm2 app $WORKER not found"
-  Q=(node $SRC/scripts/perf/queue.js)
+  Q=(node $SRC/scripts/queue.js)
   PREV=$(git rev-parse HEAD)
 
   restore() {
