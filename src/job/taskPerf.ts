@@ -25,9 +25,10 @@ export const instrumentCommands = (commands: string[]) => [
 ];
 
 // command text can carry secrets (appstore-metadata gets the .p8 in argv),
-// so only a prefix with JSON arguments cut out is stored
+// so only a prefix with JSON arguments cut out is stored. JSON args start
+// with {" — shell groups like "{ mkdir …; }" are kept readable.
 const commandLabel = (command: string) =>
-  command.replace(/\{.*\}/s, "{…}").slice(0, 120);
+  command.replace(/\{".*\}/s, "{…}").slice(0, 120);
 
 export const diskFreeGb = async () => {
   try {
