@@ -24,12 +24,20 @@ export const trashCommand = (target: string, trashDir: string) =>
   `{ mkdir -p ${trashDir}; if [[ -e ${target} ]]; then mv ${target} ${trashDir}/${path.basename(target)}-$(date +%s)-$$ || rm -rf ${target}; fi; }`;
 
 /**
- * zsh: trash entries of `dir` untouched for over an hour, keeping `keep`.
- * The age check means a build running alongside never loses its own files.
- * Housekeeping only, so it never fails the task.
+ * zsh: trash entries of `dir` untouched for `olderThanMin` (default an hour),
+ * except `keep`. The age check means a build running alongside never loses
+ * its own files. Housekeeping only, so it never fails the task.
  */
-export const trashStaleEntriesCommand = (dir: string, trashDir: string, keep?: string) =>
-  `{ mkdir -p ${trashDir}; for e in ${dir}/*(N^mm-60); do [[ \${e:t} == ${keep ?? "''"} ]] || mv $e ${trashDir}/\${e:t}-$(date +%s)-$$; done; true; }`;
+export const trashStaleEntriesCommand = (
+  dir: string,
+  trashDir: string,
+  { keep, olderThanMin = 60 }: { keep?: string; olderThanMin?: number } = {},
+) =>
+  `{ mkdir -p ${trashDir}; for e in ${dir}/*(N^mm-${olderThanMin}); do [[ \${e:t} == ${keep ?? "''"} ]] || mv $e ${trashDir}/\${e:t}-$(date +%s)-$$; done; true; }`;
+
+/** zsh: shut down booted simulators (Detox leaves them running) */
+export const shutdownSimulatorsCommand = () =>
+  `{ xcrun simctl shutdown all > /dev/null 2>&1; true; }`;
 
 /**
  * zsh: delete what is in the trash dirs right now, at background priority,

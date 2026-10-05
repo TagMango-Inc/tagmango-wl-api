@@ -23,6 +23,7 @@ import { createTaskPerf, diskFreeGb, instrumentCommands } from "./taskPerf";
 import {
   DEPLOYMENT_TRASH,
   purgeTrashInBackgroundCommand,
+  shutdownSimulatorsCommand,
   trashCommand,
   trashStaleEntriesCommand,
   XCODE_TRASH,
@@ -137,6 +138,7 @@ const purgeTrashNow = () =>
           const username = os.userInfo().username;
           const archivesPath = `/Users/${username}/Library/Developer/Xcode/Archives`;
           const derivedDataPath = `/Users/${username}/Library/Developer/Xcode/DerivedData`;
+          const gymLogsPath = `/Users/${username}/Library/Logs/gym`;
 
           // get screenshots values from DB as the job starts instead of getting a copy when the job is created
           // assumption: only 1 deployment is running at a time, so we can get the latest values from the DB
@@ -317,6 +319,8 @@ const purgeTrashNow = () =>
                               generateIAPScreenshot,
                             },
                           )}`,
+                          // Detox leaves the simulator booted (found running for 3 days)
+                          shutdownSimulatorsCommand(),
                         ]
                       : [
                           // Full build from scratch (fallback when no pre-built app)
@@ -359,6 +363,8 @@ const purgeTrashNow = () =>
                               generateIAPScreenshot,
                             },
                           )}`,
+                          // Detox leaves the simulator booted (found running for 3 days)
+                          shutdownSimulatorsCommand(),
                         ],
             [taskNames[4].id]: [
               `node ./scripts/create-metadata.js ${JSON.stringify({
@@ -480,7 +486,9 @@ const purgeTrashNow = () =>
                     `echo "Removing deployment folder"`,
                     trashCommand(`${customhostDeploymentDir}/${bundle}`, DEPLOYMENT_TRASH),
                     trashStaleEntriesCommand(archivesPath, XCODE_TRASH),
-                    trashStaleEntriesCommand(derivedDataPath, XCODE_TRASH, "ModuleCache.noindex"),
+                    trashStaleEntriesCommand(derivedDataPath, XCODE_TRASH, { keep: "ModuleCache.noindex" }),
+                    // gym's full xcodebuild logs, ~19 GB before this; kept 3 days for debugging
+                    trashStaleEntriesCommand(gymLogsPath, XCODE_TRASH, { olderThanMin: 3 * 24 * 60 }),
                     purgeTrashInBackgroundCommand(DEPLOYMENT_TRASH, XCODE_TRASH),
                   ]
                 : [
