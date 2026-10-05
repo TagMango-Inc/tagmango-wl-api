@@ -1502,15 +1502,6 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
         );
       }
 
-      const releaseBuffer = await fs.promises.readFile(
-        `./data/release.json`,
-        "utf-8",
-      );
-      const releaseDetails = JSON.parse(releaseBuffer) as {
-        versionName: string;
-        buildNumber: number;
-      };
-
       let androidDeveloperAccount: WithId<IDeveloperAccountAndroid> | null =
         null;
       let iosDeveloperAccount: WithId<IDeveloperAccountIos> | null = null;
@@ -1569,7 +1560,7 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
       );
 
       await buildQueue.add(
-        `${deploymentId}-${deployment.platform}-${releaseDetails.versionName}`,
+        `${deploymentId}-${deployment.platform}-${deployment.versionName}`,
         {
           deploymentId,
           hostId: deployment.host.toString(),
@@ -1587,8 +1578,11 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
           bgColor: metadata.backgroundStartColor,
           onesignal_id: customhost.onesignalAppId || "",
           platform: deployment.platform,
-          versionName: releaseDetails.versionName,
-          buildNumber: releaseDetails.buildNumber,
+          // a restart must rebuild the same version the deployment was
+          // created with; the release's base build number has usually been
+          // uploaded already, so the store would reject it
+          versionName: deployment.versionName,
+          buildNumber: deployment.buildNumber,
           appleId: metadata.iosDeploymentDetails.appleId || "",
 
           androidStoreSettings: metadata.androidStoreSettings,
