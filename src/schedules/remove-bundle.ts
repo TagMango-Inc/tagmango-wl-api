@@ -2,7 +2,7 @@ import fs from "fs-extra";
 import cron from "node-cron";
 import path from "path";
 
-import { DAY_FROM_NOW, REMOVE_BUNDLES_CRON } from "../constants";
+import { AAB_RETENTION_HOURS, REMOVE_BUNDLES_CRON } from "../constants";
 import { AABDetailsType } from "../types";
 
 const { readFile, writeFile } = fs.promises;
@@ -11,12 +11,12 @@ const AAB_DIR = "./outputs/android";
 const AAB_INDEX = "./data/android-aab.json";
 
 /**
- * First-deploy Android bundles are kept for DAY_FROM_NOW days for download
+ * First-deploy Android bundles are kept for AAB_RETENTION_HOURS hours for download
  * from the dashboard, then removed along with their index entry. Files with
  * no index entry (left by an older run) go once they are as old.
  */
 export const removeExpiredBundles = async () => {
-  const cutoff = Date.now() - DAY_FROM_NOW * 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - AAB_RETENTION_HOURS * 60 * 60 * 1000;
 
   let index: AABDetailsType = {};
   try {

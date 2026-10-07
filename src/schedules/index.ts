@@ -707,7 +707,7 @@ if (!isPrimaryInstance) {
     }
   });
 
-  // Cron to remove deployments/{bundleId} folders older than 72 hours
+  // Cron to remove deployments/{bundleId} folders older than 48 hours
   cron.schedule(CLEANUP_DEPLOYMENT_FOLDERS_CRON, async () => {
     console.log("Running cleanup-deployment-folders schedule");
     await cleanupDeploymentFolders();
