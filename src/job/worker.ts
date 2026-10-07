@@ -289,7 +289,7 @@ const purgeTrashNow = () =>
                           `echo "Using Node Version"`,
                           `node -v`,
                           `echo "Reinstalling node_modules"`,
-                          `npm install --reset-cache --include=dev`,
+                          `npm install --include=dev --prefer-offline --no-audit --no-fund`,
                           `echo "Using ruby version"`,
                           `source ~/.zshrc && ruby -v`,
                           `echo "Using bundle version"`,
@@ -330,7 +330,7 @@ const purgeTrashNow = () =>
                           `echo "Using Node Version"`,
                           `node -v`,
                           `echo "Reinstalling node_modules"`,
-                          `npm install --reset-cache --include=dev`,
+                          `npm install --include=dev --prefer-offline --no-audit --no-fund`,
                           `echo "Using ruby version"`,
                           `source ~/.zshrc && ruby -v`,
                           `echo "Using bundle version"`,
@@ -392,7 +392,7 @@ const purgeTrashNow = () =>
             // step: 4: Running the pre deployment and bundle script for the deployment/{bundleId} folder
             [taskNames[5].id]: [
               `cd ${customHostAppDir}`,
-              `npm install --reset-cache --include=dev`,
+              `npm install --include=dev --prefer-offline --no-audit --no-fund`,
               `node ./scripts/app-build.js ${JSON.stringify({
                 name,
                 bundle,
@@ -414,9 +414,8 @@ const purgeTrashNow = () =>
                 ? [`echo "Skipping this step for android"`]
                 : isFirstDeployment
                   ? [
+                      // node_modules is already installed by the pre-deploy task
                       `cd ${customHostAppDir}`,
-                      `echo "Reinstalling node_modules"`,
-                      `npm install --reset-cache --include=dev`,
                       // create ios apps on apple dev center and app store connect, skips if already created
                       `source ~/.zshrc && bundle exec fastlane ios create`,
                       // create app group for ios bundle, skips if already created
@@ -437,9 +436,8 @@ const purgeTrashNow = () =>
                     ]
                   : [
                       `echo "Skipping app and app groups creations"`,
+                      // node_modules is already installed by the pre-deploy task
                       `cd ${customHostAppDir}`,
-                      `echo "Reinstalling node_modules"`,
-                      `npm install --reset-cache --include=dev`,
                       `node ./scripts/appstore-metadata.js ${JSON.stringify({
                         hostId,
                         bundle,
