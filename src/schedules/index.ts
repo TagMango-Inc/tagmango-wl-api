@@ -15,6 +15,7 @@ import {
   UPDATE_PRE_REQ_CRON,
 } from "../constants";
 import Mongo from "../database";
+import { getEnterpriseHosts } from "../utils/enterpriseHostsCache";
 import { cleanupDeploymentFolders } from "./cleanup-deployment-folders";
 import { scheduleRemoveBundles } from "./remove-bundle";
 
@@ -49,20 +50,36 @@ if (!isPrimaryInstance) {
       );
     }
 
+    // Check non-suspended enterprise hosts that have an App Store link and an
+    // apple id. Skip hosts whose App Store version already matches the global
+    // AppZap target and is live; a target version still in review keeps being
+    // checked until it goes live. When the target is unknown, check them all.
+    const { activeIds } = await getEnterpriseHosts();
+    const hostsWithAppStoreLink = await Mongo.customhost
+      .find(
+        {
+          _id: { $in: activeIds },
+          iosShareLink: { $type: "string", $ne: "" },
+        },
+        { projection: { _id: 1 } },
+      )
+      .toArray();
+
     const allMetadatas = await Mongo.metadata
       .find({
-        $and: [
-          {
-            "iosDeploymentDetails.appleId": {
-              $exists: true,
+        host: { $in: hostsWithAppStoreLink.map((h) => h._id) },
+        "iosDeploymentDetails.appleId": { $type: "string", $ne: "" },
+        ...(latestAvailableVersionName && {
+          $nor: [
+            {
+              "iosDeploymentDetails.appStore.versionName":
+                latestAvailableVersionName,
+              "iosDeploymentDetails.appStore.status": {
+                $in: ["READY_FOR_SALE", "READY_FOR_DISTRIBUTION"],
+              },
             },
-          },
-          {
-            "iosDeploymentDetails.appleId": {
-              $ne: "",
-            },
-          },
-        ],
+          ],
+        }),
       })
       .toArray();
 
@@ -406,43 +423,41 @@ if (!isPrimaryInstance) {
       );
     }
 
-    // Re-scrape hosts whose Play Store version hasn't yet caught up to the
+    // Scrape non-suspended enterprise hosts that have a Play Store link and a
+    // bundle id, and whose Play Store version hasn't yet caught up to the
     // global AppZap target. When the target is unknown, fall back to scraping
     // hosts that have never been scraped.
+    const { activeIds } = await getEnterpriseHosts();
+    const hostsWithPlayStoreLink = await Mongo.customhost
+      .find(
+        {
+          _id: { $in: activeIds },
+          androidShareLink: { $type: "string", $ne: "" },
+        },
+        { projection: { _id: 1 } },
+      )
+      .toArray();
+
     const allMetadatas = await Mongo.metadata
       .find({
-        $and: [
-          {
-            "androidDeploymentDetails.bundleId": {
-              $exists: true,
-            },
-          },
-          {
-            "androidDeploymentDetails.bundleId": {
-              $ne: "",
-            },
-          },
-          latestAvailableVersionName
-            ? {
-                "androidDeploymentDetails.playStore.versionName": {
-                  $ne: latestAvailableVersionName,
-                },
-              }
-            : {
-                $or: [
-                  {
-                    "androidDeploymentDetails.playStore.versionName": {
-                      $exists: false,
-                    },
-                  },
-                  {
-                    "androidDeploymentDetails.playStore.versionName": {
-                      $eq: "",
-                    },
-                  },
-                ],
+        host: { $in: hostsWithPlayStoreLink.map((h) => h._id) },
+        "androidDeploymentDetails.bundleId": { $type: "string", $ne: "" },
+        ...(latestAvailableVersionName
+          ? {
+              "androidDeploymentDetails.playStore.versionName": {
+                $ne: latestAvailableVersionName,
               },
-        ],
+            }
+          : {
+              $or: [
+                {
+                  "androidDeploymentDetails.playStore.versionName": {
+                    $exists: false,
+                  },
+                },
+                { "androidDeploymentDetails.playStore.versionName": "" },
+              ],
+            }),
       })
       .toArray();
 
@@ -692,7 +707,7 @@ if (!isPrimaryInstance) {
     }
   });
 
-  // Cron to remove deployments/{bundleId} folders older than 72 hours
+  // Cron to remove deployments/{bundleId} folders older than 48 hours
   cron.schedule(CLEANUP_DEPLOYMENT_FOLDERS_CRON, async () => {
     console.log("Running cleanup-deployment-folders schedule");
     await cleanupDeploymentFolders();
