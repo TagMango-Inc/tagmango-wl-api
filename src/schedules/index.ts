@@ -50,20 +50,36 @@ if (!isPrimaryInstance) {
       );
     }
 
+    // Check non-suspended enterprise hosts that have an App Store link and an
+    // apple id. Skip hosts whose App Store version already matches the global
+    // AppZap target and is live; a target version still in review keeps being
+    // checked until it goes live. When the target is unknown, check them all.
+    const { activeIds } = await getEnterpriseHosts();
+    const hostsWithAppStoreLink = await Mongo.customhost
+      .find(
+        {
+          _id: { $in: activeIds },
+          iosShareLink: { $type: "string", $ne: "" },
+        },
+        { projection: { _id: 1 } },
+      )
+      .toArray();
+
     const allMetadatas = await Mongo.metadata
       .find({
-        $and: [
-          {
-            "iosDeploymentDetails.appleId": {
-              $exists: true,
+        host: { $in: hostsWithAppStoreLink.map((h) => h._id) },
+        "iosDeploymentDetails.appleId": { $type: "string", $ne: "" },
+        ...(latestAvailableVersionName && {
+          $nor: [
+            {
+              "iosDeploymentDetails.appStore.versionName":
+                latestAvailableVersionName,
+              "iosDeploymentDetails.appStore.status": {
+                $in: ["READY_FOR_SALE", "READY_FOR_DISTRIBUTION"],
+              },
             },
-          },
-          {
-            "iosDeploymentDetails.appleId": {
-              $ne: "",
-            },
-          },
-        ],
+          ],
+        }),
       })
       .toArray();
 
