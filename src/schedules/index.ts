@@ -15,6 +15,7 @@ import {
   UPDATE_PRE_REQ_CRON,
 } from "../constants";
 import Mongo from "../database";
+import { getEnterpriseHosts } from "../utils/enterpriseHostsCache";
 import { cleanupDeploymentFolders } from "./cleanup-deployment-folders";
 import { scheduleRemoveBundles } from "./remove-bundle";
 
@@ -406,43 +407,41 @@ if (!isPrimaryInstance) {
       );
     }
 
-    // Re-scrape hosts whose Play Store version hasn't yet caught up to the
+    // Scrape non-suspended enterprise hosts that have a Play Store link and a
+    // bundle id, and whose Play Store version hasn't yet caught up to the
     // global AppZap target. When the target is unknown, fall back to scraping
     // hosts that have never been scraped.
+    const { activeIds } = await getEnterpriseHosts();
+    const hostsWithPlayStoreLink = await Mongo.customhost
+      .find(
+        {
+          _id: { $in: activeIds },
+          androidShareLink: { $type: "string", $ne: "" },
+        },
+        { projection: { _id: 1 } },
+      )
+      .toArray();
+
     const allMetadatas = await Mongo.metadata
       .find({
-        $and: [
-          {
-            "androidDeploymentDetails.bundleId": {
-              $exists: true,
-            },
-          },
-          {
-            "androidDeploymentDetails.bundleId": {
-              $ne: "",
-            },
-          },
-          latestAvailableVersionName
-            ? {
-                "androidDeploymentDetails.playStore.versionName": {
-                  $ne: latestAvailableVersionName,
-                },
-              }
-            : {
-                $or: [
-                  {
-                    "androidDeploymentDetails.playStore.versionName": {
-                      $exists: false,
-                    },
-                  },
-                  {
-                    "androidDeploymentDetails.playStore.versionName": {
-                      $eq: "",
-                    },
-                  },
-                ],
+        host: { $in: hostsWithPlayStoreLink.map((h) => h._id) },
+        "androidDeploymentDetails.bundleId": { $type: "string", $ne: "" },
+        ...(latestAvailableVersionName
+          ? {
+              "androidDeploymentDetails.playStore.versionName": {
+                $ne: latestAvailableVersionName,
               },
-        ],
+            }
+          : {
+              $or: [
+                {
+                  "androidDeploymentDetails.playStore.versionName": {
+                    $exists: false,
+                  },
+                },
+                { "androidDeploymentDetails.playStore.versionName": "" },
+              ],
+            }),
       })
       .toArray();
 
