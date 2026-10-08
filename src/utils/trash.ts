@@ -25,7 +25,7 @@ export const trashCommand = (target: string, trashDir: string) =>
 
 /**
  * zsh: trash entries of `dir` untouched for `olderThanMin` (default an hour),
- * except `keep`. The age check means a build running alongside never loses
+ * except those matching `keep` (a zsh pattern, e.g. "*.noindex"). The age check means a build running alongside never loses
  * its own files. Housekeeping only, so it never fails the task.
  */
 export const trashStaleEntriesCommand = (

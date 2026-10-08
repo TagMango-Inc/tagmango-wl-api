@@ -66,8 +66,28 @@ const { readFile, writeFile } = fs.promises;
 // 23 and 26 Sep 2026). Below this floor a job is put back and the worker
 // pauses instead. An Android build needs ~9 GB while it runs.
 const MIN_FREE_DISK_GB = Number(process.env.WL_MIN_FREE_DISK_GB ?? 40);
+// Xcode's compilation cache (CompilationCache.noindex) grows with every new
+// release / pod version and has no size limit of its own. Past this it is
+// moved to trash between builds and refills on the next iOS build.
+const XCODE_CACHE_MAX_GB = Number(process.env.WL_XCODE_CACHE_MAX_GB ?? 25);
 const LOW_DISK_RETRY_MS = 10 * 60 * 1000;
 let lowDiskPausedUntil = 0;
+
+/** runs between jobs (one at a time), so nothing is using the cache */
+const capXcodeCompilationCache = () =>
+  new Promise<void>((resolve) => {
+    const cas = `${os.homedir()}/Library/Developer/Xcode/DerivedData/CompilationCache.noindex`;
+    execFile("du", ["-sk", cas], (error, stdout) => {
+      const gb = error ? 0 : Number(stdout.split("\t")[0]) / 1024 ** 2;
+      if (gb <= XCODE_CACHE_MAX_GB) return resolve();
+      logger.info(`Xcode compilation cache at ${gb.toFixed(1)} GB (cap ${XCODE_CACHE_MAX_GB} GB): moving it to trash`);
+      execFile(
+        "/bin/zsh",
+        ["-c", `mkdir -p ${XCODE_TRASH} && mv ${cas} ${XCODE_TRASH}/CompilationCache-$(date +%s)`],
+        () => resolve(),
+      );
+    });
+  });
 
 /** frees what is already in trash; nothing is building, so at normal priority */
 const purgeTrashNow = () =>
@@ -112,6 +132,8 @@ const purgeTrashNow = () =>
             iosDeveloperAccount,
             isFirstDeployment,
           } = job.data;
+
+          if (platform === "ios") await capXcodeCompilationCache();
 
           let freeGb = await diskFreeGb();
           if (freeGb !== null && freeGb < MIN_FREE_DISK_GB) {
@@ -481,15 +503,16 @@ const purgeTrashNow = () =>
             // step 7: Removing the deployment/{bundleId} folder after successful deployment
             // the workspace is moved to trash and deleted at background
             // priority, so the next build doesn't wait for it. Xcode output
-            // older than an hour goes too; the clang module cache stays, it is
-            // shared and content-addressed, so the next build reuses it.
+            // older than an hour goes too; the *.noindex caches at the top of
+            // DerivedData stay (module cache, compilation cache): they are
+            // shared and content-addressed, so the next build reuses them.
             [taskNames[9].id]:
               platform === "ios"
                 ? [
                     `echo "Removing deployment folder"`,
                     trashCommand(`${customhostDeploymentDir}/${bundle}`, DEPLOYMENT_TRASH),
                     trashStaleEntriesCommand(archivesPath, XCODE_TRASH),
-                    trashStaleEntriesCommand(derivedDataPath, XCODE_TRASH, { keep: "ModuleCache.noindex" }),
+                    trashStaleEntriesCommand(derivedDataPath, XCODE_TRASH, { keep: "*.noindex" }),
                     // gym's full xcodebuild logs, ~19 GB before this; kept 3 days for debugging
                     trashStaleEntriesCommand(gymLogsPath, XCODE_TRASH, { olderThanMin: 3 * 24 * 60 }),
                     purgeTrashInBackgroundCommand(DEPLOYMENT_TRASH, XCODE_TRASH),
