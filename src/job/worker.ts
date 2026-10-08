@@ -254,6 +254,11 @@ const purgeTrashNow = () =>
               `git fetch --all`,
               `git checkout v/${releaseDetails.versionName}`,
               `git pull origin v/${releaseDetails.versionName}`,
+              // gems go to one shared folder per Ruby version + Gemfile.lock
+              // instead of vendor/bundle in every workspace (~18 s per
+              // deployment). Set in this workspace's .bundle/config: the
+              // repo's local config would win over a BUNDLE_PATH env var.
+              `source ~/.zshrc && bundle config set --local path "$HOME/wl-cache.noindex/bundle/ruby-$(ruby -e 'print RUBY_VERSION')-$(shasum -a 256 Gemfile.lock | cut -c1-16)" > /dev/null`,
             ],
             // step: 3: Copying the WL assets from WLApps/{formatedName} to deployment/{bundleId}/WLApps/{formatedName}
             [taskNames[2].id]: [
