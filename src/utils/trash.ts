@@ -12,6 +12,10 @@ import { customhostDeploymentDir } from "../constants";
 export const DEPLOYMENT_TRASH = `${customhostDeploymentDir}/.trash`;
 /** trash for Xcode DerivedData / Archives entries */
 export const XCODE_TRASH = path.join(os.homedir(), "Library/Developer/.wl-trash");
+/** shared gem installs, one folder per Ruby version + Gemfile.lock hash */
+export const GEM_CACHE_DIR = path.join(os.homedir(), "wl-cache.noindex/bundle");
+/** trash for gem folders unused for GEM_CACHE_RETENTION_DAYS */
+export const GEM_TRASH = path.join(os.homedir(), "wl-cache.noindex/.trash");
 
 /**
  * Background QoS throttles disk and CPU when anything else (a build) wants
@@ -25,7 +29,7 @@ export const trashCommand = (target: string, trashDir: string) =>
 
 /**
  * zsh: trash entries of `dir` untouched for `olderThanMin` (default an hour),
- * except `keep`. The age check means a build running alongside never loses
+ * except those matching `keep` (a zsh pattern, e.g. "*.noindex"). The age check means a build running alongside never loses
  * its own files. Housekeeping only, so it never fails the task.
  */
 export const trashStaleEntriesCommand = (
