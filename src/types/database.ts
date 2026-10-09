@@ -137,6 +137,8 @@ export interface IAndroidDeploymentDetails {
     versionName: string;
     status: string;
   };
+  /** sha256 of the screenshots/listing images last uploaded to the store */
+  uploadedScreenshotsHash?: string;
 }
 
 export interface IIosDeploymentDetails {
@@ -156,6 +158,8 @@ export interface IIosDeploymentDetails {
     versionName: string;
     status: string;
   };
+  /** sha256 of the screenshots/listing images last uploaded to the store */
+  uploadedScreenshotsHash?: string;
 }
 
 export interface IIosStoreSettings {
