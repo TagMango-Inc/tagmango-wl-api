@@ -19,6 +19,7 @@ import {
   startCancellationListener,
 } from "./cancellation";
 import { queueRedisOptions } from "./config";
+import { hashScreenshots, uploadedHashField } from "./screenshotUploads";
 import { createTaskPerf, diskFreeGb, instrumentCommands } from "./taskPerf";
 import {
   DEPLOYMENT_TRASH,
@@ -560,6 +561,28 @@ const purgeTrashNow = () =>
               }
             }
             try {
+              // The upload task skips screenshots that are byte-identical to
+              // the last ones uploaded for this app (see screenshotUploads).
+              // Android's first deployment has no upload step, so nothing is
+              // recorded for it.
+              const uploadsToStore =
+                task.id === taskNames[8].id &&
+                !(platform === "android" && isFirstDeployment);
+              const screenshotsHash = uploadsToStore
+                ? await hashScreenshots(customHostAppDir, platform)
+                : null;
+              const lastUploadedHash =
+                platform === "ios"
+                  ? metadata?.iosDeploymentDetails?.uploadedScreenshotsHash
+                  : metadata?.androidDeploymentDetails?.uploadedScreenshotsHash;
+              const skipScreenshots =
+                screenshotsHash !== null &&
+                screenshotsHash === lastUploadedHash &&
+                process.env.WL_FORCE_SCREENSHOT_UPLOAD !== "1";
+              if (skipScreenshots) {
+                logger.info("Screenshots unchanged since the last upload, skipping them");
+              }
+
               // executing the tasks
               await executeTask({
                 commands: commands[task.id],
@@ -568,7 +591,15 @@ const purgeTrashNow = () =>
                 job,
                 deploymentId,
                 hostId,
+                env: skipScreenshots ? { WL_SKIP_SCREENSHOTS: "1" } : {},
               });
+
+              if (screenshotsHash && !skipScreenshots) {
+                await Mongo.metadata.updateOne(
+                  { host: new ObjectId(hostId) },
+                  { $set: { [uploadedHashField(platform)]: screenshotsHash } },
+                );
+              }
 
               // updating the version details for the target platform after successful deployment
             } catch (error) {
@@ -725,6 +756,7 @@ const executeTask = async ({
   job,
   deploymentId,
   hostId,
+  env = {},
   onError,
 }: {
   commands: string[];
@@ -733,6 +765,8 @@ const executeTask = async ({
   job: Job<BuildJobPayloadType, any, string>;
   deploymentId: string;
   hostId: string;
+  /** extra environment for this task's shell */
+  env?: Record<string, string>;
   // will be a async function that will be called if the task is failed
   onError?: () => Promise<void>;
 }) => {
@@ -779,6 +813,7 @@ const executeTask = async ({
     cwd: process.cwd(),
     env: {
       ...process.env,
+      ...env,
       LC_ALL: "en_US.UTF-8",
       LANG: "en_US.UTF-8",
     },
