@@ -22,6 +22,7 @@ import { queueRedisOptions } from "./config";
 import { createTaskPerf, diskFreeGb, instrumentCommands } from "./taskPerf";
 import {
   DEPLOYMENT_TRASH,
+  GEM_CACHE_DIR,
   purgeTrashInBackgroundCommand,
   shutdownSimulatorsCommand,
   trashCommand,
@@ -280,7 +281,9 @@ const purgeTrashNow = () =>
               // instead of vendor/bundle in every workspace (~18 s per
               // deployment). Set in this workspace's .bundle/config: the
               // repo's local config would win over a BUNDLE_PATH env var.
-              `source ~/.zshrc && bundle config set --local path "$HOME/wl-cache.noindex/bundle/ruby-$(ruby -e 'print RUBY_VERSION')-$(shasum -a 256 Gemfile.lock | cut -c1-16)" > /dev/null`,
+              // touch marks the folder as used; the cleanup cron removes
+              // folders unused for GEM_CACHE_RETENTION_DAYS.
+              `source ~/.zshrc && gems="${GEM_CACHE_DIR}/ruby-$(ruby -e 'print RUBY_VERSION')-$(shasum -a 256 Gemfile.lock | cut -c1-16)" && mkdir -p "$gems" && touch "$gems" && bundle config set --local path "$gems" > /dev/null`,
             ],
             // step: 3: Copying the WL assets from WLApps/{formatedName} to deployment/{bundleId}/WLApps/{formatedName}
             [taskNames[2].id]: [

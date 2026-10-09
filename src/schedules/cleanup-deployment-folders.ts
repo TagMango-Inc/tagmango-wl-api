@@ -6,10 +6,11 @@ import util from "util";
 import {
   customhostDeploymentDir,
   DEPLOYMENT_FOLDER_RETENTION_HOURS,
+  GEM_CACHE_RETENTION_DAYS,
 } from "../constants";
 import Mongo from "../database";
 import { Status } from "../types/database";
-import { LOW_PRIORITY, XCODE_TRASH } from "../utils/trash";
+import { GEM_CACHE_DIR, GEM_TRASH, LOW_PRIORITY, XCODE_TRASH } from "../utils/trash";
 
 const execFileAsync = util.promisify(execFile);
 
@@ -24,6 +25,30 @@ const trashDir = path.join(deploymentsDir, ".trash");
 const REMOVE_CONCURRENCY = 1;
 
 let isRunning = false;
+
+/**
+ * Moves shared gem folders not used for GEM_CACHE_RETENTION_DAYS into
+ * GEM_TRASH. The copy task touches a folder each time a deployment uses it,
+ * so mtime is the last use. Returns the names moved.
+ */
+const trashUnusedGemFolders = async (stamp: number) => {
+  if (!(await fs.pathExists(GEM_CACHE_DIR))) return [];
+  await fs.ensureDir(GEM_TRASH);
+  const cutoff = Date.now() - GEM_CACHE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const moved: string[] = [];
+  for (const name of await fs.readdir(GEM_CACHE_DIR)) {
+    const dir = path.join(GEM_CACHE_DIR, name);
+    const stat = await fs.lstat(dir);
+    if (!stat.isDirectory() || stat.mtimeMs >= cutoff) continue;
+    try {
+      await fs.rename(dir, path.join(GEM_TRASH, `${name}-${stamp}`));
+      moved.push(name);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
+  return moved;
+};
 
 /** bundle ids with a pending/processing deployment — their folders are in use */
 const getActiveBundles = async () => {
@@ -122,9 +147,14 @@ export const cleanupDeploymentFolders = async () => {
       }),
     );
 
+    const unusedGems = await trashUnusedGemFolders(stamp);
+
     // also picks up anything left behind by an earlier interrupted run, and
-    // Xcode output the worker moved aside
+    // Xcode output and gem folders moved aside
     const trashed = [
+      ...((await fs.pathExists(GEM_TRASH)) ? await fs.readdir(GEM_TRASH) : []).map(
+        (name) => path.join(GEM_TRASH, name),
+      ),
       ...(await fs.readdir(trashDir)).map((name) => path.join(trashDir, name)),
       ...((await fs.pathExists(XCODE_TRASH)) ? await fs.readdir(XCODE_TRASH) : []).map(
         (name) => path.join(XCODE_TRASH, name),
@@ -141,7 +171,7 @@ export const cleanupDeploymentFolders = async () => {
     });
 
     console.log(
-      `Expired (>${DEPLOYMENT_FOLDER_RETENTION_HOURS}h): ${toTrash.join(", ") || "none"}; removed ${removed}/${trashed.length} folders from .trash`,
+      `Expired (>${DEPLOYMENT_FOLDER_RETENTION_HOURS}h): ${toTrash.join(", ") || "none"}; unused gem folders (>${GEM_CACHE_RETENTION_DAYS}d): ${unusedGems.join(", ") || "none"}; removed ${removed}/${trashed.length} folders from trash`,
     );
   } catch (error) {
     console.error("Error cleaning up deployment folders:", error);
