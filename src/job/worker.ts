@@ -5,6 +5,7 @@ import { execFile, spawn } from "child_process";
 import fs from "fs-extra";
 import { ObjectId, UpdateFilter } from "mongodb";
 import os from "os";
+import path from "path";
 import pino from "pino";
 
 import Mongo from "../../src/database";
@@ -24,6 +25,7 @@ import { createTaskPerf, diskFreeGb, instrumentCommands } from "./taskPerf";
 import {
   DEPLOYMENT_TRASH,
   GEM_CACHE_DIR,
+  XCODE_DERIVED_DATA,
   purgeTrashInBackgroundCommand,
   shutdownSimulatorsCommand,
   trashCommand,
@@ -68,28 +70,36 @@ const { readFile, writeFile } = fs.promises;
 // 23 and 26 Sep 2026). Below this floor a job is put back and the worker
 // pauses instead. An Android build needs ~9 GB while it runs.
 const MIN_FREE_DISK_GB = Number(process.env.WL_MIN_FREE_DISK_GB ?? 40);
-// Xcode's compilation cache (CompilationCache.noindex) grows with every new
-// release / pod version and has no size limit of its own. Past this it is
-// moved to trash between builds and refills on the next iOS build.
-const XCODE_CACHE_MAX_GB = Number(process.env.WL_XCODE_CACHE_MAX_GB ?? 25);
+// The *.noindex caches at the top of DerivedData (ModuleCache, and
+// CompilationCache when it is on) have no size limit of their own. Pods
+// modules are built from each app's own path, so the module cache mostly
+// fills with per-app copies nobody reuses. Each is moved to trash between
+// builds once it passes this cap, and refills on the next iOS build.
+const XCODE_CACHE_MAX_GB = Number(process.env.WL_XCODE_CACHE_MAX_GB ?? 10);
 const LOW_DISK_RETRY_MS = 10 * 60 * 1000;
 let lowDiskPausedUntil = 0;
 
-/** runs between jobs (one at a time), so nothing is using the cache */
-const capXcodeCompilationCache = () =>
-  new Promise<void>((resolve) => {
-    const cas = `${os.homedir()}/Library/Developer/Xcode/DerivedData/CompilationCache.noindex`;
-    execFile("du", ["-sk", cas], (error, stdout) => {
-      const gb = error ? 0 : Number(stdout.split("\t")[0]) / 1024 ** 2;
-      if (gb <= XCODE_CACHE_MAX_GB) return resolve();
-      logger.info(`Xcode compilation cache at ${gb.toFixed(1)} GB (cap ${XCODE_CACHE_MAX_GB} GB): moving it to trash`);
-      execFile(
-        "/bin/zsh",
-        ["-c", `mkdir -p ${XCODE_TRASH} && mv ${cas} ${XCODE_TRASH}/CompilationCache-$(date +%s)`],
-        () => resolve(),
-      );
-    });
-  });
+const sizeGb = (dir: string) =>
+  new Promise<number>((resolve) =>
+    execFile("du", ["-sk", dir], (error, stdout) =>
+      resolve(error ? 0 : Number(stdout.split("\t")[0]) / 1024 ** 2),
+    ),
+  );
+
+/** runs between jobs (one at a time), so nothing is using the caches */
+const capXcodeCaches = async () => {
+  if (!(await fs.pathExists(XCODE_DERIVED_DATA))) return;
+  const caches = (await fs.readdir(XCODE_DERIVED_DATA)).filter((n) => n.endsWith(".noindex"));
+  for (const name of caches) {
+    const gb = await sizeGb(path.join(XCODE_DERIVED_DATA, name));
+    if (gb <= XCODE_CACHE_MAX_GB) continue;
+    logger.info(`Xcode ${name} at ${gb.toFixed(1)} GB (cap ${XCODE_CACHE_MAX_GB} GB): moving it to trash`);
+    await fs.ensureDir(XCODE_TRASH);
+    await fs
+      .rename(path.join(XCODE_DERIVED_DATA, name), path.join(XCODE_TRASH, `${name}-${Date.now()}`))
+      .catch((error) => logger.error(error, `Failed to trash ${name}`));
+  }
+};
 
 /** frees what is already in trash; nothing is building, so at normal priority */
 const purgeTrashNow = () =>
@@ -135,7 +145,7 @@ const purgeTrashNow = () =>
             isFirstDeployment,
           } = job.data;
 
-          if (platform === "ios") await capXcodeCompilationCache();
+          if (platform === "ios") await capXcodeCaches();
 
           let freeGb = await diskFreeGb();
           if (freeGb !== null && freeGb < MIN_FREE_DISK_GB) {

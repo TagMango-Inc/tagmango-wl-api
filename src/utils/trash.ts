@@ -12,6 +12,9 @@ import { customhostDeploymentDir } from "../constants";
 export const DEPLOYMENT_TRASH = `${customhostDeploymentDir}/.trash`;
 /** trash for Xcode DerivedData / Archives entries */
 export const XCODE_TRASH = path.join(os.homedir(), "Library/Developer/.wl-trash");
+export const XCODE_DERIVED_DATA = path.join(os.homedir(), "Library/Developer/Xcode/DerivedData");
+export const XCODE_ARCHIVES = path.join(os.homedir(), "Library/Developer/Xcode/Archives");
+export const GYM_LOGS = path.join(os.homedir(), "Library/Logs/gym");
 /** shared gem installs, one folder per Ruby version + Gemfile.lock hash */
 export const GEM_CACHE_DIR = path.join(os.homedir(), "wl-cache.noindex/bundle");
 /** trash for gem folders unused for GEM_CACHE_RETENTION_DAYS */
