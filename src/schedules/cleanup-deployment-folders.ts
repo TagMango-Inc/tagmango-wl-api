@@ -50,10 +50,20 @@ const trashUnusedGemFolders = async (stamp: number) => {
   return moved;
 };
 
-/** bundle ids with a pending/processing deployment — their folders are in use */
+/**
+ * bundle ids whose folder is in use: a running deployment, or a restarted
+ * one queued to resume from its finished tasks. A fresh pending deployment
+ * starts with a new copy of the project, so it doesn't keep a folder.
+ */
 const getActiveBundles = async () => {
   const activeHosts = await Mongo.deployment.distinct("host", {
-    status: { $in: [Status.PENDING, Status.PROCESSING] },
+    $or: [
+      { status: Status.PROCESSING },
+      {
+        status: Status.PENDING,
+        "tasks.status": { $in: [Status.SUCCESS, Status.PROCESSING] },
+      },
+    ],
   });
   if (!activeHosts.length) return new Set<string>();
 
