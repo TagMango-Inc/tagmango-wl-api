@@ -10,7 +10,15 @@ import {
 } from "../constants";
 import Mongo from "../database";
 import { Status } from "../types/database";
-import { GEM_CACHE_DIR, GEM_TRASH, LOW_PRIORITY, XCODE_TRASH } from "../utils/trash";
+import {
+  GEM_CACHE_DIR,
+  GEM_TRASH,
+  GYM_LOGS,
+  LOW_PRIORITY,
+  XCODE_ARCHIVES,
+  XCODE_DERIVED_DATA,
+  XCODE_TRASH,
+} from "../utils/trash";
 
 const execFileAsync = util.promisify(execFile);
 
@@ -46,6 +54,59 @@ const trashUnusedGemFolders = async (stamp: number) => {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
+  }
+  return moved;
+};
+
+const HOUR_MS = 60 * 60 * 1000;
+const GYM_LOG_RETENTION_MS = 3 * 24 * HOUR_MS;
+
+/** the workspace a DerivedData project folder was built from (Xcode's info.plist) */
+const derivedDataWorkspace = async (dir: string) => {
+  try {
+    const plist = await fs.readFile(path.join(dir, "info.plist"), "utf-8");
+    return /<key>WorkspacePath<\/key>\s*<string>([^<]*)<\/string>/.exec(plist)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Xcode output the iOS cleanup step only removes after a *successful*
+ * deployment; failed builds left theirs behind. Moved to XCODE_TRASH here:
+ * DerivedData project folders and archives untouched for an hour (never the
+ * shared *.noindex caches, never a folder built from a workspace in use) and
+ * gym logs older than 3 days. Returns how many were moved.
+ */
+export const trashStaleXcodeOutput = async (activeBundles: Set<string>, stamp: number) => {
+  await fs.ensureDir(XCODE_TRASH);
+  let moved = 0;
+  const trash = async (dir: string, name: string, maxAgeMs: number, guard?: () => Promise<boolean>) => {
+    const full = path.join(dir, name);
+    try {
+      const stat = await fs.lstat(full);
+      if (stat.mtimeMs > Date.now() - maxAgeMs) return;
+      if (guard && !(await guard())) return;
+      await fs.rename(full, path.join(XCODE_TRASH, `${name}-${stamp}`));
+      moved++;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  };
+  const list = async (dir: string) => ((await fs.pathExists(dir)) ? fs.readdir(dir) : []);
+
+  for (const name of await list(XCODE_DERIVED_DATA)) {
+    if (name.endsWith(".noindex") || name.startsWith(".")) continue;
+    await trash(XCODE_DERIVED_DATA, name, HOUR_MS, async () => {
+      const workspace = await derivedDataWorkspace(path.join(XCODE_DERIVED_DATA, name));
+      return ![...activeBundles].some((b) => workspace?.includes(`/${customhostDeploymentDir}/${b}/`));
+    });
+  }
+  for (const name of await list(XCODE_ARCHIVES)) {
+    if (!name.startsWith(".")) await trash(XCODE_ARCHIVES, name, HOUR_MS);
+  }
+  for (const name of await list(GYM_LOGS)) {
+    if (!name.startsWith(".")) await trash(GYM_LOGS, name, GYM_LOG_RETENTION_MS);
   }
   return moved;
 };
@@ -158,6 +219,7 @@ export const cleanupDeploymentFolders = async () => {
     );
 
     const unusedGems = await trashUnusedGemFolders(stamp);
+    const staleXcode = await trashStaleXcodeOutput(activeBundles, stamp);
 
     // also picks up anything left behind by an earlier interrupted run, and
     // Xcode output and gem folders moved aside
@@ -181,7 +243,7 @@ export const cleanupDeploymentFolders = async () => {
     });
 
     console.log(
-      `Expired (>${DEPLOYMENT_FOLDER_RETENTION_HOURS}h): ${toTrash.join(", ") || "none"}; unused gem folders (>${GEM_CACHE_RETENTION_DAYS}d): ${unusedGems.join(", ") || "none"}; removed ${removed}/${trashed.length} folders from trash`,
+      `Expired (>${DEPLOYMENT_FOLDER_RETENTION_HOURS}h): ${toTrash.join(", ") || "none"}; unused gem folders (>${GEM_CACHE_RETENTION_DAYS}d): ${unusedGems.join(", ") || "none"}; removed ${removed}/${trashed.length} folders from trash; stale Xcode output moved: ${staleXcode}`,
     );
   } catch (error) {
     console.error("Error cleaning up deployment folders:", error);
