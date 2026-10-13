@@ -18,6 +18,7 @@ export const Collections = {
   APP_FORM: "appforms",
   APP_DEPLOYMENT_REQUESTS: "appdeploymentrequests",
   APP_RELEASE_VERSIONS: "appreleaseversions",
+  MACHINE_HEALTH: "wlmachinehealth",
 } as const;
 
 export const Platform = {
@@ -708,4 +709,38 @@ export interface IAppReleaseVersions {
   releaseNotes: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** one reading of the build machine, written by src/machineHealth/sampler.ts */
+export interface IMachineHealthSample {
+  t: Date;
+  /** "fast" every 30s (CPU, memory, disk free, I/O); "slow" every 30 min (folder sizes, leftovers) */
+  kind: "fast" | "slow";
+  fast?: {
+    load: [number, number, number];
+    cores: number;
+    /** % of the whole machine (all cores), from top */
+    cpu: { user: number; sys: number; idle: number };
+    mem: { totalGb: number; usedGb: number; appGb: number; wiredGb: number; compressedGb: number };
+    /** kern.memorystatus_vm_pressure_level: 1 normal, 2 warn, 4 critical */
+    pressure: number;
+    swapGb: number;
+    /** pages paged/swapped out since the previous sample */
+    pageouts: number;
+    swapouts: number;
+    disk: { freeGb: number; totalGb: number };
+    io: { mbps: number; tps: number };
+    /** CPU per process group, in cores (1 = one core busy) */
+    groups: Record<string, number>;
+    top: [string, number][];
+  };
+  slow?: {
+    /** GB per watched folder */
+    folders: Record<string, number>;
+    bootedSimulators: string[];
+    gradleDaemons: number;
+    pm2: { name: string; status: string; restarts: number; memMb: number; cpu: number; uptimeMin: number }[];
+    /** ms the folder scan took */
+    scanMs: number;
+  };
 }

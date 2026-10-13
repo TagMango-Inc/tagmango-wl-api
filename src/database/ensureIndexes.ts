@@ -12,6 +12,7 @@ const OWNED_INDEXES: {
   collection: string;
   keys: Record<string, 1 | -1>;
   name: string;
+  expireAfterSeconds?: number;
 }[] = [
   // wldeployments: per-app lists filter by host and sort by updatedAt
   {
@@ -43,6 +44,18 @@ const OWNED_INDEXES: {
     keys: { createdAt: -1 },
     name: "createdAt_-1",
   },
+  // machine health readings: range queries per kind; kept 30 days
+  {
+    collection: Collections.MACHINE_HEALTH,
+    keys: { kind: 1, t: -1 },
+    name: "kind_1_t_-1",
+  },
+  {
+    collection: Collections.MACHINE_HEALTH,
+    keys: { t: 1 },
+    name: "t_1_ttl",
+    expireAfterSeconds: 30 * 24 * 3600,
+  },
 ];
 
 // For visibility in logs only — created by the main app, not here.
@@ -53,9 +66,11 @@ const PROPOSED_SHARED_INDEXES = [
 ];
 
 const ensureIndexes = async (db: Db): Promise<void> => {
-  for (const { collection, keys, name } of OWNED_INDEXES) {
+  for (const { collection, keys, name, expireAfterSeconds } of OWNED_INDEXES) {
     try {
-      await db.collection(collection).createIndex(keys, { name, background: true });
+      await db
+        .collection(collection)
+        .createIndex(keys, { name, background: true, ...(expireAfterSeconds && { expireAfterSeconds }) });
     } catch (error) {
       // createIndex is idempotent for identical specs; a conflict means an
       // index with the same name but different keys exists — surface it.
