@@ -21,6 +21,7 @@ import {
 } from "../../src/types/database";
 import { generateDeploymentTasks } from "../../src/utils/generateTaskDetails";
 import {
+  iosUniversalLinkDetails,
   resolveAppGroupsEnabled,
   resolveIosDeveloperAccount,
   saveAppGroupsEnabled,
@@ -661,12 +662,10 @@ const createNewDeploymentHandler = factory.createHandlers(
               iosDeepLinkConfig: {
                 applinks: {
                   apps: [],
-                  details: [
-                    {
-                      appID: `${iosDeveloperAccount?.teamId}.${metadata.iosDeploymentDetails.bundleId}`,
-                      paths: ["NOT /zoom*", "*"],
-                    },
-                  ],
+                  details: await iosUniversalLinkDetails(
+                    iosDeveloperAccount!,
+                    metadata.iosDeploymentDetails.bundleId,
+                  ),
                 },
               },
             },

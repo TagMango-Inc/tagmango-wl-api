@@ -111,3 +111,25 @@ export const setOneSignalApnsKey = async (
   if (!data?.id || "errors" in data) return { ok: false, error: data };
   return { ok: true };
 };
+
+/**
+ * Universal-link entries for the app's apple-app-site-association file: one
+ * per iOS developer account, the app's own team first. An app transferred
+ * between our accounts has builds signed by both teams on people's phones,
+ * and each build only matches the entry with its own team ID. An entry for a
+ * team that doesn't own the app is ignored by iOS.
+ */
+export const iosUniversalLinkDetails = async (
+  account: WithId<IDeveloperAccountIos>,
+  bundleId: string,
+) => {
+  const otherTeams = (
+    await Mongo.developer_accounts_ios
+      .find({ _id: { $ne: account._id } }, { projection: { teamId: 1 } })
+      .toArray()
+  ).map((a) => a.teamId);
+  return [...new Set([account.teamId, ...otherTeams])].map((teamId) => ({
+    appID: `${teamId}.${bundleId}`,
+    paths: ["NOT /zoom*", "*"],
+  }));
+};
