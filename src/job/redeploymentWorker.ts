@@ -11,9 +11,13 @@ import {
   IDeveloperAccountIos,
   Status,
 } from "../../src/types/database";
-import { DEFAULT_IOS_DEVELOPER_ACCOUNT_ID } from "../constants";
 import { RedeploymentJobPayloadType } from "../types";
 import { generateDeploymentTasks } from "../utils/generateTaskDetails";
+import {
+  resolveAppGroupsEnabled,
+  resolveIosDeveloperAccount,
+  saveAppGroupsEnabled,
+} from "../utils/iosDeployment";
 import { buildQueue, queueRedisOptions } from "./config";
 
 const logger = pino({
@@ -317,32 +321,10 @@ const { readFile, writeFile } = fs.promises;
                     _id: metadata.androidDeveloperAccount,
                   });
               } else if (target === "ios") {
-                // NOTE: After migrations, all the metadata were linked to old developer account
-                // for new metadatas, we need to link to default ios developer account and save
-
-                if (metadata.iosDeveloperAccount) {
-                  iosDeveloperAccount =
-                    await Mongo.developer_accounts_ios.findOne({
-                      _id: metadata.iosDeveloperAccount,
-                    });
-                } else {
-                  iosDeveloperAccount =
-                    await Mongo.developer_accounts_ios.findOne({
-                      _id: new ObjectId(DEFAULT_IOS_DEVELOPER_ACCOUNT_ID), // default ios developer account id
-                    });
-
-                  // save the default ios developer account id to the metadata
-                  await Mongo.metadata.updateOne(
-                    { host: new ObjectId(customhost._id) },
-                    {
-                      $set: {
-                        iosDeveloperAccount: new ObjectId(
-                          DEFAULT_IOS_DEVELOPER_ACCOUNT_ID,
-                        ),
-                      },
-                    },
-                  );
-                }
+                iosDeveloperAccount = await resolveIosDeveloperAccount(
+                  customhost._id,
+                  metadata,
+                );
               }
 
               if (target === "ios" && !iosDeveloperAccount) {
@@ -365,6 +347,18 @@ const { readFile, writeFile } = fs.promises;
                 );
 
                 continue;
+              }
+
+              // redeployments are never first deployments, so an app without
+              // the flag yet keeps its App Group
+              let appGroupsEnabled: boolean | undefined;
+              if (target === "ios") {
+                appGroupsEnabled = resolveAppGroupsEnabled(metadata, false);
+                await saveAppGroupsEnabled(
+                  customhost._id,
+                  metadata,
+                  appGroupsEnabled,
+                );
               }
 
               const { lastDeploymentDetails } =
@@ -434,6 +428,7 @@ const { readFile, writeFile } = fs.promises;
                   : metadata.iosStoreSettings.name
                 ).replace(/ /g, ""),
                 platform: target,
+                appGroupsEnabled,
               });
               // creating a new deployment
               const createdDeployment = await Mongo.deployment.insertOne({
@@ -449,6 +444,7 @@ const { readFile, writeFile } = fs.promises;
                 updatedAt: new Date(),
                 isFirstDeployment: false,
                 generateIAPScreenshot: false,
+                ...(appGroupsEnabled !== undefined && { appGroupsEnabled }),
                 redeploymentId: new ObjectId(redeploymentId),
               });
 
@@ -486,6 +482,7 @@ const { readFile, writeFile } = fs.promises;
                   androidDeveloperAccount,
                   iosDeveloperAccount,
                   isFirstDeployment: false,
+                  appGroupsEnabled,
                 },
                 {
                   attempts: 0,

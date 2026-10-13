@@ -10,7 +10,9 @@ import {
   updateBuildMetadataAndroidSettings,
   updateBuildMetadataIosSettings,
   updateInfoMetadataIosSettings,
+  updateIosAppGroups,
   updateIosAppleId,
+  updateIosDeveloperAccountForApp,
   updateReviewMetadataIosSettings,
   updateStoreMetadataAndroidSettings,
   updateStoreMetadataIosSettings,
@@ -42,6 +44,11 @@ router.patch(
 );
 
 router.patch("/:appId/settings/ios/updateAppleId", ...updateIosAppleId);
+router.patch(
+  "/:appId/settings/ios/developer-account",
+  ...updateIosDeveloperAccountForApp,
+);
+router.patch("/:appId/settings/ios/app-groups", ...updateIosAppGroups);
 router.patch("/:appId/settings/ios/build", ...updateBuildMetadataIosSettings);
 router.patch("/:appId/settings/ios/store", ...updateStoreMetadataIosSettings);
 router.patch("/:appId/settings/ios/info", ...updateInfoMetadataIosSettings);

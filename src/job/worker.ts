@@ -12,6 +12,7 @@ import Mongo from "../../src/database";
 import { IDeploymentTask, IMetaData } from "../../src/types/database";
 import { customhostDeploymentDir, githubrepo } from "../constants";
 import { BuildJobPayloadType, JobProgressType } from "../types";
+import { iosPipelineFor } from "../utils/iosDeployment";
 import {
   clearActiveTask,
   consumeCancelRequest,
@@ -20,6 +21,7 @@ import {
   startCancellationListener,
 } from "./cancellation";
 import { queueRedisOptions } from "./config";
+import { iosCreateAppCommands } from "./iosPipelines";
 import { hashScreenshots, uploadedHashField } from "./screenshotUploads";
 import { createTaskPerf, diskFreeGb, instrumentCommands } from "./taskPerf";
 import {
@@ -144,6 +146,8 @@ const purgeTrashNow = () =>
             iosDeveloperAccount,
             isFirstDeployment,
           } = job.data;
+          // jobs queued before the flag existed were all App Group apps
+          const appGroupsEnabled = job.data.appGroupsEnabled ?? true;
 
           if (platform === "ios") await capXcodeCaches();
 
@@ -447,6 +451,8 @@ const purgeTrashNow = () =>
                   androidDeveloperAccount ?? {},
                 ),
                 iosDeveloperAccount: JSON.stringify(iosDeveloperAccount ?? {}),
+                // always explicit: app-build.js treats a missing value as true
+                appGroups: appGroupsEnabled,
               })}`,
             ],
 
@@ -457,14 +463,10 @@ const purgeTrashNow = () =>
                   ? [
                       // node_modules is already installed by the pre-deploy task
                       `cd ${customHostAppDir}`,
-                      // create ios apps on apple dev center and app store connect, skips if already created
-                      `source ~/.zshrc && bundle exec fastlane ios create`,
-                      // create app group for ios bundle, skips if already created
-                      `source ~/.zshrc && bundle exec fastlane produce group -g group.${bundle}.onesignal -n "group ${bundle.split(".").join(" ")} onesignal"`,
-                      // associate bundle with app group, skips if already associated
-                      `source ~/.zshrc && bundle exec fastlane produce associate_group -a ${bundle} group.${bundle}.onesignal`,
-                      // associate bundle with app group, skips if already associated
-                      `source ~/.zshrc && bundle exec fastlane produce associate_group -a ${bundle}.OneSignalNotificationServiceExtension group.${bundle}.onesignal`,
+                      ...iosCreateAppCommands(
+                        iosPipelineFor(appGroupsEnabled),
+                        bundle,
+                      ),
                       `node ./scripts/appstore-metadata.js ${JSON.stringify({
                         hostId,
                         bundle,

@@ -214,8 +214,30 @@ const getUploadKeyCertificate = factory.createHandlers(async (c) => {
   }
 });
 
+/**
+ * GET /developer-accounts/ios
+ * fetch all developer accounts ios (names and team only; no credentials)
+ */
+const getAllDeveloperAccountsIosHandler = factory.createHandlers(async (c) => {
+  try {
+    const accounts = await Mongo.developer_accounts_ios
+      .find({}, { projection: { name: 1, teamId: 1, teamName: 1 } })
+      .toArray();
+    return c.json({
+      message: "Developer Accounts iOS",
+      result: accounts ?? [],
+    });
+  } catch (error) {
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
+
 export {
   createNewDeveloperAccountAndroidHandler,
+  getAllDeveloperAccountsIosHandler,
   getAllDeveloperAccountsAndroidHandler,
   getDeveloperAccountAndroidByIdHandler,
   getUploadKeyCertificate,
