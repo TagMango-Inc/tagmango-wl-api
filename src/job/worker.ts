@@ -12,7 +12,11 @@ import Mongo from "../../src/database";
 import { IDeploymentTask, IMetaData } from "../../src/types/database";
 import { customhostDeploymentDir, githubrepo } from "../constants";
 import { BuildJobPayloadType, JobProgressType } from "../types";
-import { iosPipelineFor } from "../utils/iosDeployment";
+import {
+  iosPipelineFor,
+  resolveAppGroupsEnabled,
+  saveAppGroupsEnabled,
+} from "../utils/iosDeployment";
 import {
   clearActiveTask,
   consumeCancelRequest,
@@ -81,6 +85,57 @@ const XCODE_CACHE_MAX_GB = Number(process.env.WL_XCODE_CACHE_MAX_GB ?? 10);
 const LOW_DISK_RETRY_MS = 10 * 60 * 1000;
 let lowDiskPausedUntil = 0;
 
+/**
+ * The app's iOS account and App Group setting as they are now. Falls back to
+ * the job's copy only when the app has no account saved. The resolved App
+ * Group setting is saved on the metadata and the deployment.
+ */
+const currentIosSettings = async (data: BuildJobPayloadType) => {
+  const host = new ObjectId(data.hostId);
+  const metadata = await Mongo.metadata.findOne(
+    { host },
+    {
+      projection: {
+        iosDeveloperAccount: 1,
+        "iosDeploymentDetails.appGroupsEnabled": 1,
+      },
+    },
+  );
+  const deployment = await Mongo.deployment.findOne(
+    { _id: new ObjectId(data.deploymentId) },
+    { projection: { appGroupsEnabled: 1 } },
+  );
+
+  let iosDeveloperAccount = data.iosDeveloperAccount ?? null;
+  if (
+    metadata?.iosDeveloperAccount &&
+    !metadata.iosDeveloperAccount.equals(iosDeveloperAccount?._id)
+  ) {
+    iosDeveloperAccount = await Mongo.developer_accounts_ios.findOne({
+      _id: metadata.iosDeveloperAccount,
+    });
+    logger.info(
+      `iOS account for ${data.bundle} changed since the job was queued; using ${iosDeveloperAccount?.name}`,
+    );
+  }
+
+  // a restart keeps the pipeline its deployment started with
+  const appGroupsEnabled =
+    deployment?.appGroupsEnabled ??
+    (metadata
+      ? resolveAppGroupsEnabled(metadata, data.isFirstDeployment)
+      : (data.appGroupsEnabled ?? !data.isFirstDeployment));
+  if (metadata) await saveAppGroupsEnabled(host, metadata, appGroupsEnabled);
+  if (deployment?.appGroupsEnabled === undefined) {
+    await Mongo.deployment.updateOne(
+      { _id: new ObjectId(data.deploymentId) },
+      { $set: { appGroupsEnabled } },
+    );
+  }
+
+  return { iosDeveloperAccount, appGroupsEnabled };
+};
+
 const sizeGb = (dir: string) =>
   new Promise<number>((resolve) =>
     execFile("du", ["-sk", dir], (error, stdout) =>
@@ -143,11 +198,15 @@ const purgeTrashNow = () =>
             generateIAPScreenshot,
 
             androidDeveloperAccount,
-            iosDeveloperAccount,
             isFirstDeployment,
           } = job.data;
-          // jobs queued before the flag existed were all App Group apps
-          const appGroupsEnabled = job.data.appGroupsEnabled ?? true;
+          // A job can wait in the queue for days (bulk redeploys), and the
+          // app's iOS account or App Group setting can change meanwhile, so
+          // both are read again now instead of trusted from the payload.
+          const { iosDeveloperAccount, appGroupsEnabled } =
+            platform === "ios"
+              ? await currentIosSettings(job.data)
+              : { iosDeveloperAccount: null, appGroupsEnabled: false };
 
           if (platform === "ios") await capXcodeCaches();
 
