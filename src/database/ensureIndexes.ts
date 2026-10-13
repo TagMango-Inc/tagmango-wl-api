@@ -1,4 +1,4 @@
-import { Db } from "mongodb";
+import { CreateIndexesOptions, Db } from "mongodb";
 
 import { Collections } from "../types/database";
 
@@ -12,6 +12,7 @@ const OWNED_INDEXES: {
   collection: string;
   keys: Record<string, 1 | -1>;
   name: string;
+  options?: CreateIndexesOptions;
 }[] = [
   // wldeployments: per-app lists filter by host and sort by updatedAt
   {
@@ -43,6 +44,35 @@ const OWNED_INDEXES: {
     keys: { createdAt: -1 },
     name: "createdAt_-1",
   },
+  // one running iOS review run per developer account (acts as the lock
+  // across API instances)
+  {
+    collection: Collections.IOS_REVIEW_RUNS,
+    keys: { developerAccount: 1 },
+    name: "developerAccount_1_processing_unique",
+    options: {
+      unique: true,
+      partialFilterExpression: { status: "processing" },
+    },
+  },
+  // latest run per account
+  {
+    collection: Collections.IOS_REVIEW_RUNS,
+    keys: { developerAccount: 1, createdAt: -1 },
+    name: "developerAccount_1_createdAt_-1",
+  },
+  // rows of a run
+  {
+    collection: Collections.IOS_REVIEW_APPS,
+    keys: { run: 1 },
+    name: "run_1",
+  },
+  // newer submit results per app, overlaid on the latest scan
+  {
+    collection: Collections.IOS_REVIEW_APPS,
+    keys: { developerAccount: 1, runType: 1, createdAt: -1 },
+    name: "developerAccount_1_runType_1_createdAt_-1",
+  },
 ];
 
 // For visibility in logs only — created by the main app, not here.
@@ -53,9 +83,11 @@ const PROPOSED_SHARED_INDEXES = [
 ];
 
 const ensureIndexes = async (db: Db): Promise<void> => {
-  for (const { collection, keys, name } of OWNED_INDEXES) {
+  for (const { collection, keys, name, options } of OWNED_INDEXES) {
     try {
-      await db.collection(collection).createIndex(keys, { name, background: true });
+      await db
+        .collection(collection)
+        .createIndex(keys, { name, background: true, ...options });
     } catch (error) {
       // createIndex is idempotent for identical specs; a conflict means an
       // index with the same name but different keys exists — surface it.

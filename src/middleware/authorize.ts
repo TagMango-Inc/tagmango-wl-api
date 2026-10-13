@@ -6,7 +6,8 @@ const factory = createFactory();
 
 /**
  * Role-based route authorization — mirrors what the dashboard UI enforces
- * (read = view-only; write = everything except user management and release;
+ * (read = view-only; write = everything except user management, release and
+ * iOS review submission;
  * admin = all). Runs after authenticationMiddleware, which sets `userRole`.
  *
  * Closes the hole where any valid token could call any endpoint directly.
@@ -32,9 +33,14 @@ const authorizeMiddleware = factory.createMiddleware(async (c, next) => {
   // own-password change is open to every role (used by the invite flow too)
   const isOwnPasswordChange = path.endsWith("/users/update-password");
 
+  // submitting apps for App Store review is admin-only; scans are read-only
+  const isIosReviewSubmit =
+    path.startsWith("/wl/ios-review/") && path.endsWith("/submit");
+
   const adminOnlyArea =
     (path.startsWith("/wl/user-management") && !isOwnPasswordChange) ||
-    path.startsWith("/wl/release");
+    path.startsWith("/wl/release") ||
+    isIosReviewSubmit;
 
   if (adminOnlyArea) {
     return c.json(

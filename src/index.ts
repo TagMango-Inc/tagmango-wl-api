@@ -17,6 +17,7 @@ import customHostRouter from "./routers/customHostRouter";
 import deploymentRequestRouter from "./routers/deploymentRequestRouter";
 import developerAccountsRouter from "./routers/developerAccountsRouter";
 import iapRouter from "./routers/iapRouter";
+import iosReviewRouter from "./routers/iosReviewRouter";
 import metadataRouter from "./routers/metadataRouter";
 import outputRouter from "./routers/outputRouter";
 import releaseRouter from "./routers/releaseRouter";
@@ -63,6 +64,7 @@ Mongo.connect().then(() => {
     authenticationMiddleware,
     authorizeMiddleware,
   );
+  app.use("/ios-review/*", authenticationMiddleware, authorizeMiddleware);
   // forms auth was previously commented out — every /wl/forms route
   // (list, counts, form details, live-apps) was publicly accessible.
   // both patterns needed: "/forms" for the exact list route, "/forms/*"
@@ -124,6 +126,7 @@ Mongo.connect().then(() => {
   app.route("/developer-accounts", developerAccountsRouter);
   app.route("/forms", appFormsRouter);
   app.route("/deployment-requests", deploymentRequestRouter);
+  app.route("/ios-review", iosReviewRouter);
 
   app.use(prettyJSON());
 
