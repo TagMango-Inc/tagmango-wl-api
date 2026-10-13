@@ -40,6 +40,16 @@ const updateAndroidDeploymentAccountSchema = z.object({
   developerAccountId: z.string(),
 });
 
+const updateIosDeploymentAccountSchema = z.object({
+  developerAccountId: z.string().regex(/^[a-f0-9]{24}$/),
+});
+
+// App Groups can only be turned off: turning them on would need the group
+// created and linked and both provisioning profiles regenerated
+const updateIosAppGroupsSchema = z.object({
+  enabled: z.literal(false),
+});
+
 const updateIosAppleIdSchema = z.object({
   appleId: z.string(),
 });
@@ -68,6 +78,8 @@ export {
   reorderAndroidScreenshotsSchema,
   reorderIosScreenshotsSchema,
   updateAndroidDeploymentAccountSchema,
+  updateIosAppGroupsSchema,
+  updateIosDeploymentAccountSchema,
   updateAndroidDeploymentDetailsSchema,
   updateAndroidStoreMetadataSchema,
   updateIosAppleIdSchema,

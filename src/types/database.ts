@@ -89,6 +89,8 @@ export interface IDeployment {
   cancelledBy: ObjectId | null;
   isFirstDeployment: boolean;
   generateIAPScreenshot: boolean;
+  /** iOS only: whether this deployment built with the OneSignal App Group */
+  appGroupsEnabled?: boolean;
   redeploymentId?: ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
@@ -154,6 +156,11 @@ export interface IIosDeploymentDetails {
   isInExternalDevAccount?: boolean;
   isDeploymentBlocked?: boolean;
   deploymentBlockReason?: string;
+  /**
+   * Whether the app uses the group.<bundle>.onesignal App Group (see
+   * utils/iosDeployment). Missing means not decided yet.
+   */
+  appGroupsEnabled?: boolean;
   appStore?: {
     versionName: string;
     status: string;
