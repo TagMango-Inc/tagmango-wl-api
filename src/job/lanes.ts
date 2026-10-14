@@ -7,7 +7,10 @@
 export const takingTurns = () => {
   let last: Promise<unknown> = Promise.resolve();
   return <T>(run: () => Promise<T>): Promise<T> => {
-    const turn = last.then(run, run);
+    // called with no arguments: .then would pass the previous turn's result
+    // (or error) to run
+    const start = () => run();
+    const turn = last.then(start, start);
     last = turn.catch(() => undefined);
     return turn;
   };
