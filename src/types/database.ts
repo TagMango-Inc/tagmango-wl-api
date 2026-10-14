@@ -18,6 +18,8 @@ export const Collections = {
   APP_FORM: "appforms",
   APP_DEPLOYMENT_REQUESTS: "appdeploymentrequests",
   APP_RELEASE_VERSIONS: "appreleaseversions",
+  IOS_REVIEW_RUNS: "wliosreviewruns",
+  IOS_REVIEW_APPS: "wliosreviewapps",
   MACHINE_HEALTH: "wlmachinehealth",
 } as const;
 
@@ -718,6 +720,74 @@ export interface IAppReleaseVersions {
   releaseNotes: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/**
+ * Bulk "Submit for Review" on App Store Connect (redeployments only).
+ * A run is either a read-only scan of one developer account, or a submit of
+ * the selected apps. Every app checked in a run gets an IIosReviewApp row.
+ */
+export const IosReviewAppStatus = {
+  /** live version + draft version + valid build, nothing open: can be submitted */
+  ELIGIBLE: "eligible",
+  SUBMITTED: "submitted",
+  /** no version live yet: first deployment, needs IAPs etc. done manually */
+  NEW_DEPLOYMENT: "new-deployment",
+  BUILD_MISSING: "build-missing",
+  BUILD_PROCESSING: "build-processing",
+  BUILD_INVALID: "build-invalid",
+  /** a submission is already waiting for review / in review */
+  IN_REVIEW: "in-review",
+  /** a submission has unresolved issues (Apple rejected it) */
+  REJECTED: "rejected",
+  /** no version in Prepare for Submission / Ready for Review anymore */
+  NO_DRAFT: "no-draft",
+  /** app exists in App Store Connect but not in our metadata */
+  NOT_IN_DASHBOARD: "not-in-dashboard",
+  /** host is platform-suspended or its iOS deployment is blocked */
+  BLOCKED: "blocked",
+  ERROR: "error",
+} as const;
+
+export type IosReviewAppStatus =
+  (typeof IosReviewAppStatus)[keyof typeof IosReviewAppStatus];
+
+export type IosReviewRunType = "scan" | "submit";
+
+export interface IIosReviewRun {
+  developerAccount: ObjectId;
+  type: IosReviewRunType;
+  status: Exclude<Status, "pending" | "cancelled" | "warning">;
+  user: ObjectId;
+  /** submit runs: the App Store Connect app ids that were selected */
+  appleIds?: string[];
+  total: number;
+  processed: number;
+  counts: Partial<Record<IosReviewAppStatus, number>>;
+  error?: string;
+  /** bumped while the run makes progress; a stale one means the process died */
+  heartbeatAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  finishedAt?: Date;
+}
+
+export interface IIosReviewApp {
+  run: ObjectId;
+  runType: IosReviewRunType;
+  developerAccount: ObjectId;
+  appleId: string;
+  bundleId: string;
+  appName: string;
+  host: ObjectId | null;
+  hostName: string;
+  liveVersion: string;
+  draftVersion: string;
+  build: string;
+  releaseType: string;
+  status: IosReviewAppStatus;
+  note: string;
+  createdAt: Date;
 }
 
 /** one reading of the build machine, written by src/machineHealth/sampler.ts */

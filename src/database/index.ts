@@ -14,6 +14,8 @@ import {
   IDeploymentRequest,
   IDeveloperAccountAndroid,
   IDeveloperAccountIos,
+  IIosReviewApp,
+  IIosReviewRun,
   IMachineHealthSample,
   IMango,
   IMangoRoom,
@@ -49,6 +51,8 @@ abstract class Mongo {
   public static app_forms: Collection<IAppForm>;
   public static deployment_requests: Collection<IDeploymentRequest>;
   public static app_release_versions: Collection<IAppReleaseVersions>;
+  public static ios_review_runs: Collection<IIosReviewRun>;
+  public static ios_review_apps: Collection<IIosReviewApp>;
   public static machine_health: Collection<IMachineHealthSample>;
 
   public static async connect(): Promise<void> {
@@ -96,6 +100,12 @@ abstract class Mongo {
       );
       this.app_release_versions = this.db.collection<IAppReleaseVersions>(
         Collections.APP_RELEASE_VERSIONS,
+      );
+      this.ios_review_runs = this.db.collection<IIosReviewRun>(
+        Collections.IOS_REVIEW_RUNS,
+      );
+      this.ios_review_apps = this.db.collection<IIosReviewApp>(
+        Collections.IOS_REVIEW_APPS,
       );
       this.machine_health = this.db.collection<IMachineHealthSample>(
         Collections.MACHINE_HEALTH,
