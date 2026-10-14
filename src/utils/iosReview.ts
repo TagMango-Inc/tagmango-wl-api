@@ -1,10 +1,12 @@
-import { MongoServerError, ObjectId, WithId } from "mongodb";
+import { Collection, MongoServerError, ObjectId, WithId } from "mongodb";
 
 import Mongo from "../database";
 import {
+  ICustomHost,
   IDeveloperAccountIos,
   IIosReviewApp,
   IIosReviewRun,
+  IMetaData,
   IosReviewAppStatus,
   IosReviewRunType,
 } from "../types/database";
@@ -88,9 +90,19 @@ const listCandidateApps = async (
   }
 };
 
-/** our host for each App Store Connect app id, plus why it may not be submitted */
-const loadHostInfo = async (appleIds: string[]) => {
-  const metadatas = await Mongo.metadata
+/**
+ * our host for each App Store Connect app id, plus why it may not be submitted.
+ * Collections are injectable so the dry-run script can use its own read-only
+ * connection.
+ */
+const loadHostInfo = async (
+  appleIds: string[],
+  collections: {
+    metadata: Collection<IMetaData>;
+    customhost: Collection<ICustomHost>;
+  } = { metadata: Mongo.metadata, customhost: Mongo.customhost },
+) => {
+  const metadatas = await collections.metadata
     .find(
       { "iosDeploymentDetails.appleId": { $in: appleIds } },
       {
@@ -103,7 +115,7 @@ const loadHostInfo = async (appleIds: string[]) => {
       },
     )
     .toArray();
-  const hosts = await Mongo.customhost
+  const hosts = await collections.customhost
     .find(
       { _id: { $in: metadatas.map((m) => m.host) } },
       {
@@ -596,4 +608,10 @@ const startIosReviewRun = async ({
   return { started: true, runId };
 };
 
-export { failStaleRuns, startIosReviewRun };
+export {
+  failStaleRuns,
+  listCandidateApps,
+  loadHostInfo,
+  processApp,
+  startIosReviewRun,
+};
