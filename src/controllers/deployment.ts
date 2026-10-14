@@ -439,6 +439,8 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
                   buildNumber: 1,
                   status: 1,
                   createdAt: 1,
+                  // iOS only; absent on deployments made before App Groups was tracked
+                  appGroupsEnabled: 1,
                 },
               },
             ],
