@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-import { DelayedError, Job, Worker } from "bullmq";
+import { DelayedError, Job, Processor, Worker } from "bullmq";
 import { execFile, spawn } from "child_process";
 import fs from "fs-extra";
 import { ObjectId, UpdateFilter } from "mongodb";
@@ -24,7 +24,7 @@ import {
   registerActiveTask,
   startCancellationListener,
 } from "./cancellation";
-import { queueRedisOptions } from "./config";
+import { ANDROID_BUILD_QUEUE, queueRedisOptions } from "./config";
 import {
   APP_PRIVACY_HASH_FIELD,
   appPrivacyMarker,
@@ -32,11 +32,18 @@ import {
   hashAppPrivacy,
 } from "./appStoreConnect";
 import { iosCreateAppCommands } from "./iosPipelines";
+import {
+  claimBundle,
+  releaseBundle,
+  withRootRepo,
+  withSimulator,
+} from "./lanes";
 import { hashScreenshots, uploadedHashField } from "./screenshotUploads";
 import { createTaskPerf, diskFreeGb, instrumentCommands } from "./taskPerf";
 import {
   DEPLOYMENT_TRASH,
   GEM_CACHE_DIR,
+  LOW_PRIORITY,
   XCODE_DERIVED_DATA,
   purgeTrashInBackgroundCommand,
   shutdownSimulatorsCommand,
@@ -90,6 +97,9 @@ const MIN_FREE_DISK_GB = Number(process.env.WL_MIN_FREE_DISK_GB ?? 40);
 const XCODE_CACHE_MAX_GB = Number(process.env.WL_XCODE_CACHE_MAX_GB ?? 10);
 const LOW_DISK_RETRY_MS = 10 * 60 * 1000;
 let lowDiskPausedUntil = 0;
+
+// how long a deploy waits when its app is building in the other lane (lanes.ts)
+const BUNDLE_BUSY_RETRY_MS = 2 * 60 * 1000;
 
 /**
  * The app's iOS account and App Group setting as they are now. Falls back to
@@ -149,7 +159,7 @@ const sizeGb = (dir: string) =>
     ),
   );
 
-/** runs between jobs (one at a time), so nothing is using the caches */
+/** runs before each iOS job; only the iOS lane uses Xcode, one job at a time, so nothing is using the caches */
 const capXcodeCaches = async () => {
   if (!(await fs.pathExists(XCODE_DERIVED_DATA))) return;
   const caches = (await fs.readdir(XCODE_DERIVED_DATA)).filter((n) => n.endsWith(".noindex"));
@@ -164,12 +174,12 @@ const capXcodeCaches = async () => {
   }
 };
 
-/** frees what is already in trash; nothing is building, so at normal priority */
+/** frees what is already in trash; low priority, the other lane may be building */
 const purgeTrashNow = () =>
   new Promise<void>((resolve) =>
     execFile(
       "/bin/zsh",
-      ["-c", `rm -rf ${DEPLOYMENT_TRASH}/*(DN) ${XCODE_TRASH}/*(DN)`],
+      ["-c", `${LOW_PRIORITY.join(" ")} rm -rf ${DEPLOYMENT_TRASH}/*(DN) ${XCODE_TRASH}/*(DN)`],
       () => resolve(),
     ),
   );
@@ -177,9 +187,7 @@ const purgeTrashNow = () =>
 (async () => {
   Mongo.connect()
     .then(() => {
-      const worker = new Worker<BuildJobPayloadType>(
-        "buildQueue",
-        async (job, token) => {
+      const processBuildJob: Processor<BuildJobPayloadType> = async (job, token) => {
           const {
             deploymentId,
             hostId,
@@ -228,9 +236,18 @@ const purgeTrashNow = () =>
             await job.moveToDelayed(Date.now() + LOW_DISK_RETRY_MS, token);
             if (Date.now() > lowDiskPausedUntil) {
               lowDiskPausedUntil = Date.now() + LOW_DISK_RETRY_MS;
-              worker.pause(true);
-              setTimeout(() => worker.resume(), LOW_DISK_RETRY_MS);
+              for (const worker of workers) worker.pause(true);
+              setTimeout(() => workers.forEach((worker) => worker.resume()), LOW_DISK_RETRY_MS);
             }
+            throw new DelayedError();
+          }
+
+          // an app's iOS and Android deploys share deployments/<bundle>
+          if (!claimBundle(bundle, job.id!)) {
+            logger.info(
+              `${bundle} is building in the other lane: putting deployment ${deploymentId} back for ${BUNDLE_BUSY_RETRY_MS / 60000} min`,
+            );
+            await job.moveToDelayed(Date.now() + BUNDLE_BUSY_RETRY_MS, token);
             throw new DelayedError();
           }
 
@@ -244,8 +261,8 @@ const purgeTrashNow = () =>
           const gymLogsPath = `/Users/${username}/Library/Logs/gym`;
 
           // get screenshots values from DB as the job starts instead of getting a copy when the job is created
-          // assumption: only 1 deployment is running at a time, so we can get the latest values from the DB
-          // NOTE: do not increase max concurrency of the worker to more than 1
+          // assumption: one deployment per app at a time (claimBundle in lanes.ts), so we can get the latest values from the DB
+          // NOTE: each lane runs one job at a time; do not raise a worker's concurrency
 
           const metadata = await Mongo.metadata.findOne({
             host: new ObjectId(hostId),
@@ -677,8 +694,12 @@ const purgeTrashNow = () =>
                 platform === "ios" &&
                 (task.id === taskNames[7].id || task.id === taskNames[8].id);
 
-              // executing the tasks
-              await executeTask({
+              // executing the tasks; the ones that touch root/<repo> or the
+              // simulator take turns with the other lane
+              const usesRootRepo =
+                task.id === taskNames[0].id || task.id === taskNames[1].id;
+              const usesSimulator = task.id === taskNames[3].id;
+              const runTask = () => executeTask({
                 commands: commands[task.id],
                 taskId: task.id,
                 taskName: task.name,
@@ -695,6 +716,11 @@ const purgeTrashNow = () =>
                     : {}),
                 },
               });
+              await (usesRootRepo
+                ? withRootRepo(runTask)
+                : usesSimulator
+                  ? withSimulator(runTask)
+                  : runTask());
 
               if (screenshotsHash && !skipScreenshots) {
                 await Mongo.metadata.updateOne(
@@ -812,18 +838,24 @@ const purgeTrashNow = () =>
             await updateVersionDetails({ deploymentId, hostId, platform });
           }
           consumeCancelRequest(deploymentId);
-          clearActiveTask();
+          clearActiveTask(deploymentId);
           logger.info("Deployment Process Completed");
-        },
-        {
-          connection: queueRedisOptions,
-          concurrency: 1,
-        },
-      );
+        };
 
-      worker.on("stalled", (job) => {
-        logger.error(`Job has been stalled ${job}`);
-      });
+      const workers = ["buildQueue", ANDROID_BUILD_QUEUE].map(
+        (queueName) =>
+          new Worker<BuildJobPayloadType>(queueName, processBuildJob, {
+            connection: queueRedisOptions,
+            concurrency: 1,
+          }),
+      );
+      for (const worker of workers) {
+        worker.on("stalled", (job) => {
+          logger.error(`Job has been stalled ${job}`);
+        });
+        worker.on("completed", releaseBundle);
+        worker.on("failed", (job) => releaseBundle(job));
+      }
 
       startCancellationListener();
       logger.info("Worker Started");
@@ -1028,7 +1060,7 @@ const executeTask = async ({
     e.on("close", resolve);
     e.on("error", reject);
   });
-  clearActiveTask();
+  clearActiveTask(deploymentId);
   const taskPerf = await perf.finish(diskFreeStart);
 
   // the non-zero exit may be our own SIGTERM — report cancelled, not failed

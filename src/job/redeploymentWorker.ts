@@ -18,7 +18,7 @@ import {
   resolveIosDeveloperAccount,
   saveAppGroupsEnabled,
 } from "../utils/iosDeployment";
-import { buildQueue, queueRedisOptions } from "./config";
+import { buildQueueFor, findBuildJob, queueRedisOptions } from "./config";
 
 const logger = pino({
   level: "debug",
@@ -91,7 +91,7 @@ const { readFile, writeFile } = fs.promises;
               if (recentActiveDeployment) {
                 // deterministic job ids: direct lookup instead of scanning
                 // the whole queue once per host
-                const job = await buildQueue.getJob(
+                const job = await findBuildJob(
                   recentActiveDeployment._id.toString(),
                 );
                 if (job) {
@@ -448,7 +448,7 @@ const { readFile, writeFile } = fs.promises;
                 redeploymentId: new ObjectId(redeploymentId),
               });
 
-              await buildQueue.add(
+              await (await buildQueueFor(target)).add(
                 `${createdDeployment.insertedId.toString()}-${target}-${currentVersionName}`,
                 {
                   deploymentId: createdDeployment.insertedId.toString(),

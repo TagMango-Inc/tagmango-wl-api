@@ -24,25 +24,23 @@ export const publishDeploymentCancel = async (deploymentId: string) => {
 
 // ---- worker-side state ----
 
-let activeDeploymentId: string | null = null;
-let activeChild: ChildProcess | null = null;
+// one running task per lane (iOS and Android can build at the same time)
+const activeChildren = new Map<string, ChildProcess>();
 const cancelRequests = new Set<string>();
 
 export const registerActiveTask = (
   deploymentId: string,
   child: ChildProcess,
 ) => {
-  activeDeploymentId = deploymentId;
-  activeChild = child;
+  activeChildren.set(deploymentId, child);
   // the cancel message may have arrived between two tasks of the same job
   if (cancelRequests.has(deploymentId)) {
-    killActiveChild();
+    killActiveChild(deploymentId);
   }
 };
 
-export const clearActiveTask = () => {
-  activeDeploymentId = null;
-  activeChild = null;
+export const clearActiveTask = (deploymentId: string) => {
+  activeChildren.delete(deploymentId);
 };
 
 export const isCancelRequested = (deploymentId: string) =>
@@ -53,8 +51,8 @@ export const consumeCancelRequest = (deploymentId: string) => {
   cancelRequests.delete(deploymentId);
 };
 
-const killActiveChild = () => {
-  const child = activeChild;
+const killActiveChild = (deploymentId: string) => {
+  const child = activeChildren.get(deploymentId);
   if (!child?.pid) return;
   // the task shell is spawned with detached:true so it leads its own process
   // group — negative pid signals the whole tree (zsh + fastlane + xcodebuild)
@@ -83,9 +81,7 @@ export const startCancellationListener = () => {
   subscriber.on("message", (channel, deploymentId) => {
     if (channel !== DEPLOYMENT_CANCEL_CHANNEL || !deploymentId) return;
     cancelRequests.add(deploymentId);
-    if (deploymentId === activeDeploymentId) {
-      killActiveChild();
-    }
+    killActiveChild(deploymentId);
   });
   return subscriber;
 };
