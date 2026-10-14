@@ -20,6 +20,7 @@ export const Collections = {
   APP_RELEASE_VERSIONS: "appreleaseversions",
   IOS_REVIEW_RUNS: "wliosreviewruns",
   IOS_REVIEW_APPS: "wliosreviewapps",
+  MACHINE_HEALTH: "wlmachinehealth",
 } as const;
 
 export const Platform = {
@@ -91,6 +92,8 @@ export interface IDeployment {
   cancelledBy: ObjectId | null;
   isFirstDeployment: boolean;
   generateIAPScreenshot: boolean;
+  /** iOS only: whether this deployment built with the OneSignal App Group */
+  appGroupsEnabled?: boolean;
   redeploymentId?: ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
@@ -156,12 +159,19 @@ export interface IIosDeploymentDetails {
   isInExternalDevAccount?: boolean;
   isDeploymentBlocked?: boolean;
   deploymentBlockReason?: string;
+  /**
+   * Whether the app uses the group.<bundle>.onesignal App Group (see
+   * utils/iosDeployment). Missing means not decided yet.
+   */
+  appGroupsEnabled?: boolean;
   appStore?: {
     versionName: string;
     status: string;
   };
   /** sha256 of the screenshots/listing images last uploaded to the store */
   uploadedScreenshotsHash?: string;
+  /** sha256 of the app_privacy_details.json last uploaded to App Store Connect */
+  uploadedAppPrivacyHash?: string;
 }
 
 export interface IIosStoreSettings {
@@ -778,4 +788,38 @@ export interface IIosReviewApp {
   status: IosReviewAppStatus;
   note: string;
   createdAt: Date;
+}
+
+/** one reading of the build machine, written by src/machineHealth/sampler.ts */
+export interface IMachineHealthSample {
+  t: Date;
+  /** "fast" every 30s (CPU, memory, disk free, I/O); "slow" every 30 min (folder sizes, leftovers) */
+  kind: "fast" | "slow";
+  fast?: {
+    load: [number, number, number];
+    cores: number;
+    /** % of the whole machine (all cores), from top */
+    cpu: { user: number; sys: number; idle: number };
+    mem: { totalGb: number; usedGb: number; appGb: number; wiredGb: number; compressedGb: number };
+    /** kern.memorystatus_vm_pressure_level: 1 normal, 2 warn, 4 critical */
+    pressure: number;
+    swapGb: number;
+    /** pages paged/swapped out since the previous sample */
+    pageouts: number;
+    swapouts: number;
+    disk: { freeGb: number; totalGb: number };
+    io: { mbps: number; tps: number };
+    /** CPU per process group, in cores (1 = one core busy) */
+    groups: Record<string, number>;
+    top: [string, number][];
+  };
+  slow?: {
+    /** GB per watched folder */
+    folders: Record<string, number>;
+    bootedSimulators: string[];
+    gradleDaemons: number;
+    pm2: { name: string; status: string; restarts: number; memMb: number; cpu: number; uptimeMin: number }[];
+    /** ms the folder scan took */
+    scanMs: number;
+  };
 }

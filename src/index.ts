@@ -18,6 +18,7 @@ import deploymentRequestRouter from "./routers/deploymentRequestRouter";
 import developerAccountsRouter from "./routers/developerAccountsRouter";
 import iapRouter from "./routers/iapRouter";
 import iosReviewRouter from "./routers/iosReviewRouter";
+import machineHealthRouter from "./routers/machineHealthRouter";
 import metadataRouter from "./routers/metadataRouter";
 import outputRouter from "./routers/outputRouter";
 import releaseRouter from "./routers/releaseRouter";
@@ -54,6 +55,8 @@ Mongo.connect().then(() => {
   app.use("/metadata/*", authenticationMiddleware, authorizeMiddleware);
   app.use("/output/*", authenticationMiddleware, authorizeMiddleware);
   app.use("/release/*", authenticationMiddleware, authorizeMiddleware);
+  app.use("/machine-health", authenticationMiddleware, authorizeMiddleware);
+  app.use("/machine-health/*", authenticationMiddleware, authorizeMiddleware);
   app.use(
     "/developer-accounts/*",
     authenticationMiddleware,
@@ -127,6 +130,7 @@ Mongo.connect().then(() => {
   app.route("/forms", appFormsRouter);
   app.route("/deployment-requests", deploymentRequestRouter);
   app.route("/ios-review", iosReviewRouter);
+  app.route("/machine-health", machineHealthRouter);
 
   app.use(prettyJSON());
 

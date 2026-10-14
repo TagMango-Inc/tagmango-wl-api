@@ -15,13 +15,16 @@ import {
   updateAndroidDeploymentAccountSchema,
   updateAndroidDeploymentDetailsSchema,
   updateAndroidStoreMetadataSchema,
+  updateIosAppGroupsSchema,
   updateIosAppleIdSchema,
+  updateIosDeploymentAccountSchema,
   updateIosDeploymentDetailsSchema,
   updateIosInfoMetadataSchema,
   updateIosReviewMetadataSchema,
   updateIosStoreMetadataSchema,
 } from "../../src/validations/metadata";
 import { AppFormStatus } from "../types/database";
+import { setOneSignalApnsKey } from "../utils/iosDeployment";
 
 const factory = createFactory();
 
@@ -332,6 +335,106 @@ const updateAndroidDeveloperAccountForApp = factory.createHandlers(
         },
         Response.OK,
       );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
+/**
+ * PATCH /metadata/:appId/settings/ios/developer-account
+ * Moves the app to another iOS developer account and points its OneSignal
+ * push key at that account. Only correct when the app's bundle ID is (or will
+ * be) registered on that account's team.
+ */
+const updateIosDeveloperAccountForApp = factory.createHandlers(
+  zValidator("json", updateIosDeploymentAccountSchema),
+  async (c) => {
+    try {
+      const { appId } = c.req.param();
+      const { developerAccountId } = c.req.valid("json");
+
+      const account = await Mongo.developer_accounts_ios.findOne({
+        _id: new ObjectId(developerAccountId),
+      });
+      if (!account) {
+        return c.json(
+          { message: "iOS Developer Account not found" },
+          Response.NOT_FOUND,
+        );
+      }
+
+      const metadata = await Mongo.metadata.findOne({
+        host: new ObjectId(appId),
+      });
+      if (!metadata) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      await Mongo.metadata.updateOne(
+        { host: new ObjectId(appId) },
+        { $set: { iosDeveloperAccount: account._id } },
+      );
+
+      const customhost = await Mongo.customhost.findOne(
+        { _id: new ObjectId(appId) },
+        { projection: { onesignalAppId: 1 } },
+      );
+      if (customhost?.onesignalAppId && metadata.iosDeploymentDetails.bundleId) {
+        const apns = await setOneSignalApnsKey(
+          customhost.onesignalAppId,
+          account,
+          metadata.iosDeploymentDetails.bundleId,
+        );
+        if (!apns.ok) {
+          return c.json(
+            {
+              message:
+                "Developer Account updated, but OneSignal still has the old push key. iOS pushes will fail until it is updated.",
+              error: apns.error,
+            },
+            Response.BAD_REQUEST,
+          );
+        }
+      }
+
+      return c.json(
+        { message: "Developer Account updated successfully" },
+        Response.OK,
+      );
+    } catch (error) {
+      return c.json(
+        { message: "Internal Server Error" },
+        Response.INTERNAL_SERVER_ERROR,
+      );
+    }
+  },
+);
+
+/**
+ * PATCH /metadata/:appId/settings/ios/app-groups
+ * Turns the OneSignal App Group off for the app's future iOS builds. There
+ * is no way back on: see updateIosAppGroupsSchema.
+ */
+const updateIosAppGroups = factory.createHandlers(
+  zValidator("json", updateIosAppGroupsSchema),
+  async (c) => {
+    try {
+      const { appId } = c.req.param();
+      const { enabled } = c.req.valid("json");
+
+      const updateResult = await Mongo.metadata.updateOne(
+        { host: new ObjectId(appId) },
+        { $set: { "iosDeploymentDetails.appGroupsEnabled": enabled } },
+      );
+      if (updateResult.matchedCount === 0) {
+        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+
+      return c.json({ message: "App Groups turned off" }, Response.OK);
     } catch (error) {
       return c.json(
         { message: "Internal Server Error" },
@@ -670,7 +773,9 @@ export {
   updateBuildMetadataAndroidSettings,
   updateBuildMetadataIosSettings,
   updateInfoMetadataIosSettings,
+  updateIosAppGroups,
   updateIosAppleId,
+  updateIosDeveloperAccountForApp,
   updateReviewMetadataIosSettings,
   updateStoreMetadataAndroidSettings,
   updateStoreMetadataIosSettings,

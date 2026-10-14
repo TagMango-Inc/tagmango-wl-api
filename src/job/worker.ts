@@ -13,6 +13,11 @@ import { IDeploymentTask, IMetaData } from "../../src/types/database";
 import { customhostDeploymentDir, githubrepo } from "../constants";
 import { BuildJobPayloadType, JobProgressType } from "../types";
 import {
+  iosPipelineFor,
+  resolveAppGroupsEnabled,
+  saveAppGroupsEnabled,
+} from "../utils/iosDeployment";
+import {
   clearActiveTask,
   consumeCancelRequest,
   isCancelRequested,
@@ -20,6 +25,13 @@ import {
   startCancellationListener,
 } from "./cancellation";
 import { queueRedisOptions } from "./config";
+import {
+  APP_PRIVACY_HASH_FIELD,
+  appPrivacyMarker,
+  ascApiKeyEnv,
+  hashAppPrivacy,
+} from "./appStoreConnect";
+import { iosCreateAppCommands } from "./iosPipelines";
 import { hashScreenshots, uploadedHashField } from "./screenshotUploads";
 import { createTaskPerf, diskFreeGb, instrumentCommands } from "./taskPerf";
 import {
@@ -78,6 +90,57 @@ const MIN_FREE_DISK_GB = Number(process.env.WL_MIN_FREE_DISK_GB ?? 40);
 const XCODE_CACHE_MAX_GB = Number(process.env.WL_XCODE_CACHE_MAX_GB ?? 10);
 const LOW_DISK_RETRY_MS = 10 * 60 * 1000;
 let lowDiskPausedUntil = 0;
+
+/**
+ * The app's iOS account and App Group setting as they are now. Falls back to
+ * the job's copy only when the app has no account saved. The resolved App
+ * Group setting is saved on the metadata and the deployment.
+ */
+const currentIosSettings = async (data: BuildJobPayloadType) => {
+  const host = new ObjectId(data.hostId);
+  const metadata = await Mongo.metadata.findOne(
+    { host },
+    {
+      projection: {
+        iosDeveloperAccount: 1,
+        "iosDeploymentDetails.appGroupsEnabled": 1,
+      },
+    },
+  );
+  const deployment = await Mongo.deployment.findOne(
+    { _id: new ObjectId(data.deploymentId) },
+    { projection: { appGroupsEnabled: 1 } },
+  );
+
+  let iosDeveloperAccount = data.iosDeveloperAccount ?? null;
+  if (
+    metadata?.iosDeveloperAccount &&
+    !metadata.iosDeveloperAccount.equals(iosDeveloperAccount?._id)
+  ) {
+    iosDeveloperAccount = await Mongo.developer_accounts_ios.findOne({
+      _id: metadata.iosDeveloperAccount,
+    });
+    logger.info(
+      `iOS account for ${data.bundle} changed since the job was queued; using ${iosDeveloperAccount?.name}`,
+    );
+  }
+
+  // a restart keeps the pipeline its deployment started with
+  const appGroupsEnabled =
+    deployment?.appGroupsEnabled ??
+    (metadata
+      ? resolveAppGroupsEnabled(metadata, data.isFirstDeployment)
+      : (data.appGroupsEnabled ?? !data.isFirstDeployment));
+  if (metadata) await saveAppGroupsEnabled(host, metadata, appGroupsEnabled);
+  if (deployment?.appGroupsEnabled === undefined) {
+    await Mongo.deployment.updateOne(
+      { _id: new ObjectId(data.deploymentId) },
+      { $set: { appGroupsEnabled } },
+    );
+  }
+
+  return { iosDeveloperAccount, appGroupsEnabled };
+};
 
 const sizeGb = (dir: string) =>
   new Promise<number>((resolve) =>
@@ -141,9 +204,15 @@ const purgeTrashNow = () =>
             generateIAPScreenshot,
 
             androidDeveloperAccount,
-            iosDeveloperAccount,
             isFirstDeployment,
           } = job.data;
+          // A job can wait in the queue for days (bulk redeploys), and the
+          // app's iOS account or App Group setting can change meanwhile, so
+          // both are read again now instead of trusted from the payload.
+          const { iosDeveloperAccount, appGroupsEnabled } =
+            platform === "ios"
+              ? await currentIosSettings(job.data)
+              : { iosDeveloperAccount: null, appGroupsEnabled: false };
 
           if (platform === "ios") await capXcodeCaches();
 
@@ -211,6 +280,8 @@ const purgeTrashNow = () =>
               "base64",
             );
           }
+          // passed to the iOS build and upload tasks only
+          const ascKeyEnv = ascApiKeyEnv(iosDeveloperAccount, privateKey);
 
           /**
            * Fetching the task names for the deployment
@@ -447,6 +518,8 @@ const purgeTrashNow = () =>
                   androidDeveloperAccount ?? {},
                 ),
                 iosDeveloperAccount: JSON.stringify(iosDeveloperAccount ?? {}),
+                // always explicit: app-build.js treats a missing value as true
+                appGroups: appGroupsEnabled,
               })}`,
             ],
 
@@ -457,14 +530,10 @@ const purgeTrashNow = () =>
                   ? [
                       // node_modules is already installed by the pre-deploy task
                       `cd ${customHostAppDir}`,
-                      // create ios apps on apple dev center and app store connect, skips if already created
-                      `source ~/.zshrc && bundle exec fastlane ios create`,
-                      // create app group for ios bundle, skips if already created
-                      `source ~/.zshrc && bundle exec fastlane produce group -g group.${bundle}.onesignal -n "group ${bundle.split(".").join(" ")} onesignal"`,
-                      // associate bundle with app group, skips if already associated
-                      `source ~/.zshrc && bundle exec fastlane produce associate_group -a ${bundle} group.${bundle}.onesignal`,
-                      // associate bundle with app group, skips if already associated
-                      `source ~/.zshrc && bundle exec fastlane produce associate_group -a ${bundle}.OneSignalNotificationServiceExtension group.${bundle}.onesignal`,
+                      ...iosCreateAppCommands(
+                        iosPipelineFor(appGroupsEnabled),
+                        bundle,
+                      ),
                       `node ./scripts/appstore-metadata.js ${JSON.stringify({
                         hostId,
                         bundle,
@@ -593,6 +662,21 @@ const purgeTrashNow = () =>
                 logger.info("Screenshots unchanged since the last upload, skipping them");
               }
 
+              // App privacy details need the Apple ID; skip them once this app
+              // has the current file (see appStoreConnect)
+              const isIosUpload = platform === "ios" && task.id === taskNames[8].id;
+              const appPrivacyHash = isIosUpload
+                ? await hashAppPrivacy(customHostAppDir)
+                : null;
+              const skipAppPrivacy =
+                appPrivacyHash !== null &&
+                appPrivacyHash === metadata?.iosDeploymentDetails?.uploadedAppPrivacyHash &&
+                process.env.WL_FORCE_APP_PRIVACY_UPLOAD !== "1";
+              if (isIosUpload) await fs.remove(appPrivacyMarker(customHostAppDir));
+              const usesAscKey =
+                platform === "ios" &&
+                (task.id === taskNames[7].id || task.id === taskNames[8].id);
+
               // executing the tasks
               await executeTask({
                 commands: commands[task.id],
@@ -601,13 +685,32 @@ const purgeTrashNow = () =>
                 job,
                 deploymentId,
                 hostId,
-                env: skipScreenshots ? { WL_SKIP_SCREENSHOTS: "1" } : {},
+                env: {
+                  ...(usesAscKey ? ascKeyEnv : {}),
+                  ...(skipScreenshots ? { WL_SKIP_SCREENSHOTS: "1" } : {}),
+                  ...(skipAppPrivacy ? { WL_SKIP_APP_PRIVACY: "1" } : {}),
+                  // a later deploy keeps going if only the Apple ID step fails
+                  ...(isIosUpload && !isFirstDeployment
+                    ? { WL_APP_PRIVACY_OPTIONAL: "1" }
+                    : {}),
+                },
               });
 
               if (screenshotsHash && !skipScreenshots) {
                 await Mongo.metadata.updateOne(
                   { host: new ObjectId(hostId) },
                   { $set: { [uploadedHashField(platform)]: screenshotsHash } },
+                );
+              }
+
+              if (
+                appPrivacyHash &&
+                !skipAppPrivacy &&
+                (await fs.pathExists(appPrivacyMarker(customHostAppDir)))
+              ) {
+                await Mongo.metadata.updateOne(
+                  { host: new ObjectId(hostId) },
+                  { $set: { [APP_PRIVACY_HASH_FIELD]: appPrivacyHash } },
                 );
               }
 

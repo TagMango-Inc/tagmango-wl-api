@@ -44,6 +44,8 @@ export type BuildConfigType = {
   iosDeveloperAccount?: null | WithId<IDeveloperAccountIos>;
   isFirstDeployment: boolean;
   generateIAPScreenshot: boolean;
+  /** iOS only. Jobs queued before this field existed build with App Groups. */
+  appGroupsEnabled?: boolean;
 };
 
 export type BuildJobPayloadType = {

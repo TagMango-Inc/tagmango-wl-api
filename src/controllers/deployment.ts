@@ -7,10 +7,7 @@ import path from "path";
 
 import { zValidator } from "@hono/zod-validator";
 
-import {
-  DEFAULT_IOS_DEVELOPER_ACCOUNT_ID,
-  DEPLOYMENT_REQUIREMENTS,
-} from "../../src/constants";
+import { DEPLOYMENT_REQUIREMENTS } from "../../src/constants";
 import Mongo from "../../src/database";
 import { publishDeploymentCancel } from "../../src/job/cancellation";
 import { buildQueue, redeploymentQueue } from "../../src/job/config";
@@ -23,6 +20,12 @@ import {
   StatusValues,
 } from "../../src/types/database";
 import { generateDeploymentTasks } from "../../src/utils/generateTaskDetails";
+import {
+  iosUniversalLinkDetails,
+  resolveAppGroupsEnabled,
+  resolveIosDeveloperAccount,
+  saveAppGroupsEnabled,
+} from "../utils/iosDeployment";
 import { escapeRegExp } from "../utils/regex";
 import { Response } from "../../src/utils/statuscode";
 import {
@@ -436,6 +439,8 @@ const getAllDeploymentsHandler = factory.createHandlers(async (c) => {
                   buildNumber: 1,
                   status: 1,
                   createdAt: 1,
+                  // iOS only; absent on deployments made before App Groups was tracked
+                  appGroupsEnabled: 1,
                 },
               },
             ],
@@ -616,30 +621,10 @@ const createNewDeploymentHandler = factory.createHandlers(
             _id: metadata.androidDeveloperAccount,
           });
       } else if (target === "ios") {
-        // NOTE: After migrations, all the metadata were linked to old developer account
-        // for new metadatas, we need to link to default ios developer account and save
-
-        if (metadata.iosDeveloperAccount) {
-          iosDeveloperAccount = await Mongo.developer_accounts_ios.findOne({
-            _id: metadata.iosDeveloperAccount,
-          });
-        } else {
-          iosDeveloperAccount = await Mongo.developer_accounts_ios.findOne({
-            _id: new ObjectId(DEFAULT_IOS_DEVELOPER_ACCOUNT_ID), // default ios developer account id
-          });
-
-          // save the default ios developer account id to the metadata
-          await Mongo.metadata.updateOne(
-            { host: new ObjectId(customHostId) },
-            {
-              $set: {
-                iosDeveloperAccount: new ObjectId(
-                  DEFAULT_IOS_DEVELOPER_ACCOUNT_ID,
-                ),
-              },
-            },
-          );
-        }
+        iosDeveloperAccount = await resolveIosDeveloperAccount(
+          new ObjectId(customHostId),
+          metadata,
+        );
       }
 
       if (target === "ios" && !iosDeveloperAccount) {
@@ -679,12 +664,10 @@ const createNewDeploymentHandler = factory.createHandlers(
               iosDeepLinkConfig: {
                 applinks: {
                   apps: [],
-                  details: [
-                    {
-                      appID: `${iosDeveloperAccount?.teamId}.${metadata.iosDeploymentDetails.bundleId}`,
-                      paths: ["NOT /zoom*", "*"],
-                    },
-                  ],
+                  details: await iosUniversalLinkDetails(
+                    iosDeveloperAccount!,
+                    metadata.iosDeploymentDetails.bundleId,
+                  ),
                 },
               },
             },
@@ -1005,6 +988,16 @@ const createNewDeploymentHandler = factory.createHandlers(
         }
       }
 
+      let appGroupsEnabled: boolean | undefined;
+      if (target === "ios") {
+        appGroupsEnabled = resolveAppGroupsEnabled(metadata, isFirstDeployment);
+        await saveAppGroupsEnabled(
+          new ObjectId(customHostId),
+          metadata,
+          appGroupsEnabled,
+        );
+      }
+
       const { versionName: productionVersionName, lastDeploymentDetails } =
         target === "android"
           ? metadata.androidDeploymentDetails
@@ -1068,6 +1061,7 @@ const createNewDeploymentHandler = factory.createHandlers(
           : metadata.iosStoreSettings.name
         ).replace(/ /g, ""),
         platform: target,
+        appGroupsEnabled,
       });
       // creating a new deployment
       const createdDeployment = await Mongo.deployment.insertOne({
@@ -1083,6 +1077,7 @@ const createNewDeploymentHandler = factory.createHandlers(
         updatedAt: new Date(),
         isFirstDeployment,
         generateIAPScreenshot: generateIAPScreenshot || false,
+        ...(appGroupsEnabled !== undefined && { appGroupsEnabled }),
       });
 
       // TODO: can't create another job if the job already exists and processing
@@ -1124,6 +1119,7 @@ const createNewDeploymentHandler = factory.createHandlers(
           androidDeveloperAccount,
           iosDeveloperAccount,
           isFirstDeployment,
+          appGroupsEnabled,
         },
         {
           attempts: 0,
@@ -1515,29 +1511,10 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
             _id: metadata.androidDeveloperAccount,
           });
       } else if (deployment.platform === "ios") {
-        // NOTE: After migrations, all the metadata were linked to old developer account
-        // for new metadatas, we need to link to default ios developer account and save
-        if (metadata.iosDeveloperAccount) {
-          iosDeveloperAccount = await Mongo.developer_accounts_ios.findOne({
-            _id: metadata.iosDeveloperAccount,
-          });
-        } else {
-          iosDeveloperAccount = await Mongo.developer_accounts_ios.findOne({
-            _id: new ObjectId(DEFAULT_IOS_DEVELOPER_ACCOUNT_ID), // default ios developer account id
-          });
-
-          // save the default ios developer account id to the metadata
-          await Mongo.metadata.updateOne(
-            { host: new ObjectId(customhost._id) },
-            {
-              $set: {
-                iosDeveloperAccount: new ObjectId(
-                  DEFAULT_IOS_DEVELOPER_ACCOUNT_ID,
-                ),
-              },
-            },
-          );
-        }
+        iosDeveloperAccount = await resolveIosDeveloperAccount(
+          customhost._id,
+          metadata,
+        );
       }
 
       if (deployment.platform === "ios" && !iosDeveloperAccount) {
@@ -1546,6 +1523,20 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
           Response.BAD_REQUEST,
         );
       }
+      // a restart reruns the pipeline the deployment started with; older
+      // deployments didn't record it
+      let appGroupsEnabled: boolean | undefined;
+      if (deployment.platform === "ios") {
+        appGroupsEnabled =
+          deployment.appGroupsEnabled ??
+          resolveAppGroupsEnabled(metadata, deployment.isFirstDeployment);
+        await saveAppGroupsEnabled(
+          customhost._id,
+          metadata,
+          appGroupsEnabled,
+        );
+      }
+
       // change status of deployment to pending
       await Mongo.deployment.updateOne(
         {
@@ -1555,6 +1546,7 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
           $set: {
             status: Status.PENDING,
             updatedAt: new Date(),
+            ...(appGroupsEnabled !== undefined && { appGroupsEnabled }),
           },
         },
       );
@@ -1596,6 +1588,7 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
           androidDeveloperAccount,
           iosDeveloperAccount,
           isFirstDeployment: deployment.isFirstDeployment || false,
+          appGroupsEnabled,
         },
         {
           attempts: 0,

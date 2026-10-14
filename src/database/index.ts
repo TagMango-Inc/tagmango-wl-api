@@ -16,6 +16,7 @@ import {
   IDeveloperAccountIos,
   IIosReviewApp,
   IIosReviewRun,
+  IMachineHealthSample,
   IMango,
   IMangoRoom,
   IMetaData,
@@ -52,6 +53,7 @@ abstract class Mongo {
   public static app_release_versions: Collection<IAppReleaseVersions>;
   public static ios_review_runs: Collection<IIosReviewRun>;
   public static ios_review_apps: Collection<IIosReviewApp>;
+  public static machine_health: Collection<IMachineHealthSample>;
 
   public static async connect(): Promise<void> {
     try {
@@ -104,6 +106,9 @@ abstract class Mongo {
       );
       this.ios_review_apps = this.db.collection<IIosReviewApp>(
         Collections.IOS_REVIEW_APPS,
+      );
+      this.machine_health = this.db.collection<IMachineHealthSample>(
+        Collections.MACHINE_HEALTH,
       );
 
       // fire-and-forget: index creation must never block or crash startup

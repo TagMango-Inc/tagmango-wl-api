@@ -7,10 +7,13 @@ export function generateTaskNames({
   bundle,
   formatedAppName,
   platform,
+  appGroupsEnabled,
 }: {
   bundle: string;
   formatedAppName: string;
   platform: "android" | "ios";
+  /** iOS only; names the pipeline in task 6 */
+  appGroupsEnabled?: boolean;
 }) {
   const tasks = [
     `Fetching latest changes from root branch`,
@@ -19,7 +22,11 @@ export function generateTaskNames({
     `Generating screenshots`,
     `Generating metadata files for android and ios`,
     `Running pre deployment and bundle script`,
-    `Generating app on platform via fastlane`,
+    platform === "ios" && appGroupsEnabled !== undefined
+      ? appGroupsEnabled
+        ? `Generating app and App Group on platform via fastlane`
+        : `Generating app on platform via fastlane (no App Group)`
+      : `Generating app on platform via fastlane`,
     `Running fastlane bundle for ${platform} platform`,
     `Running fastlane deploy for ${platform} platform`,
     `Removing the ${customhostDeploymentDir}/${bundle} folder`,
@@ -32,12 +39,19 @@ export function generateDeploymentTasks({
   bundle,
   formatedAppName,
   platform,
+  appGroupsEnabled,
 }: {
   bundle: string;
   formatedAppName: string;
   platform: "android" | "ios";
+  appGroupsEnabled?: boolean;
 }) {
-  const taskNames = generateTaskNames({ bundle, platform, formatedAppName });
+  const taskNames = generateTaskNames({
+    bundle,
+    platform,
+    formatedAppName,
+    appGroupsEnabled,
+  });
   const generatedTasks = taskNames.map((name) => {
     return {
       id: uuid(),

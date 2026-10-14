@@ -22,7 +22,9 @@ const AAB_RETENTION_HOURS = 48;
 // shared gem folders (one per Ruby version + Gemfile.lock) unused this long are removed
 const GEM_CACHE_RETENTION_DAYS = 14;
 
-const DEFAULT_IOS_DEVELOPER_ACCOUNT_ID = "68cbf3128913609eedb102df";
+// "TagMango" (team Z9M2DKF2B7). New apps don't need an App Group any more,
+// which is what filled this account up.
+const DEFAULT_IOS_DEVELOPER_ACCOUNT_ID = "68cbf2a78913609eedb102de";
 
 export {
   AAB_RETENTION_HOURS,
