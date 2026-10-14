@@ -7,7 +7,7 @@ const factory = createFactory();
 /**
  * Role-based route authorization — mirrors what the dashboard UI enforces
  * (read = view-only; write = everything except user management, release and
- * iOS review submission;
+ * iOS review submission and iOS app transfers;
  * admin = all). Runs after authenticationMiddleware, which sets `userRole`.
  *
  * Closes the hole where any valid token could call any endpoint directly.
@@ -40,7 +40,9 @@ const authorizeMiddleware = factory.createMiddleware(async (c, next) => {
   const adminOnlyArea =
     (path.startsWith("/wl/user-management") && !isOwnPasswordChange) ||
     path.startsWith("/wl/release") ||
-    isIosReviewSubmit;
+    isIosReviewSubmit ||
+    // deletes and registers bundle IDs on Apple's side
+    path.endsWith("/settings/ios/transfer-to-tagmango");
 
   if (adminOnlyArea) {
     return c.json(
