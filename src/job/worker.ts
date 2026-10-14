@@ -25,6 +25,12 @@ import {
   startCancellationListener,
 } from "./cancellation";
 import { queueRedisOptions } from "./config";
+import {
+  APP_PRIVACY_HASH_FIELD,
+  appPrivacyMarker,
+  ascApiKeyEnv,
+  hashAppPrivacy,
+} from "./appStoreConnect";
 import { iosCreateAppCommands } from "./iosPipelines";
 import { hashScreenshots, uploadedHashField } from "./screenshotUploads";
 import { createTaskPerf, diskFreeGb, instrumentCommands } from "./taskPerf";
@@ -274,6 +280,8 @@ const purgeTrashNow = () =>
               "base64",
             );
           }
+          // passed to the iOS build and upload tasks only
+          const ascKeyEnv = ascApiKeyEnv(iosDeveloperAccount, privateKey);
 
           /**
            * Fetching the task names for the deployment
@@ -654,6 +662,21 @@ const purgeTrashNow = () =>
                 logger.info("Screenshots unchanged since the last upload, skipping them");
               }
 
+              // App privacy details need the Apple ID; skip them once this app
+              // has the current file (see appStoreConnect)
+              const isIosUpload = platform === "ios" && task.id === taskNames[8].id;
+              const appPrivacyHash = isIosUpload
+                ? await hashAppPrivacy(customHostAppDir)
+                : null;
+              const skipAppPrivacy =
+                appPrivacyHash !== null &&
+                appPrivacyHash === metadata?.iosDeploymentDetails?.uploadedAppPrivacyHash &&
+                process.env.WL_FORCE_APP_PRIVACY_UPLOAD !== "1";
+              if (isIosUpload) await fs.remove(appPrivacyMarker(customHostAppDir));
+              const usesAscKey =
+                platform === "ios" &&
+                (task.id === taskNames[7].id || task.id === taskNames[8].id);
+
               // executing the tasks
               await executeTask({
                 commands: commands[task.id],
@@ -662,13 +685,32 @@ const purgeTrashNow = () =>
                 job,
                 deploymentId,
                 hostId,
-                env: skipScreenshots ? { WL_SKIP_SCREENSHOTS: "1" } : {},
+                env: {
+                  ...(usesAscKey ? ascKeyEnv : {}),
+                  ...(skipScreenshots ? { WL_SKIP_SCREENSHOTS: "1" } : {}),
+                  ...(skipAppPrivacy ? { WL_SKIP_APP_PRIVACY: "1" } : {}),
+                  // a later deploy keeps going if only the Apple ID step fails
+                  ...(isIosUpload && !isFirstDeployment
+                    ? { WL_APP_PRIVACY_OPTIONAL: "1" }
+                    : {}),
+                },
               });
 
               if (screenshotsHash && !skipScreenshots) {
                 await Mongo.metadata.updateOne(
                   { host: new ObjectId(hostId) },
                   { $set: { [uploadedHashField(platform)]: screenshotsHash } },
+                );
+              }
+
+              if (
+                appPrivacyHash &&
+                !skipAppPrivacy &&
+                (await fs.pathExists(appPrivacyMarker(customHostAppDir)))
+              ) {
+                await Mongo.metadata.updateOne(
+                  { host: new ObjectId(hostId) },
+                  { $set: { [APP_PRIVACY_HASH_FIELD]: appPrivacyHash } },
                 );
               }
 

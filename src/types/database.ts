@@ -167,6 +167,8 @@ export interface IIosDeploymentDetails {
   };
   /** sha256 of the screenshots/listing images last uploaded to the store */
   uploadedScreenshotsHash?: string;
+  /** sha256 of the app_privacy_details.json last uploaded to App Store Connect */
+  uploadedAppPrivacyHash?: string;
 }
 
 export interface IIosStoreSettings {
