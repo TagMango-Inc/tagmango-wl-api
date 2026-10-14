@@ -30,7 +30,7 @@ const stats = (xs) => ({ n: xs.length, p50s: sec(pct(xs, 50)), p90s: sec(pct(xs,
 // same command groups together
 const normalise = (label) =>
   label
-    .replace(/deployments\/[\w.]+/g, "deployments/<bundle>")
+    .replace(/deployments\/[\w.-]+/g, "deployments/<bundle>") // also <bundle>-<platform>
     .replace(/\b[0-9a-f]{24}\b/g, "<id>")
     .replace(/v\/[\d.]+/g, "v/<version>")
     .replace(/group\.[\w.]+/g, "group.<bundle>")

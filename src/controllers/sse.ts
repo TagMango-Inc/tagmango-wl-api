@@ -1,7 +1,7 @@
 import { createFactory } from "hono/factory";
 import { streamSSE } from "hono/streaming";
 
-import { buildQueueEvents } from "../../src/job/config";
+import { allBuildQueueEvents } from "../../src/job/config";
 import { JobProgressType } from "../../src/types";
 
 const factory = createFactory();
@@ -47,15 +47,15 @@ const getDeploymentTaskStatusSSE = factory.createHandlers(async (c) => {
       }
     };
 
-    buildQueueEvents.on("progress", onProgress);
-    buildQueueEvents.on("completed", onCompleted);
+    for (const events of allBuildQueueEvents) events.on("progress", onProgress);
+    for (const events of allBuildQueueEvents) events.on("completed", onCompleted);
     stream.onAbort(finish);
 
     try {
       await done;
     } finally {
-      buildQueueEvents.off("progress", onProgress);
-      buildQueueEvents.off("completed", onCompleted);
+      for (const events of allBuildQueueEvents) events.off("progress", onProgress);
+      for (const events of allBuildQueueEvents) events.off("completed", onCompleted);
     }
   });
 });
@@ -94,15 +94,15 @@ const getDeploymentTaskLogsSSE = factory.createHandlers(async (c) => {
       }
     };
 
-    buildQueueEvents.on("progress", onProgress);
-    buildQueueEvents.on("completed", onCompleted);
+    for (const events of allBuildQueueEvents) events.on("progress", onProgress);
+    for (const events of allBuildQueueEvents) events.on("completed", onCompleted);
     stream.onAbort(finish);
 
     try {
       await done;
     } finally {
-      buildQueueEvents.off("progress", onProgress);
-      buildQueueEvents.off("completed", onCompleted);
+      for (const events of allBuildQueueEvents) events.off("progress", onProgress);
+      for (const events of allBuildQueueEvents) events.off("completed", onCompleted);
     }
   });
 });

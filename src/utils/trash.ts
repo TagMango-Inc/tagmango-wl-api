@@ -8,7 +8,7 @@ import { customhostDeploymentDir } from "../constants";
 // disk. Instead it is renamed into a trash folder on the same volume (instant,
 // atomic) and deleted at background priority, off the build's critical path.
 
-/** trash for deployments/<bundle> workspaces */
+/** trash for deployments/<bundle>-<platform> workspaces */
 export const DEPLOYMENT_TRASH = `${customhostDeploymentDir}/.trash`;
 /** trash for Xcode DerivedData / Archives entries */
 export const XCODE_TRASH = path.join(os.homedir(), "Library/Developer/.wl-trash");

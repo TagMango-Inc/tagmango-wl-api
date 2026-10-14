@@ -1,13 +1,27 @@
 import { createFactory } from "hono/factory";
 
 import Mongo from "../database";
-import { buildQueue, redeploymentQueue } from "../job/config";
+import { androidBuildQueue, buildQueue, redeploymentQueue } from "../job/config";
 import { PROCESS_GROUPS } from "../machineHealth/config";
 import { failureReason } from "../machineHealth/failureReasons";
 import { PLAN_MARKERS } from "../machineHealth/markers";
 import { Response } from "../utils/statuscode";
 
 const factory = createFactory();
+
+/** both build lanes summed, so the dashboard keeps one build queue */
+const buildJobCounts = async () => {
+  const lanes = await Promise.all(
+    [buildQueue, androidBuildQueue].map((q) =>
+      q.getJobCounts("waiting", "active", "delayed", "paused"),
+    ),
+  );
+  const total: Record<string, number> = {};
+  for (const counts of lanes) {
+    for (const [state, n] of Object.entries(counts)) total[state] = (total[state] ?? 0) + n;
+  }
+  return total;
+};
 
 /** range → how far back, and the bucket each chart point averages over */
 const RANGES = {
@@ -150,7 +164,7 @@ const getMachineHealth = factory.createHandlers(async (c) => {
           .find({ kind: "slow", t: { $gte: since } }, { projection: { t: 1, "slow.folders": 1 }, sort: { t: 1 } })
           .toArray(),
         readBuilds(since),
-        buildQueue.getJobCounts("waiting", "active", "delayed", "paused"),
+        buildJobCounts(),
         redeploymentQueue.getJobCounts("waiting", "active", "delayed", "paused"),
       ]);
 

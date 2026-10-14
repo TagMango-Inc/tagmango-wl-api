@@ -7,10 +7,18 @@ import path from "path";
 
 import { zValidator } from "@hono/zod-validator";
 
-import { DEPLOYMENT_REQUIREMENTS } from "../../src/constants";
+import {
+  customhostDeploymentDir,
+  DEPLOYMENT_REQUIREMENTS,
+  deploymentFolderName,
+} from "../../src/constants";
 import Mongo from "../../src/database";
 import { publishDeploymentCancel } from "../../src/job/cancellation";
-import { buildQueue, redeploymentQueue } from "../../src/job/config";
+import {
+  buildQueueFor,
+  findBuildJob,
+  redeploymentQueue,
+} from "../../src/job/config";
 import { JWTPayloadType } from "../../src/types";
 import {
   IDeveloperAccountAndroid,
@@ -538,7 +546,7 @@ const createNewDeploymentHandler = factory.createHandlers(
 
       if (recentActiveDeployment) {
         // deterministic job ids: direct lookup instead of a full queue scan
-        const job = await buildQueue.getJob(
+        const job = await findBuildJob(
           recentActiveDeployment._id.toString(),
         );
         if (job) {
@@ -1083,7 +1091,7 @@ const createNewDeploymentHandler = factory.createHandlers(
       // TODO: can't create another job if the job already exists and processing
       // creating a new job for deployment
 
-      await buildQueue.add(
+      await (await buildQueueFor(target)).add(
         `${createdDeployment.insertedId.toString()}-${target}-${currentVersionName}`,
         {
           deploymentId: createdDeployment.insertedId.toString(),
@@ -1551,7 +1559,7 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
         },
       );
 
-      await buildQueue.add(
+      await (await buildQueueFor(deployment.platform)).add(
         `${deploymentId}-${deployment.platform}-${deployment.versionName}`,
         {
           deploymentId,
@@ -1619,7 +1627,7 @@ const cancelDeploymentJobByDeploymentId = factory.createHandlers(async (c) => {
     const payload: JWTPayloadType = c.get("jwtPayload");
 
     // deterministic job ids: direct lookup instead of a full queue scan
-    const job = await buildQueue.getJob(deploymentId);
+    const job = await findBuildJob(deploymentId);
 
     if (!job) {
       return c.json({ message: "Job not found" }, Response.NOT_FOUND);
@@ -1769,7 +1777,9 @@ const updateFailedAndroidDeploymentStatus = factory.createHandlers(
         return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
       }
 
-      fs.remove(`./deployments/${metadata.androidDeploymentDetails.bundleId}`);
+      fs.remove(
+        `./${customhostDeploymentDir}/${deploymentFolderName(metadata.androidDeploymentDetails.bundleId, "android")}`,
+      );
 
       // updating the metadata with the new version name and build number
       await Mongo.metadata.updateOne(

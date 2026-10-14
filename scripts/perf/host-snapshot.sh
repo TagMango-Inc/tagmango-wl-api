@@ -122,7 +122,7 @@ size() { [[ -e $1 ]] && du -sh -x $1 2>/dev/null | cut -f1 || print "absent" }
 
   section "redis / queues"
   redis-cli info memory 2>/dev/null | grep -E "used_memory_human|maxmemory_human"
-  for q in buildQueue redeploymentQueue; do
+  for q in buildQueue androidBuildQueue redeploymentQueue; do
     print "$q wait=$(redis-cli llen bull:$q:wait 2>/dev/null) active=$(redis-cli llen bull:$q:active 2>/dev/null) delayed=$(redis-cli zcard bull:$q:delayed 2>/dev/null)"
   done
 
