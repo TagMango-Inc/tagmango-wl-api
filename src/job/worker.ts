@@ -10,7 +10,11 @@ import pino from "pino";
 
 import Mongo from "../../src/database";
 import { IDeploymentTask, IMetaData } from "../../src/types/database";
-import { customhostDeploymentDir, githubrepo } from "../constants";
+import {
+  customhostDeploymentDir,
+  deploymentFolderName,
+  githubrepo,
+} from "../constants";
 import { BuildJobPayloadType, JobProgressType } from "../types";
 import {
   iosPipelineFor,
@@ -32,12 +36,7 @@ import {
   hashAppPrivacy,
 } from "./appStoreConnect";
 import { iosCreateAppCommands } from "./iosPipelines";
-import {
-  claimBundle,
-  releaseBundle,
-  withRootRepo,
-  withSimulator,
-} from "./lanes";
+import { withRootRepo, withSimulator } from "./lanes";
 import { hashScreenshots, uploadedHashField } from "./screenshotUploads";
 import { createTaskPerf, diskFreeGb, instrumentCommands } from "./taskPerf";
 import {
@@ -98,8 +97,6 @@ const XCODE_CACHE_MAX_GB = Number(process.env.WL_XCODE_CACHE_MAX_GB ?? 10);
 const LOW_DISK_RETRY_MS = 10 * 60 * 1000;
 let lowDiskPausedUntil = 0;
 
-// how long a deploy waits when its app is building in the other lane (lanes.ts)
-const BUNDLE_BUSY_RETRY_MS = 2 * 60 * 1000;
 
 /**
  * The app's iOS account and App Group setting as they are now. Falls back to
@@ -242,14 +239,6 @@ const purgeTrashNow = () =>
             throw new DelayedError();
           }
 
-          // an app's iOS and Android deploys share deployments/<bundle>
-          if (!claimBundle(bundle, job.id!)) {
-            logger.info(
-              `${bundle} is building in the other lane: putting deployment ${deploymentId} back for ${BUNDLE_BUSY_RETRY_MS / 60000} min`,
-            );
-            await job.moveToDelayed(Date.now() + BUNDLE_BUSY_RETRY_MS, token);
-            throw new DelayedError();
-          }
 
           const formatedAppName = name.replace(/ /g, "");
 
@@ -261,7 +250,7 @@ const purgeTrashNow = () =>
           const gymLogsPath = `/Users/${username}/Library/Logs/gym`;
 
           // get screenshots values from DB as the job starts instead of getting a copy when the job is created
-          // assumption: one deployment per app at a time (claimBundle in lanes.ts), so we can get the latest values from the DB
+          // assumption: one deployment per app and platform at a time, so we can get the latest values from the DB
           // NOTE: each lane runs one job at a time; do not raise a worker's concurrency
 
           const metadata = await Mongo.metadata.findOne({
@@ -337,7 +326,9 @@ const purgeTrashNow = () =>
             }[];
           };
 
-          const customHostAppDir = `${customhostDeploymentDir}/${bundle}/${githubrepo}`;
+          const workspaceFolder = deploymentFolderName(bundle, platform);
+          const workspaceDir = `${customhostDeploymentDir}/${workspaceFolder}`;
+          const customHostAppDir = `${workspaceDir}/${githubrepo}`;
 
           // Check if pre-built Detox app exists for this version
           const preBuiltDetoxAppPath = `builds/detox/${releaseDetails.versionName}/TagMango.app`;
@@ -369,9 +360,9 @@ const purgeTrashNow = () =>
             [taskNames[1].id]: [
               // a leftover folder from an earlier attempt is moved aside, not
               // deleted inline (see utils/trash)
-              trashCommand(`${customhostDeploymentDir}/${bundle}`, DEPLOYMENT_TRASH),
-              `mkdir -p ${customhostDeploymentDir}/${bundle}`,
-              `cp -r root/${githubrepo} ${customhostDeploymentDir}/${bundle}`,
+              trashCommand(workspaceDir, DEPLOYMENT_TRASH),
+              `mkdir -p ${workspaceDir}`,
+              `cp -r root/${githubrepo} ${workspaceDir}`,
               `cd ${customHostAppDir}`,
               `git fetch --all`,
               `git checkout v/${releaseDetails.versionName}`,
@@ -386,7 +377,7 @@ const purgeTrashNow = () =>
             ],
             // step: 3: Copying the WL assets from WLApps/{formatedName} to deployment/{bundleId}/WLApps/{formatedName}
             [taskNames[2].id]: [
-              `node ./scripts/create-icons.js ${hostId} ${bundle}`,
+              `node ./scripts/create-icons.js ${hostId} ${workspaceFolder}`,
             ],
             // Generating screenshots
             // Cases
@@ -610,7 +601,7 @@ const purgeTrashNow = () =>
               platform === "ios"
                 ? [
                     `echo "Removing deployment folder"`,
-                    trashCommand(`${customhostDeploymentDir}/${bundle}`, DEPLOYMENT_TRASH),
+                    trashCommand(workspaceDir, DEPLOYMENT_TRASH),
                     trashStaleEntriesCommand(archivesPath, XCODE_TRASH),
                     trashStaleEntriesCommand(derivedDataPath, XCODE_TRASH, { keep: "*.noindex" }),
                     // gym's full xcodebuild logs, ~19 GB before this; kept 3 days for debugging
@@ -618,7 +609,7 @@ const purgeTrashNow = () =>
                     purgeTrashInBackgroundCommand(DEPLOYMENT_TRASH, XCODE_TRASH),
                   ]
                 : [
-                    trashCommand(`${customhostDeploymentDir}/${bundle}`, DEPLOYMENT_TRASH),
+                    trashCommand(workspaceDir, DEPLOYMENT_TRASH),
                     purgeTrashInBackgroundCommand(DEPLOYMENT_TRASH),
                   ],
           };
@@ -642,16 +633,14 @@ const purgeTrashNow = () =>
 
           let isFailedDeployment = false;
 
-          // we need to check if the bundle folder is present in the deployments/{hostId} during the restart deployment process
-          // if the folder is present then only we can skip the task
-          // if the folder is not present then we need to execute the tasks from the beginning
-          const isBundleFolderPresentForRestart = fs.existsSync(
-            `${customhostDeploymentDir}/${bundle}`,
-          );
+          // a restart resumes after its finished tasks only if this deployment's
+          // own workspace (deployments/<bundle>-<platform>) is still there;
+          // otherwise every task runs again from the beginning
+          const isBundleFolderPresentForRestart = fs.existsSync(workspaceDir);
 
           for (const task of taskNames) {
             if (task.status === "success" || task.status === "processing") {
-              // skipping the task if it is already successful or processing only if the bundle folder is present in the deployments/{hostId}
+              // skipping the task if it is already successful or processing only if the workspace folder is still there
               if (isBundleFolderPresentForRestart) {
                 continue;
               }
@@ -853,8 +842,6 @@ const purgeTrashNow = () =>
         worker.on("stalled", (job) => {
           logger.error(`Job has been stalled ${job}`);
         });
-        worker.on("completed", releaseBundle);
-        worker.on("failed", (job) => releaseBundle(job));
       }
 
       startCancellationListener();

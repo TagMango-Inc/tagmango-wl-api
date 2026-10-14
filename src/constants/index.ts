@@ -1,6 +1,13 @@
 const githubrepo = "TagMangoApp";
 const customhostDeploymentDir = "deployments";
 
+/**
+ * A deployment's workspace under deployments/: one per app and platform, so an
+ * app's iOS and Android deploys can run (and be restarted) independently.
+ */
+const deploymentFolderName = (bundle: string, platform: "android" | "ios") =>
+  `${bundle}-${platform}`;
+
 const DEPLOYMENT_REQUIREMENTS = [
   "Update android & iOS app name",
   "Upload app logo for deployment",
@@ -32,6 +39,7 @@ export {
   CLEANUP_DEPLOYMENT_REQUESTS_CRON,
   customhostDeploymentDir,
   DAY_FROM_NOW,
+  deploymentFolderName,
   DEFAULT_IOS_DEVELOPER_ACCOUNT_ID,
   DEPLOYMENT_FOLDER_RETENTION_HOURS,
   DEPLOYMENT_REQUEST_RETENTION_DAYS,

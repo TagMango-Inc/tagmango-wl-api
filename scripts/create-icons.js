@@ -61,17 +61,17 @@ const ensureDir = (dir) => {
 // Function to display usage instructions
 const showUsage = () => {
   console.log("\n📝 Usage:");
-  console.log("  node scripts/create-icons.js <hostId> <bundle>\n");
+  console.log("  node scripts/create-icons.js <hostId> <folder>\n");
   console.log("Arguments:");
   console.log("  hostId    The ID of the host to create icons for");
-  console.log("  bundle    The bundle identifier for the app\n");
+  console.log("  folder    The deployment's workspace under deployments/ (<bundle>-<platform>)\n");
   console.log("Example:");
-  console.log("  node scripts/create-icons.js host123 com.example.app\n");
+  console.log("  node scripts/create-icons.js host123 com.example.app-ios\n");
   process.exit(1);
 };
 
 // Main function to create icons
-const createIcons = async (hostId, bundle) => {
+const createIcons = async (hostId, folder) => {
   try {
     // Validate hostId
     if (!hostId || typeof hostId !== "string" || hostId.trim() === "") {
@@ -79,18 +79,18 @@ const createIcons = async (hostId, bundle) => {
       showUsage();
     }
 
-    // Validate bundle
-    if (!bundle || typeof bundle !== "string" || bundle.trim() === "") {
-      console.error("\n❌ Error: Please provide a valid bundle identifier");
+    // Validate folder
+    if (!folder || typeof folder !== "string" || folder.trim() === "") {
+      console.error("\n❌ Error: Please provide the deployment folder");
       showUsage();
     }
 
     console.log("\n🚀 Starting icon creation process...");
     console.log(`📂 Host ID: ${hostId}`);
-    console.log(`📦 Bundle: ${bundle}`);
+    console.log(`📦 Folder: ${folder}`);
 
     const baseUrl = `https://tagmango.com/appzap-assets/metadata/${hostId}`;
-    const customHostAppDir = `deployments/${bundle}/TagMangoApp`;
+    const customHostAppDir = `deployments/${folder}/TagMangoApp`;
     const iconsDir = path.join(process.cwd(), customHostAppDir, "icons");
 
     // Create icons directories
@@ -158,5 +158,5 @@ if (process.argv.length < 4) {
 }
 
 // Get arguments from command line and start the process
-const [hostId, bundle] = process.argv.slice(2);
-createIcons(hostId, bundle);
+const [hostId, folder] = process.argv.slice(2);
+createIcons(hostId, folder);

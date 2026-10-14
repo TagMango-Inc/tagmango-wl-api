@@ -7,7 +7,11 @@ import path from "path";
 
 import { zValidator } from "@hono/zod-validator";
 
-import { DEPLOYMENT_REQUIREMENTS } from "../../src/constants";
+import {
+  customhostDeploymentDir,
+  DEPLOYMENT_REQUIREMENTS,
+  deploymentFolderName,
+} from "../../src/constants";
 import Mongo from "../../src/database";
 import { publishDeploymentCancel } from "../../src/job/cancellation";
 import {
@@ -1773,7 +1777,9 @@ const updateFailedAndroidDeploymentStatus = factory.createHandlers(
         return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
       }
 
-      fs.remove(`./deployments/${metadata.androidDeploymentDetails.bundleId}`);
+      fs.remove(
+        `./${customhostDeploymentDir}/${deploymentFolderName(metadata.androidDeploymentDetails.bundleId, "android")}`,
+      );
 
       // updating the metadata with the new version name and build number
       await Mongo.metadata.updateOne(

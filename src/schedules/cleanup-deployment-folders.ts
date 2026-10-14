@@ -6,6 +6,7 @@ import util from "util";
 import {
   customhostDeploymentDir,
   DEPLOYMENT_FOLDER_RETENTION_HOURS,
+  deploymentFolderName,
   GEM_CACHE_RETENTION_DAYS,
 } from "../constants";
 import Mongo from "../database";
@@ -78,7 +79,7 @@ const derivedDataWorkspace = async (dir: string) => {
  * shared *.noindex caches, never a folder built from a workspace in use) and
  * gym logs older than 3 days. Returns how many were moved.
  */
-export const trashStaleXcodeOutput = async (activeBundles: Set<string>, stamp: number) => {
+export const trashStaleXcodeOutput = async (activeFolders: Set<string>, stamp: number) => {
   await fs.ensureDir(XCODE_TRASH);
   let moved = 0;
   const trash = async (dir: string, name: string, maxAgeMs: number, guard?: () => Promise<boolean>) => {
@@ -99,7 +100,7 @@ export const trashStaleXcodeOutput = async (activeBundles: Set<string>, stamp: n
     if (name.endsWith(".noindex") || name.startsWith(".")) continue;
     await trash(XCODE_DERIVED_DATA, name, HOUR_MS, async () => {
       const workspace = await derivedDataWorkspace(path.join(XCODE_DERIVED_DATA, name));
-      return ![...activeBundles].some((b) => workspace?.includes(`/${customhostDeploymentDir}/${b}/`));
+      return ![...activeFolders].some((f) => workspace?.includes(`/${customhostDeploymentDir}/${f}/`));
     });
   }
   for (const name of await list(XCODE_ARCHIVES)) {
@@ -112,42 +113,52 @@ export const trashStaleXcodeOutput = async (activeBundles: Set<string>, stamp: n
 };
 
 /**
- * bundle ids whose folder is in use: a running deployment, or a restarted
- * one queued to resume from its finished tasks. A fresh pending deployment
- * starts with a new copy of the project, so it doesn't keep a folder.
+ * workspace folders (deployments/<bundle>-<platform>) in use: a running
+ * deployment, or a restarted one queued to resume from its finished tasks.
+ * A fresh pending deployment starts with a new copy of the project, so it
+ * doesn't keep a folder.
  */
-const getActiveBundles = async () => {
-  const activeHosts = await Mongo.deployment.distinct("host", {
-    $or: [
-      { status: Status.PROCESSING },
+const getActiveFolders = async () => {
+  const active = await Mongo.deployment
+    .find(
       {
-        status: Status.PENDING,
-        "tasks.status": { $in: [Status.SUCCESS, Status.PROCESSING] },
+        $or: [
+          { status: Status.PROCESSING },
+          {
+            status: Status.PENDING,
+            "tasks.status": { $in: [Status.SUCCESS, Status.PROCESSING] },
+          },
+        ],
       },
-    ],
-  });
-  if (!activeHosts.length) return new Set<string>();
+      { projection: { host: 1, platform: 1 } },
+    )
+    .toArray();
+  if (!active.length) return new Set<string>();
 
   const metadatas = await Mongo.metadata
     .find(
-      { host: { $in: activeHosts } },
+      { host: { $in: active.map((d) => d.host) } },
       {
         projection: {
+          host: 1,
           "androidDeploymentDetails.bundleId": 1,
           "iosDeploymentDetails.bundleId": 1,
         },
       },
     )
     .toArray();
+  const byHost = new Map(metadatas.map((m) => [m.host.toString(), m]));
 
-  return new Set(
-    metadatas
-      .flatMap((m) => [
-        m.androidDeploymentDetails?.bundleId,
-        m.iosDeploymentDetails?.bundleId,
-      ])
-      .filter(Boolean),
-  );
+  const folders = new Set<string>();
+  for (const { host, platform } of active) {
+    const metadata = byHost.get(host.toString());
+    const bundle =
+      platform === "ios"
+        ? metadata?.iosDeploymentDetails?.bundleId
+        : metadata?.androidDeploymentDetails?.bundleId;
+    if (bundle) folders.add(deploymentFolderName(bundle, platform));
+  }
+  return folders;
 };
 
 // native rm is far faster than fs.rm on trees with hundreds of thousands of
@@ -185,7 +196,7 @@ export const cleanupDeploymentFolders = async () => {
 
     const cutoff =
       Date.now() - DEPLOYMENT_FOLDER_RETENTION_HOURS * 60 * 60 * 1000;
-    const activeBundles = await getActiveBundles();
+    const activeFolders = await getActiveFolders();
 
     const entries = await fs.readdir(deploymentsDir, { withFileTypes: true });
     const toTrash: string[] = [];
@@ -194,7 +205,7 @@ export const cleanupDeploymentFolders = async () => {
       entries
         .filter((e) => e.isDirectory() && !e.name.startsWith("."))
         .map(async ({ name }) => {
-          if (activeBundles.has(name)) return;
+          if (activeFolders.has(name)) return;
           const stat = await fs.lstat(path.join(deploymentsDir, name));
           // birthtime is 0 on filesystems that don't record it
           const createdAt = stat.birthtimeMs || stat.mtimeMs;
@@ -219,7 +230,7 @@ export const cleanupDeploymentFolders = async () => {
     );
 
     const unusedGems = await trashUnusedGemFolders(stamp);
-    const staleXcode = await trashStaleXcodeOutput(activeBundles, stamp);
+    const staleXcode = await trashStaleXcodeOutput(activeFolders, stamp);
 
     // also picks up anything left behind by an earlier interrupted run, and
     // Xcode output and gem folders moved aside

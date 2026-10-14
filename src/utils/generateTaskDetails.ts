@@ -1,7 +1,7 @@
 import { v4 as uuid } from "uuid";
 
 import { IDeploymentTask } from "../../src/types/database";
-import { customhostDeploymentDir } from "../constants";
+import { customhostDeploymentDir, deploymentFolderName } from "../constants";
 
 export function generateTaskNames({
   bundle,
@@ -15,10 +15,11 @@ export function generateTaskNames({
   /** iOS only; names the pipeline in task 6 */
   appGroupsEnabled?: boolean;
 }) {
+  const workspaceDir = `${customhostDeploymentDir}/${deploymentFolderName(bundle, platform)}`;
   const tasks = [
     `Fetching latest changes from root branch`,
-    `Copying root project to ${customhostDeploymentDir}/${bundle} directory`,
-    `Generating assets for android and ios and Copying to ${customhostDeploymentDir}/${bundle}/assets`,
+    `Copying root project to ${workspaceDir} directory`,
+    `Generating assets for android and ios and Copying to ${workspaceDir}/assets`,
     `Generating screenshots`,
     `Generating metadata files for android and ios`,
     `Running pre deployment and bundle script`,
@@ -29,7 +30,7 @@ export function generateTaskNames({
       : `Generating app on platform via fastlane`,
     `Running fastlane bundle for ${platform} platform`,
     `Running fastlane deploy for ${platform} platform`,
-    `Removing the ${customhostDeploymentDir}/${bundle} folder`,
+    `Removing the ${workspaceDir} folder`,
   ];
 
   return tasks;
