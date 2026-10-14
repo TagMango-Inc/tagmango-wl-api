@@ -2,6 +2,8 @@ import crypto from "crypto";
 import fs from "fs-extra";
 import path from "path";
 
+import { IMetaData } from "../types/database";
+
 // Store screenshots / listing images are generated into the workspace before
 // the upload task. When they are byte-identical to what was last uploaded for
 // the app, the upload lane skips them (WL_SKIP_SCREENSHOTS=1): re-uploading
@@ -53,3 +55,19 @@ export const uploadedHashField = (platform: "android" | "ios") =>
   platform === "ios"
     ? "iosDeploymentDetails.uploadedScreenshotsHash"
     : "androidDeploymentDetails.uploadedScreenshotsHash";
+
+/**
+ * Whether the app already has the store screenshots this platform uploads
+ * (Android also needs the feature graphic). Generating them on one platform
+ * uploads both platforms' sets.
+ */
+export const screenshotsReady = (
+  metadata:
+    | Pick<IMetaData, "androidScreenshots" | "iosScreenshots" | "androidFeatureGraphic">
+    | null
+    | undefined,
+  platform: "android" | "ios",
+) =>
+  platform === "android"
+    ? !!metadata?.androidScreenshots?.length && !!metadata?.androidFeatureGraphic?.length
+    : !!metadata?.iosScreenshots?.iphone_65?.length;
