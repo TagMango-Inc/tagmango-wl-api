@@ -591,7 +591,7 @@ const purgeTrashNow = () =>
                     `cd ${customHostAppDir}`,
                     `source ~/.zshrc && bundle exec fastlane ${platform} upload`,
                   ],
-            // step 7: Removing the deployment/{bundleId} folder after successful deployment
+            // step 7: Removing the deployments/<bundle>-<platform> folder after successful deployment
             // the workspace is moved to trash and deleted at background
             // priority, so the next build doesn't wait for it. Xcode output
             // older than an hour goes too; the *.noindex caches at the top of

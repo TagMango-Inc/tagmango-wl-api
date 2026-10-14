@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { zValidator } from "@hono/zod-validator";
 
+import { customhostDeploymentDir, deploymentFolderName } from "../constants";
 import Mongo from "../database";
 import { Response } from "../utils/statuscode";
 import { updateReleaseDetailsSchema } from "../validations/release";
@@ -153,8 +154,16 @@ const freeupSpace = factory.createHandlers(
         );
       }
 
+      // each app has a workspace per platform; the bare bundle id is the
+      // layout before deployments/<bundle>-<platform>
       await Promise.all(
-        bundleIds.map((id) => fs.remove(path.join("./deployments", id))),
+        bundleIds
+          .flatMap((id) => [
+            id,
+            deploymentFolderName(id, "ios"),
+            deploymentFolderName(id, "android"),
+          ])
+          .map((folder) => fs.remove(path.join(customhostDeploymentDir, folder))),
       );
 
       return c.json(
