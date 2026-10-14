@@ -6,6 +6,7 @@ import {
   getAppsCountByVersion,
   reorderAndroidScreenshots,
   reorderIosScreenshots,
+  transferIosAppToTagMangoHandler,
   updateAndroidDeveloperAccountForApp,
   updateBuildMetadataAndroidSettings,
   updateBuildMetadataIosSettings,
@@ -49,6 +50,10 @@ router.patch(
   ...updateIosDeveloperAccountForApp,
 );
 router.patch("/:appId/settings/ios/app-groups", ...updateIosAppGroups);
+router.post(
+  "/:appId/settings/ios/transfer-to-tagmango",
+  ...transferIosAppToTagMangoHandler,
+);
 router.patch("/:appId/settings/ios/build", ...updateBuildMetadataIosSettings);
 router.patch("/:appId/settings/ios/store", ...updateStoreMetadataIosSettings);
 router.patch("/:appId/settings/ios/info", ...updateInfoMetadataIosSettings);

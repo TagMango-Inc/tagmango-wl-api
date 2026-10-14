@@ -25,6 +25,7 @@ import {
 } from "../../src/validations/metadata";
 import { AppFormStatus } from "../types/database";
 import { setOneSignalApnsKey } from "../utils/iosDeployment";
+import { TransferRefused, transferIosAppToTagMango } from "../utils/iosTransfer";
 
 const factory = createFactory();
 
@@ -346,9 +347,9 @@ const updateAndroidDeveloperAccountForApp = factory.createHandlers(
 
 /**
  * PATCH /metadata/:appId/settings/ios/developer-account
- * Moves the app to another iOS developer account and points its OneSignal
- * push key at that account. Only correct when the app's bundle ID is (or will
- * be) registered on that account's team.
+ * Moves an app that isn't on App Store Connect yet (no Apple ID) to another
+ * iOS developer account and points its OneSignal push key at that account.
+ * Apps already there move with POST .../ios/transfer-to-tagmango.
  */
 const updateIosDeveloperAccountForApp = factory.createHandlers(
   zValidator("json", updateIosDeploymentAccountSchema),
@@ -372,6 +373,17 @@ const updateIosDeveloperAccountForApp = factory.createHandlers(
       });
       if (!metadata) {
         return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
+      }
+      // once the app exists on App Store Connect its bundle ID belongs to a
+      // team; only Apple's App Transfer can move it (transferIosAppToTagMango)
+      if (metadata.iosDeploymentDetails?.appleId) {
+        return c.json(
+          {
+            message:
+              "This app is already on App Store Connect, so its developer account can only change through an App Transfer.",
+          },
+          Response.CONFLICT,
+        );
       }
 
       await Mongo.metadata.updateOne(
@@ -413,6 +425,40 @@ const updateIosDeveloperAccountForApp = factory.createHandlers(
     }
   },
 );
+
+/**
+ * POST /metadata/:appId/settings/ios/transfer-to-tagmango
+ * Finishes moving an app from TagMango 2 to TagMango after Apple's App
+ * Transfer: extension bundle ID, account, App Group flag, OneSignal push key
+ * and universal links. Safe to call again after a failed step.
+ */
+const transferIosAppToTagMangoHandler = factory.createHandlers(async (c) => {
+  try {
+    const { appId } = c.req.param();
+    if (!/^[a-f0-9]{24}$/i.test(appId)) {
+      return c.json({ message: "Invalid app id" }, Response.BAD_REQUEST);
+    }
+    const result = await transferIosAppToTagMango(appId);
+    return c.json(
+      {
+        message: result.ok
+          ? "Transfer finished"
+          : "Transfer stopped at a failed step. Fix it and run the transfer again.",
+        result,
+      },
+      Response.OK,
+    );
+  } catch (error) {
+    if (error instanceof TransferRefused) {
+      return c.json({ message: error.message }, Response.CONFLICT);
+    }
+    console.error("iOS transfer failed", error);
+    return c.json(
+      { message: "Internal Server Error" },
+      Response.INTERNAL_SERVER_ERROR,
+    );
+  }
+});
 
 /**
  * PATCH /metadata/:appId/settings/ios/app-groups
@@ -769,6 +815,7 @@ export {
   getAppsCountByVersion,
   reorderAndroidScreenshots,
   reorderIosScreenshots,
+  transferIosAppToTagMangoHandler,
   updateAndroidDeveloperAccountForApp,
   updateBuildMetadataAndroidSettings,
   updateBuildMetadataIosSettings,
