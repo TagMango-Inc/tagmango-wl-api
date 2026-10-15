@@ -900,6 +900,20 @@ const trimTaskLogs = (logs: TaskLogs): TaskLogs => {
   return recent.slice(start);
 };
 
+const FASTLANE_QUIET_ENV = {
+  FASTLANE_SKIP_UPDATE_CHECK: "1",
+  FASTLANE_HIDE_CHANGELOG: "1",
+  FASTLANE_HIDE_GITHUB_ISSUES: "1",
+};
+
+// "\tfrom /path/gem.rb:123:in `method'" frames of a Ruby exception. The first
+// line of the exception carries the message and is kept; the ~50 frames under
+// it only point into fastlane's own gems and crowd the task's log tail.
+const RUBY_BACKTRACE_FRAME = /^\tfrom \S+:\d+:in .*$\n?/gm;
+
+const dropRubyBacktrace = (chunk: string) =>
+  chunk.replace(RUBY_BACKTRACE_FRAME, "");
+
 const executeTask = async ({
   commands,
   taskId,
@@ -965,6 +979,10 @@ const executeTask = async ({
     env: {
       ...process.env,
       ...env,
+      // fastlane chatter that buried the real error in every failed task: the
+      // "new version available" banner with the full release changelog (~10KB)
+      // and the "Looking for related GitHub issues" lookup
+      ...FASTLANE_QUIET_ENV,
       LC_ALL: "en_US.UTF-8",
       LANG: "en_US.UTF-8",
     },
@@ -984,7 +1002,7 @@ const executeTask = async ({
 
   if (stdout) {
     stdout.on("data", (raw: string) => {
-      const data = perf.onStdout(raw);
+      const data = dropRubyBacktrace(perf.onStdout(raw));
       if (!data) return;
       logger.info(data);
 
@@ -1012,11 +1030,15 @@ const executeTask = async ({
     });
   }
   if (stderr) {
-    stderr.on("data", (data) => {
+    stderr.on("data", (raw: string) => {
+      const data = dropRubyBacktrace(raw);
+      if (!data) return;
+
       const warningRegex = /\b(?:warn(?:ing)?|deprecated)\b/i;
 
       // create an error regex that checks words like failed, exit, error, etc
-      const errorRegex = /\b(?:fail(?:ed|ure)?|exit|error|abort)\b/i;
+      // "[!]" is how fastlane/spaceship prefix the actual error message
+      const errorRegex = /\[!\]|\b(?:fail(?:ed|ure)?|exit|error|abort)\b/i;
 
       const type = errorRegex.test(data)
         ? "error"
