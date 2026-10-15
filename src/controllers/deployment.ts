@@ -14,6 +14,7 @@ import {
 } from "../../src/constants";
 import Mongo from "../../src/database";
 import { publishDeploymentCancel } from "../../src/job/cancellation";
+import { queueExistingDeployment } from "../../src/job/requeue";
 import {
   buildQueueFor,
   findBuildJob,
@@ -1469,141 +1470,13 @@ const restartDeploymentTaskByDeploymentId = factory.createHandlers(
         return c.json({ message: "Deployment not found" }, Response.NOT_FOUND);
       }
 
-      const customhost = await Mongo.customhost.findOne({
-        _id: deployment?.host,
-      });
-
-      const metadata = await Mongo.metadata.findOne({
-        host: deployment?.host,
-      });
-
-      if (!customhost) {
-        return c.json({ message: "Custom Host not found" }, Response.NOT_FOUND);
-      }
-      if (!metadata) {
-        return c.json({ message: "Metadata not found" }, Response.NOT_FOUND);
-      }
-
-      if (
-        deployment.platform === "android" &&
-        metadata.androidDeploymentDetails.isDeploymentBlocked
-      ) {
+      const queued = await queueExistingDeployment(deployment, { lifo: true });
+      if (!queued.ok) {
         return c.json(
-          {
-            message: metadata.androidDeploymentDetails.deploymentBlockReason,
-          },
-          Response.BAD_REQUEST,
-        );
-      } else if (
-        deployment.platform === "ios" &&
-        metadata.iosDeploymentDetails.isDeploymentBlocked
-      ) {
-        return c.json(
-          {
-            message: metadata.iosDeploymentDetails.deploymentBlockReason,
-          },
-          Response.BAD_REQUEST,
+          { message: queued.message },
+          queued.status === 404 ? Response.NOT_FOUND : Response.BAD_REQUEST,
         );
       }
-
-      let androidDeveloperAccount: WithId<IDeveloperAccountAndroid> | null =
-        null;
-      let iosDeveloperAccount: WithId<IDeveloperAccountIos> | null = null;
-
-      if (
-        deployment.platform === "android" &&
-        metadata.androidDeveloperAccount
-      ) {
-        androidDeveloperAccount =
-          await Mongo.developer_accounts_android.findOne({
-            _id: metadata.androidDeveloperAccount,
-          });
-      } else if (deployment.platform === "ios") {
-        iosDeveloperAccount = await resolveIosDeveloperAccount(
-          customhost._id,
-          metadata,
-        );
-      }
-
-      if (deployment.platform === "ios" && !iosDeveloperAccount) {
-        return c.json(
-          { message: "iOS Developer Account not found" },
-          Response.BAD_REQUEST,
-        );
-      }
-      // a restart reruns the pipeline the deployment started with; older
-      // deployments didn't record it
-      let appGroupsEnabled: boolean | undefined;
-      if (deployment.platform === "ios") {
-        appGroupsEnabled =
-          deployment.appGroupsEnabled ??
-          resolveAppGroupsEnabled(metadata, deployment.isFirstDeployment);
-        await saveAppGroupsEnabled(
-          customhost._id,
-          metadata,
-          appGroupsEnabled,
-        );
-      }
-
-      // change status of deployment to pending
-      await Mongo.deployment.updateOne(
-        {
-          _id: new ObjectId(deploymentId),
-        },
-        {
-          $set: {
-            status: Status.PENDING,
-            updatedAt: new Date(),
-            ...(appGroupsEnabled !== undefined && { appGroupsEnabled }),
-          },
-        },
-      );
-
-      await (await buildQueueFor(deployment.platform)).add(
-        `${deploymentId}-${deployment.platform}-${deployment.versionName}`,
-        {
-          deploymentId,
-          hostId: deployment.host.toString(),
-          name:
-            (deployment.platform === "android"
-              ? metadata.androidStoreSettings.title
-              : metadata.iosStoreSettings.name) ?? customhost.appName,
-          appName: customhost.appName || customhost.brandname,
-          bundle:
-            deployment.platform === "android"
-              ? metadata.androidDeploymentDetails.bundleId
-              : metadata.iosDeploymentDetails.bundleId,
-          domain: customhost.host,
-          color: customhost.colors.PRIMARY,
-          bgColor: metadata.backgroundStartColor,
-          onesignal_id: customhost.onesignalAppId || "",
-          platform: deployment.platform,
-          // a restart must rebuild the same version the deployment was
-          // created with; the release's base build number has usually been
-          // uploaded already, so the store would reject it
-          versionName: deployment.versionName,
-          buildNumber: deployment.buildNumber,
-          appleId: metadata.iosDeploymentDetails.appleId || "",
-
-          androidStoreSettings: metadata.androidStoreSettings,
-
-          iosStoreSettings: metadata.iosStoreSettings,
-          iosInfoSettings: metadata.iosInfoSettings,
-          iosReviewSettings: metadata.iosReviewSettings,
-
-          generateIAPScreenshot: deployment.generateIAPScreenshot || false,
-
-          androidDeveloperAccount,
-          iosDeveloperAccount,
-          isFirstDeployment: deployment.isFirstDeployment || false,
-          appGroupsEnabled,
-        },
-        {
-          attempts: 0,
-          lifo: true,
-          jobId: deploymentId,
-        },
-      );
       return c.json(
         {
           message: "Restarted deployment job with last failed task",
