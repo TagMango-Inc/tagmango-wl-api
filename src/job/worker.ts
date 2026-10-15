@@ -3,7 +3,12 @@ import "dotenv/config";
 import { DelayedError, Job, Processor, Worker } from "bullmq";
 import { execFile, spawn } from "child_process";
 import fs from "fs-extra";
-import { ObjectId, UpdateFilter } from "mongodb";
+import {
+  MongoNetworkError,
+  MongoServerSelectionError,
+  ObjectId,
+  UpdateFilter,
+} from "mongodb";
 import os from "os";
 import path from "path";
 import pino from "pino";
@@ -99,7 +104,20 @@ const MIN_FREE_DISK_GB = Number(process.env.WL_MIN_FREE_DISK_GB ?? 40);
 // builds once it passes this cap, and refills on the next iOS build.
 const XCODE_CACHE_MAX_GB = Number(process.env.WL_XCODE_CACHE_MAX_GB ?? 10);
 const LOW_DISK_RETRY_MS = 10 * 60 * 1000;
-let lowDiskPausedUntil = 0;
+// Without Mongo or DNS every queued job fails within ~30s, and a failed job is
+// removed from Redis while Mongo still shows it pending (784 deployments on
+// 15 Oct 2026). Such a job is put back and the worker pauses instead.
+const UNREACHABLE_RETRY_MS = 5 * 60 * 1000;
+// DNS lookups only; a reset or timeout can be one flaky upload, and pausing
+// for that would hold up every other job
+const NETWORK_ERROR_CODES = new Set(["ENOTFOUND", "EAI_AGAIN"]);
+let pausedUntil = 0;
+
+/** Mongo, or the network itself, is unreachable: not the deployment's fault */
+const isUnreachable = (error: unknown) =>
+  error instanceof MongoServerSelectionError ||
+  error instanceof MongoNetworkError ||
+  NETWORK_ERROR_CODES.has((error as NodeJS.ErrnoException)?.code ?? "");
 
 
 /**
@@ -188,7 +206,22 @@ const purgeTrashNow = () =>
 (async () => {
   Mongo.connect()
     .then(() => {
-      const processBuildJob: Processor<BuildJobPayloadType> = async (job, token) => {
+      /** puts the job back in its queue and pauses both lanes for retryMs */
+      const putBackAndPause = async (
+        job: Job<BuildJobPayloadType>,
+        token: string | undefined,
+        retryMs: number,
+      ): Promise<never> => {
+        await job.moveToDelayed(Date.now() + retryMs, token);
+        if (Date.now() > pausedUntil) {
+          pausedUntil = Date.now() + retryMs;
+          for (const worker of workers) worker.pause(true);
+          setTimeout(() => workers.forEach((worker) => worker.resume()), retryMs);
+        }
+        throw new DelayedError();
+      };
+
+      const runBuildJob: Processor<BuildJobPayloadType> = async (job, token) => {
           const {
             deploymentId,
             hostId,
@@ -234,13 +267,7 @@ const purgeTrashNow = () =>
             logger.error(
               `Only ${freeGb} GB free (floor ${MIN_FREE_DISK_GB} GB): putting deployment ${deploymentId} back and pausing for ${LOW_DISK_RETRY_MS / 60000} min`,
             );
-            await job.moveToDelayed(Date.now() + LOW_DISK_RETRY_MS, token);
-            if (Date.now() > lowDiskPausedUntil) {
-              lowDiskPausedUntil = Date.now() + LOW_DISK_RETRY_MS;
-              for (const worker of workers) worker.pause(true);
-              setTimeout(() => workers.forEach((worker) => worker.resume()), LOW_DISK_RETRY_MS);
-            }
-            throw new DelayedError();
+            await putBackAndPause(job, token, LOW_DISK_RETRY_MS);
           }
 
 
@@ -849,6 +876,19 @@ const purgeTrashNow = () =>
           clearActiveTask(deploymentId);
           logger.info("Deployment Process Completed");
         };
+
+      const processBuildJob: Processor<BuildJobPayloadType> = async (job, token) => {
+        try {
+          return await runBuildJob(job, token);
+        } catch (error) {
+          if (!isUnreachable(error)) throw error;
+          logger.error(
+            error,
+            `Mongo or the network is unreachable: putting deployment ${job.data.deploymentId} back and pausing for ${UNREACHABLE_RETRY_MS / 60000} min`,
+          );
+          return putBackAndPause(job, token, UNREACHABLE_RETRY_MS);
+        }
+      };
 
       const workers = ["buildQueue", ANDROID_BUILD_QUEUE].map(
         (queueName) =>
