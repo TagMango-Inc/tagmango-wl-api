@@ -27,6 +27,12 @@ const OWNED_INDEXES: {
     keys: { updatedAt: -1 },
     name: "updatedAt_-1",
   },
+  // machine health builds: $or of updatedAt / createdAt since the window start
+  {
+    collection: Collections.DEPLOYMENT,
+    keys: { createdAt: -1 },
+    name: "createdAt_-1",
+  },
   // filtered global list (platform/status) with same sort
   {
     collection: Collections.DEPLOYMENT,

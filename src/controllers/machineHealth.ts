@@ -75,7 +75,8 @@ const readSeries = (since: Date, bucketMin: number) =>
 const readBuilds = async (since: Date) => {
   const rows = await Mongo.deployment
     .aggregate([
-      { $match: { createdAt: { $gte: since } } },
+      // by activity, not queue time: redeployments can sit queued for days
+      { $match: { $or: [{ updatedAt: { $gte: since } }, { createdAt: { $gte: since } }] } },
       {
         $project: {
           host: 1,
@@ -110,7 +111,6 @@ const readBuilds = async (since: Date) => {
           },
         },
       },
-      { $sort: { createdAt: 1 } },
     ])
     .toArray();
 
@@ -120,19 +120,29 @@ const readBuilds = async (since: Date) => {
     .toArray();
   const appName = new Map(hosts.map((h) => [String(h._id), h.appName]));
 
-  return rows.map((r) => ({
+  // createdAt is when it was queued; it ran for durationMs up to its last update
+  const startOf = (r: (typeof rows)[number]) => {
+    const queued = new Date(r.createdAt);
+    if (r.status === "pending" || !r.updatedAt) return queued;
+    const start = new Date(+new Date(r.updatedAt) - (r.durationMs || 0));
+    return start < queued ? queued : start;
+  };
+
+  const builds = rows.map((r) => ({
     id: String(r._id),
     host: String(r.host),
     appName: appName.get(String(r.host)) ?? "",
     platform: r.platform as string,
     status: r.status as string,
     first: !!r.isFirstDeployment,
-    start: r.createdAt as Date,
+    start: startOf(r),
     end: r.updatedAt as Date,
+    queuedAt: r.createdAt as Date,
     minutes: +((r.durationMs || 0) / 60_000).toFixed(2),
     failedTask: r.status === "failed" ? (r.failedTask ?? null) : null,
     reason: r.status === "failed" ? failureReason(r.logTail ?? "") : null,
   }));
+  return builds.sort((a, b) => +a.start - +b.start);
 };
 
 /** GB per day the free space is shrinking by, from a least-squares fit over the last 24h */
