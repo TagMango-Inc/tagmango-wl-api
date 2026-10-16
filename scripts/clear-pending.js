@@ -45,7 +45,10 @@ if (platformArg && !["ios", "android"].includes(platformArg)) {
       throw new Error(`a bulk redeploy is still creating deployments (redeploymentQueue ${JSON.stringify(redeploys)}); wait for it to finish`);
     }
 
-    await mongo.connect();
+    await mongo.connect().catch((e) => {
+      const host = uri.replace(/\/\/[^@]*@/, "//***@").split("?")[0];
+      throw new Error(`${e.message} (MONGO_URI ${host}; pm2 apps take theirs from ecosystem.config.js, this script from the environment or .env)`);
+    });
     const deployments = mongo.db(uri.split("?")[0].split("/").pop()).collection("wldeployments");
 
     const activeIds = new Set();
