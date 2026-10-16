@@ -1,0 +1,442 @@
+{
+  "since": "2026-10-07T06:00:00.000Z",
+  "until": "2026-10-14T12:00:00.000Z",
+  "by": "updatedAt",
+  "generatedAt": "2026-10-14T10:38:23.437Z",
+  "groups": {
+    "android.first": {
+      "success": 26,
+      "failed": 11,
+      "failureRate": 0.297,
+      "buildTimeMin": {
+        "n": 26,
+        "mean": 6.7,
+        "p50": 7.7,
+        "p75": 8.6,
+        "p90": 8.7,
+        "max": 8.9
+      },
+      "createdToDoneMin": {
+        "n": 26,
+        "mean": 100.9,
+        "p50": 21.6,
+        "p75": 134.4,
+        "p90": 260.5,
+        "max": 701.1
+      },
+      "wastedOnFailuresHours": 0.5,
+      "failedAtTask": {
+        "screenshots": 11
+      },
+      "perTaskMin": {
+        "git fetch root": {
+          "n": 26,
+          "mean": 0.1,
+          "p50": 0.1,
+          "p75": 0.1,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "copy root project": {
+          "n": 26,
+          "mean": 0.2,
+          "p50": 0.2,
+          "p75": 0.2,
+          "p90": 0.2,
+          "max": 0.2
+        },
+        "generate assets": {
+          "n": 26,
+          "mean": 0.1,
+          "p50": 0.1,
+          "p75": 0.1,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "screenshots": {
+          "n": 26,
+          "mean": 1.9,
+          "p50": 3,
+          "p75": 3.2,
+          "p90": 3.2,
+          "max": 3.3
+        },
+        "metadata files": {
+          "n": 26,
+          "mean": 0,
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "pre-deploy + bundle script": {
+          "n": 26,
+          "mean": 0.3,
+          "p50": 0.2,
+          "p75": 0.4,
+          "p90": 0.7,
+          "max": 0.8
+        },
+        "create app on platform": {
+          "n": 26,
+          "mean": 0,
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "fastlane build": {
+          "n": 26,
+          "mean": 4.1,
+          "p50": 4.7,
+          "p75": 4.8,
+          "p90": 5,
+          "max": 5.1
+        },
+        "fastlane upload": {
+          "n": 26,
+          "mean": 0,
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "cleanup": {
+          "n": 26,
+          "mean": 0,
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "max": 0
+        }
+      }
+    },
+    "android.subsequent": {
+      "success": 85,
+      "failed": 54,
+      "failureRate": 0.388,
+      "buildTimeMin": {
+        "n": 85,
+        "mean": 7.4,
+        "p50": 7.4,
+        "p75": 7.9,
+        "p90": 8.6,
+        "max": 9.7
+      },
+      "createdToDoneMin": {
+        "n": 85,
+        "mean": 6195.3,
+        "p50": 319.7,
+        "p75": 12756.5,
+        "p90": 12882.4,
+        "max": 12951.3
+      },
+      "wastedOnFailuresHours": 6,
+      "failedAtTask": {
+        "fastlane upload": 52,
+        "screenshots": 2
+      },
+      "perTaskMin": {
+        "git fetch root": {
+          "n": 85,
+          "mean": 0.1,
+          "p50": 0.1,
+          "p75": 0.1,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "copy root project": {
+          "n": 85,
+          "mean": 0.2,
+          "p50": 0.2,
+          "p75": 0.2,
+          "p90": 0.2,
+          "max": 0.2
+        },
+        "generate assets": {
+          "n": 85,
+          "mean": 0.1,
+          "p50": 0.1,
+          "p75": 0.1,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "screenshots": {
+          "n": 85,
+          "mean": 0,
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "metadata files": {
+          "n": 85,
+          "mean": 0,
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "pre-deploy + bundle script": {
+          "n": 85,
+          "mean": 0.7,
+          "p50": 0.7,
+          "p75": 0.8,
+          "p90": 0.8,
+          "max": 0.8
+        },
+        "create app on platform": {
+          "n": 85,
+          "mean": 0,
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "fastlane build": {
+          "n": 85,
+          "mean": 4.2,
+          "p50": 4,
+          "p75": 4.6,
+          "p90": 5.2,
+          "max": 5.6
+        },
+        "fastlane upload": {
+          "n": 85,
+          "mean": 2.2,
+          "p50": 2.2,
+          "p75": 2.4,
+          "p90": 2.6,
+          "max": 4.7
+        },
+        "cleanup": {
+          "n": 82,
+          "mean": 0,
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "max": 0
+        }
+      }
+    },
+    "ios.first": {
+      "success": 21,
+      "failed": 15,
+      "failureRate": 0.417,
+      "buildTimeMin": {
+        "n": 21,
+        "mean": 18.1,
+        "p50": 16,
+        "p75": 18.4,
+        "p90": 19.6,
+        "max": 36.7
+      },
+      "createdToDoneMin": {
+        "n": 21,
+        "mean": 234,
+        "p50": 173.8,
+        "p75": 310.6,
+        "p90": 616,
+        "max": 649.2
+      },
+      "wastedOnFailuresHours": 1.2,
+      "failedAtTask": {
+        "create app on platform": 4,
+        "screenshots": 9,
+        "fastlane upload": 2
+      },
+      "perTaskMin": {
+        "git fetch root": {
+          "n": 21,
+          "mean": 0.1,
+          "p50": 0.1,
+          "p75": 0.1,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "copy root project": {
+          "n": 21,
+          "mean": 0.2,
+          "p50": 0.2,
+          "p75": 0.2,
+          "p90": 0.2,
+          "max": 0.4
+        },
+        "generate assets": {
+          "n": 21,
+          "mean": 0.1,
+          "p50": 0.1,
+          "p75": 0.1,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "screenshots": {
+          "n": 21,
+          "mean": 2.1,
+          "p50": 2.1,
+          "p75": 2.2,
+          "p90": 2.2,
+          "max": 3
+        },
+        "metadata files": {
+          "n": 21,
+          "mean": 0,
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "pre-deploy + bundle script": {
+          "n": 21,
+          "mean": 1.1,
+          "p50": 1,
+          "p75": 1,
+          "p90": 1.1,
+          "max": 3
+        },
+        "create app on platform": {
+          "n": 21,
+          "mean": 1.2,
+          "p50": 1.2,
+          "p75": 1.3,
+          "p90": 1.4,
+          "max": 1.5
+        },
+        "fastlane build": {
+          "n": 21,
+          "mean": 7.9,
+          "p50": 8.1,
+          "p75": 8.2,
+          "p90": 8.3,
+          "max": 8.7
+        },
+        "fastlane upload": {
+          "n": 21,
+          "mean": 5.4,
+          "p50": 3.2,
+          "p75": 5.2,
+          "p90": 6.3,
+          "max": 23.7
+        },
+        "cleanup": {
+          "n": 21,
+          "mean": 0,
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "max": 0
+        }
+      }
+    },
+    "ios.subsequent": {
+      "success": 455,
+      "failed": 119,
+      "failureRate": 0.207,
+      "buildTimeMin": {
+        "n": 455,
+        "mean": 11.4,
+        "p50": 10.9,
+        "p75": 11.5,
+        "p90": 12.8,
+        "max": 26.6
+      },
+      "createdToDoneMin": {
+        "n": 455,
+        "mean": 3121.8,
+        "p50": 2200.3,
+        "p75": 5558.2,
+        "p90": 6435,
+        "max": 7016.2
+      },
+      "wastedOnFailuresHours": 5.7,
+      "failedAtTask": {
+        "fastlane build": 92,
+        "fastlane upload": 13,
+        "create app on platform": 8,
+        "screenshots": 6
+      },
+      "perTaskMin": {
+        "git fetch root": {
+          "n": 455,
+          "mean": 0.1,
+          "p50": 0.1,
+          "p75": 0.1,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "copy root project": {
+          "n": 455,
+          "mean": 0.2,
+          "p50": 0.2,
+          "p75": 0.2,
+          "p90": 0.2,
+          "max": 0.2
+        },
+        "generate assets": {
+          "n": 455,
+          "mean": 0.1,
+          "p50": 0.1,
+          "p75": 0.1,
+          "p90": 0.1,
+          "max": 0.2
+        },
+        "screenshots": {
+          "n": 455,
+          "mean": 0,
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "max": 2.1
+        },
+        "metadata files": {
+          "n": 455,
+          "mean": 0,
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "pre-deploy + bundle script": {
+          "n": 455,
+          "mean": 1,
+          "p50": 1,
+          "p75": 1.1,
+          "p90": 1.1,
+          "max": 3
+        },
+        "create app on platform": {
+          "n": 455,
+          "mean": 0.1,
+          "p50": 0.1,
+          "p75": 0.1,
+          "p90": 0.1,
+          "max": 0.2
+        },
+        "fastlane build": {
+          "n": 455,
+          "mean": 6.7,
+          "p50": 6.5,
+          "p75": 7,
+          "p90": 7.2,
+          "max": 9.2
+        },
+        "fastlane upload": {
+          "n": 455,
+          "mean": 3.3,
+          "p50": 2.8,
+          "p75": 3.1,
+          "p90": 4.3,
+          "max": 18.5
+        },
+        "cleanup": {
+          "n": 455,
+          "mean": 0,
+          "p50": 0,
+          "p75": 0,
+          "p90": 0,
+          "max": 0
+        }
+      }
+    }
+  }
+}

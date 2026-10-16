@@ -1,6 +1,8 @@
 // Read-only TAT report for WL deployments. Run the same command before and
 // after a change so the numbers are comparable:
 //   node scripts/perf/measure-tat.js --since 2026-06-30 --until 2026-09-28 --out perf/before.json
+// --by updatedAt picks deployments by when they finished instead of when they
+// were requested: a bulk redeploy queued before a change can run after it.
 require("dotenv").config();
 const fs = require("fs");
 const { MongoClient } = require("mongodb");
@@ -12,6 +14,8 @@ const arg = (name, fallback) => {
 const until = new Date(arg("until", new Date().toISOString()));
 const since = new Date(arg("since", new Date(until - 90 * 864e5).toISOString()));
 const out = arg("out");
+const by = arg("by", "createdAt");
+if (!["createdAt", "updatedAt"].includes(by)) throw new Error("--by is createdAt or updatedAt");
 
 // task names embed the bundle id, so tasks are identified by position
 const TASKS = [
@@ -50,7 +54,7 @@ const stats = (xs) => ({
     .db()
     .collection("wldeployments")
     .find(
-      { createdAt: { $gte: since, $lt: until }, status: { $in: ["success", "failed"] } },
+      { [by]: { $gte: since, $lt: until }, status: { $in: ["success", "failed"] } },
       {
         projection: {
           platform: 1, status: 1, isFirstDeployment: 1, redeploymentId: 1,
@@ -62,7 +66,7 @@ const stats = (xs) => ({
     .toArray();
   await client.close();
 
-  const report = { since, until, generatedAt: new Date(), groups: {} };
+  const report = { since, until, by, generatedAt: new Date(), groups: {} };
   for (const platform of ["android", "ios"]) {
     for (const first of [true, false]) {
       const key = `${platform}.${first ? "first" : "subsequent"}`;
