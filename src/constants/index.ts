@@ -24,7 +24,7 @@ const UPDATE_ANDROID_PLAY_STORE_STATUS_CRON = "0 */6 * * *"; // Every 6 hours
 const CLEANUP_DEPLOYMENT_REQUESTS_CRON = "0 0 * * *"; // Daily at midnight
 const DEPLOYMENT_REQUEST_RETENTION_DAYS = 7;
 const CLEANUP_DEPLOYMENT_FOLDERS_CRON = "0 * * * *"; // Every hour
-const DEPLOYMENT_FOLDER_RETENTION_HOURS = 48;
+const DEPLOYMENT_FOLDER_RETENTION_HOURS = 24;
 const AAB_RETENTION_HOURS = 48;
 // shared gem folders (one per Ruby version + Gemfile.lock) unused this long are removed
 const GEM_CACHE_RETENTION_DAYS = 14;
