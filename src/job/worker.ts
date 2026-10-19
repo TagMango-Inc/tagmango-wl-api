@@ -719,6 +719,16 @@ const purgeTrashNow = () =>
               const usesRootRepo =
                 task.id === taskNames[0].id || task.id === taskNames[1].id;
               const usesSimulator = task.id === taskNames[3].id;
+              // Metro bundles here (detox build, gradle bundleRelease, Xcode
+              // archive) and both RN's gradle plugin and react-native-xcode.sh
+              // pass --reset-cache. Its cache lives in $TMPDIR/metro-cache, so
+              // with two lanes one build cleared it while the other wrote to
+              // it (ENOTEMPTY). Each workspace gets its own TMPDIR, removed
+              // with the workspace.
+              const usesMetro =
+                task.id === taskNames[3].id || task.id === taskNames[7].id;
+              const tmpDir = path.resolve(workspaceDir, ".tmp");
+              if (usesMetro) await fs.ensureDir(tmpDir);
               const runTask = (taskCommands = commands[task.id]) => executeTask({
                 commands: taskCommands,
                 taskId: task.id,
@@ -727,6 +737,7 @@ const purgeTrashNow = () =>
                 deploymentId,
                 hostId,
                 env: {
+                  ...(usesMetro ? { TMPDIR: tmpDir } : {}),
                   ...(usesAscKey ? ascKeyEnv : {}),
                   ...(skipScreenshots ? { WL_SKIP_SCREENSHOTS: "1" } : {}),
                   ...(skipAppPrivacy ? { WL_SKIP_APP_PRIVACY: "1" } : {}),
