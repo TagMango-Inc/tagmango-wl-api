@@ -62,7 +62,7 @@ runs at start-up and can take a few minutes at background priority.
 | DerivedData project folders, gym logs | worker after an iOS deploy; hourly cron | 1 h; gym logs 3 days |
 | Xcode `*.noindex` caches | worker, before each iOS job | capped at `WL_XCODE_CACHE_MAX_GB` |
 | Xcode Archives | worker after a successful iOS deploy (all archives: gym already exported the .ipa); hourly cron per `.xcarchive` | 1 h |
-| CocoaPods `Pods/External` (hermes-engine, React-Core-prebuilt, ReactNativeDependencies) | hourly cron (`trashStaleExternalPods`) | `EXTERNAL_POD_CACHE_RETENTION_DAYS` (2) |
+| CocoaPods `Pods/External` (hermes-engine, React-Core-prebuilt, ReactNativeDependencies) | worker, before each iOS job, in the simulator turn (`src/utils/podCache.ts`), so it never runs during a `pod install` | `EXTERNAL_POD_CACHE_RETENTION_DAYS` (2) |
 | Gradle build cache (`~/.gradle/caches/build-cache-1`) | Gradle itself, once a day when a daemon stops | `GRADLE_BUILD_CACHE_RETENTION_DAYS` (2), set by `~/.gradle/init.d/wl-build-cache-retention.gradle`, which the worker writes on start |
 | Shared gems | hourly cron | `GEM_CACHE_RETENTION_DAYS` (14) unused |
 | AAB outputs | daily cron | `AAB_RETENTION_HOURS` |
@@ -70,7 +70,10 @@ runs at start-up and can take a few minutes at background priority.
 CocoaPods gives every pod whose podspec comes from a local path a separate
 cache entry per workspace path and never removes any: hermes-engine alone
 reached 1,255 copies (111 GB) by 21 Oct 2026. A pod install that finds no
-entry downloads the tarball again (27 MB).
+entry downloads the tarball again (27 MB). `pod install` copies from these
+entries (a repeat deploy reuses its own), so they are only trimmed when no
+pod install can be running: before an iOS job starts, inside the simulator
+turn that the screenshot step's Detox build also takes.
 
 Gradle can't cap its build cache by size, only by days since last use. Entries
 shared across apps (about 46% of tasks come from the cache) are used by every
