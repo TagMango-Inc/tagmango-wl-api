@@ -53,3 +53,28 @@ runs at start-up and can take a few minutes at background priority.
 - `WL_HEALTH_SCAN_MIN`: minutes between folder scans (default 30).
 - Folders, process groups and plan markers: `src/machineHealth/config.ts`
   and `src/machineHealth/markers.ts`.
+
+## What keeps each folder from growing
+
+| Folder | Removed by | Kept |
+|---|---|---|
+| `deployments/<bundle>-<platform>` | worker after a successful deploy; hourly cron | `DEPLOYMENT_FOLDER_RETENTION_HOURS` |
+| DerivedData project folders, gym logs | worker after an iOS deploy; hourly cron | 1 h; gym logs 3 days |
+| Xcode `*.noindex` caches | worker, before each iOS job | capped at `WL_XCODE_CACHE_MAX_GB` |
+| Xcode Archives | worker after a successful iOS deploy (all archives: gym already exported the .ipa); hourly cron per `.xcarchive` | 1 h |
+| CocoaPods `Pods/External` (hermes-engine, React-Core-prebuilt, ReactNativeDependencies) | hourly cron (`trashStaleExternalPods`) | `EXTERNAL_POD_CACHE_RETENTION_DAYS` (2) |
+| Gradle build cache (`~/.gradle/caches/build-cache-1`) | Gradle itself, once a day when a daemon stops | `GRADLE_BUILD_CACHE_RETENTION_DAYS` (2), set by `~/.gradle/init.d/wl-build-cache-retention.gradle`, which the worker writes on start |
+| Shared gems | hourly cron | `GEM_CACHE_RETENTION_DAYS` (14) unused |
+| AAB outputs | daily cron | `AAB_RETENTION_HOURS` |
+
+CocoaPods gives every pod whose podspec comes from a local path a separate
+cache entry per workspace path and never removes any: hermes-engine alone
+reached 1,255 copies (111 GB) by 21 Oct 2026. A pod install that finds no
+entry downloads the tarball again (27 MB).
+
+Gradle can't cap its build cache by size, only by days since last use. Entries
+shared across apps (about 46% of tasks come from the cache) are used by every
+Android build and stay; per-app entries go after 2 days. After 2+ days without
+an Android build, the first one runs without them, about 2 minutes slower.
+
+Retention constants are in `src/constants/index.ts`.

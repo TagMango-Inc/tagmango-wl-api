@@ -19,6 +19,15 @@ export const GYM_LOGS = path.join(os.homedir(), "Library/Logs/gym");
 export const GEM_CACHE_DIR = path.join(os.homedir(), "wl-cache.noindex/bundle");
 /** trash for gem folders unused for GEM_CACHE_RETENTION_DAYS */
 export const GEM_TRASH = path.join(os.homedir(), "wl-cache.noindex/.trash");
+/**
+ * CocoaPods' cache of pods whose podspec comes from a local path (hermes-engine,
+ * React-Core-prebuilt, ReactNativeDependencies from node_modules). Every
+ * workspace path gets its own entry, ~90 MB for hermes-engine, and CocoaPods
+ * never removes any: 1,255 hermes-engine copies (111 GB) by 21 Oct 2026.
+ */
+export const COCOAPODS_EXTERNAL = path.join(os.homedir(), "Library/Caches/CocoaPods/Pods/External");
+/** the matching cached podspecs, <pod>/<entry>.podspec.json */
+export const COCOAPODS_EXTERNAL_SPECS = path.join(os.homedir(), "Library/Caches/CocoaPods/Pods/Specs/External");
 
 /**
  * Background QoS throttles disk and CPU when anything else (a build) wants
@@ -41,6 +50,22 @@ export const trashStaleEntriesCommand = (
   { keep, olderThanMin = 60 }: { keep?: string; olderThanMin?: number } = {},
 ) =>
   `{ mkdir -p ${trashDir}; for e in ${dir}/*(N^mm-${olderThanMin}); do [[ \${e:t} == ${keep ?? "''"} ]] || mv $e ${trashDir}/\${e:t}-$(date +%s)-$$; done; true; }`;
+
+/**
+ * zsh: trash the .xcarchive bundles under Xcode's Archives folder, then the
+ * empty day folders Xcode files them in (Archives/<YYYY-MM-DD>/). Nothing
+ * reads an archive after the build: gym exports the .ipa into the workspace
+ * and the upload uses that. With `olderThanMin` only archives untouched for
+ * that long go, so an archive being written is left alone.
+ */
+export const trashArchivesCommand = (
+  dir: string,
+  trashDir: string,
+  { olderThanMin }: { olderThanMin?: number } = {},
+) => {
+  const age = olderThanMin === undefined ? "" : `^mm-${olderThanMin}`;
+  return `{ mkdir -p ${trashDir}; for a in ${dir}/*/*.xcarchive(N/${age}); do mv $a ${trashDir}/\${a:t:r}-$(date +%s)-$$.xcarchive; done; rmdir ${dir}/*(N/^F) 2>/dev/null; true; }`;
+};
 
 /** zsh: shut down booted simulators (Detox leaves them running) */
 export const shutdownSimulatorsCommand = () =>

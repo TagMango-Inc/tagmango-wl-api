@@ -28,6 +28,12 @@ const DEPLOYMENT_FOLDER_RETENTION_HOURS = 24;
 const AAB_RETENTION_HOURS = 48;
 // shared gem folders (one per Ruby version + Gemfile.lock) unused this long are removed
 const GEM_CACHE_RETENTION_DAYS = 14;
+// CocoaPods cache entries for local-path pods (hermes-engine etc.) older than
+// this are removed; a missing one is downloaded again on the next pod install
+const EXTERNAL_POD_CACHE_RETENTION_DAYS = 2;
+// Gradle build-cache entries unused this long are removed (Gradle's default
+// is 7). Entries shared across apps are used by every build and stay.
+const GRADLE_BUILD_CACHE_RETENTION_DAYS = 2;
 
 // "TagMango" (team Z9M2DKF2B7). New apps don't need an App Group any more,
 // which is what filled this account up.
@@ -43,7 +49,9 @@ export {
   DEFAULT_IOS_DEVELOPER_ACCOUNT_ID,
   DEPLOYMENT_FOLDER_RETENTION_HOURS,
   DEPLOYMENT_REQUEST_RETENTION_DAYS,
+  EXTERNAL_POD_CACHE_RETENTION_DAYS,
   GEM_CACHE_RETENTION_DAYS,
+  GRADLE_BUILD_CACHE_RETENTION_DAYS,
   DEPLOYMENT_REQUIREMENTS,
   githubrepo,
   REMOVE_BUNDLES_CRON,
