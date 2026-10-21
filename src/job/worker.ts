@@ -34,6 +34,7 @@ import {
   startCancellationListener,
 } from "./cancellation";
 import { ANDROID_BUILD_QUEUE, queueRedisOptions } from "./config";
+import { ensureGradleCacheRetention } from "./gradleCache";
 import {
   APP_PRIVACY_HASH_FIELD,
   appPrivacyMarker,
@@ -55,6 +56,7 @@ import {
   XCODE_DERIVED_DATA,
   purgeTrashInBackgroundCommand,
   shutdownSimulatorsCommand,
+  trashArchivesCommand,
   trashCommand,
   trashStaleEntriesCommand,
   XCODE_TRASH,
@@ -633,7 +635,9 @@ const purgeTrashNow = () =>
                 ? [
                     `echo "Removing deployment folder"`,
                     trashCommand(workspaceDir, DEPLOYMENT_TRASH),
-                    trashStaleEntriesCommand(archivesPath, XCODE_TRASH),
+                    // gym exported the .ipa into the workspace and it's uploaded;
+                    // only this lane archives, so every archive here is done
+                    trashArchivesCommand(archivesPath, XCODE_TRASH),
                     trashStaleEntriesCommand(derivedDataPath, XCODE_TRASH, { keep: "*.noindex" }),
                     // gym's full xcodebuild logs, ~19 GB before this; kept 3 days for debugging
                     trashStaleEntriesCommand(gymLogsPath, XCODE_TRASH, { olderThanMin: 3 * 24 * 60 }),
@@ -900,6 +904,10 @@ const purgeTrashNow = () =>
           return putBackAndPause(job, token, UNREACHABLE_RETRY_MS);
         }
       };
+
+      ensureGradleCacheRetention()
+        .then((changed) => changed && logger.info("Gradle build-cache retention init script written"))
+        .catch((error) => logger.error(error, "Failed to write the Gradle build-cache retention init script"));
 
       const workers = ["buildQueue", ANDROID_BUILD_QUEUE].map(
         (queueName) =>

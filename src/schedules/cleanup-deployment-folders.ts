@@ -7,11 +7,14 @@ import {
   customhostDeploymentDir,
   DEPLOYMENT_FOLDER_RETENTION_HOURS,
   deploymentFolderName,
+  EXTERNAL_POD_CACHE_RETENTION_DAYS,
   GEM_CACHE_RETENTION_DAYS,
 } from "../constants";
 import Mongo from "../database";
 import { Status } from "../types/database";
 import {
+  COCOAPODS_EXTERNAL,
+  COCOAPODS_EXTERNAL_SPECS,
   GEM_CACHE_DIR,
   GEM_TRASH,
   GYM_LOGS,
@@ -103,11 +106,51 @@ export const trashStaleXcodeOutput = async (activeFolders: Set<string>, stamp: n
       return ![...activeFolders].some((f) => workspace?.includes(`/${customhostDeploymentDir}/${f}/`));
     });
   }
-  for (const name of await list(XCODE_ARCHIVES)) {
-    if (!name.startsWith(".")) await trash(XCODE_ARCHIVES, name, HOUR_MS);
+  // Xcode files archives under one folder per day, and that folder changes
+  // with every archive, so age the .xcarchive bundles inside it instead
+  for (const day of await list(XCODE_ARCHIVES)) {
+    if (day.startsWith(".")) continue;
+    const dayDir = path.join(XCODE_ARCHIVES, day);
+    if (!(await fs.lstat(dayDir)).isDirectory()) continue;
+    for (const name of await list(dayDir)) {
+      if (name.endsWith(".xcarchive")) await trash(dayDir, name, HOUR_MS);
+    }
+    if (!(await list(dayDir)).length) await fs.rmdir(dayDir).catch(() => undefined);
   }
   for (const name of await list(GYM_LOGS)) {
     if (!name.startsWith(".")) await trash(GYM_LOGS, name, GYM_LOG_RETENTION_MS);
+  }
+  return moved;
+};
+
+/**
+ * Moves CocoaPods cache entries for local-path pods (hermes-engine and the
+ * other node_modules podspecs) older than EXTERNAL_POD_CACHE_RETENTION_DAYS
+ * into XCODE_TRASH, with their cached podspec. Each workspace path gets its
+ * own entry and CocoaPods never removes them (hermes-engine alone grew by
+ * ~10 GB a day). A pod install that finds none downloads it again. Returns
+ * how many were moved.
+ */
+export const trashStaleExternalPods = async (stamp: number) => {
+  if (!(await fs.pathExists(COCOAPODS_EXTERNAL))) return 0;
+  await fs.ensureDir(XCODE_TRASH);
+  const cutoff = Date.now() - EXTERNAL_POD_CACHE_RETENTION_DAYS * 24 * HOUR_MS;
+  let moved = 0;
+  for (const pod of await fs.readdir(COCOAPODS_EXTERNAL)) {
+    const podDir = path.join(COCOAPODS_EXTERNAL, pod);
+    if (pod.startsWith(".") || !(await fs.lstat(podDir)).isDirectory()) continue;
+    for (const entry of await fs.readdir(podDir)) {
+      const full = path.join(podDir, entry);
+      try {
+        if ((await fs.lstat(full)).mtimeMs >= cutoff) continue;
+        await fs.rename(full, path.join(XCODE_TRASH, `cocoapods-${pod}-${entry}-${stamp}`));
+        moved++;
+        // without its entry the cached podspec only points at nothing
+        await fs.remove(path.join(COCOAPODS_EXTERNAL_SPECS, pod, `${entry}.podspec.json`));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+    }
   }
   return moved;
 };
@@ -231,6 +274,7 @@ export const cleanupDeploymentFolders = async () => {
 
     const unusedGems = await trashUnusedGemFolders(stamp);
     const staleXcode = await trashStaleXcodeOutput(activeFolders, stamp);
+    const stalePods = await trashStaleExternalPods(stamp);
 
     // also picks up anything left behind by an earlier interrupted run, and
     // Xcode output and gem folders moved aside
@@ -254,7 +298,7 @@ export const cleanupDeploymentFolders = async () => {
     });
 
     console.log(
-      `Expired (>${DEPLOYMENT_FOLDER_RETENTION_HOURS}h): ${toTrash.join(", ") || "none"}; unused gem folders (>${GEM_CACHE_RETENTION_DAYS}d): ${unusedGems.join(", ") || "none"}; removed ${removed}/${trashed.length} folders from trash; stale Xcode output moved: ${staleXcode}`,
+      `Expired (>${DEPLOYMENT_FOLDER_RETENTION_HOURS}h): ${toTrash.join(", ") || "none"}; unused gem folders (>${GEM_CACHE_RETENTION_DAYS}d): ${unusedGems.join(", ") || "none"}; removed ${removed}/${trashed.length} folders from trash; stale Xcode output moved: ${staleXcode}; CocoaPods local-path pod entries (>${EXTERNAL_POD_CACHE_RETENTION_DAYS}d) moved: ${stalePods}`,
     );
   } catch (error) {
     console.error("Error cleaning up deployment folders:", error);
