@@ -1,0 +1,118 @@
+{
+  "generatedAt": "2026-10-07T13:45:33.336Z",
+  "since": "2026-10-07T05:49:57.000Z",
+  "android": {
+    "before": {
+      "n": 153,
+      "p50": 13.35,
+      "p90": 14.92,
+      "tasks": {
+        "fetch": 4,
+        "copy": 9,
+        "assets": 3,
+        "shots": 0,
+        "meta": 1,
+        "predeploy": 108,
+        "create": 0,
+        "build": 511,
+        "upload": 149,
+        "cleanup": 0
+      },
+      "steps": {
+        "build:bundleRelease": 497,
+        "upload:upload_to_play_store": 146,
+        "predeploy:Copy app assets": 39,
+        "predeploy:Creating a production JavaScript bundle for android": 23,
+        "predeploy:Installing bundle": 17,
+        "predeploy:Reinstalling dependencies": 13,
+        "predeploy:Clearing node_modules directory": 9,
+        "build:clean": 9,
+        "predeploy:Using pod version": 3
+      }
+    },
+    "after": {
+      "n": 42,
+      "p50": 7.53,
+      "p90": 7.96,
+      "tasks": {
+        "fetch": 5,
+        "copy": 11,
+        "assets": 4,
+        "shots": 0,
+        "meta": 1,
+        "predeploy": 42,
+        "create": 0,
+        "build": 243,
+        "upload": 140,
+        "cleanup": 0
+      },
+      "steps": {
+        "build:bundleRelease": 236,
+        "upload:upload_to_play_store": 136,
+        "predeploy:Copy android app assets": 24,
+        "predeploy:Copy app assets": 24,
+        "predeploy:Installing bundle": 18
+      }
+    }
+  },
+  "ios": {
+    "before": {
+      "n": 9,
+      "p50": 13.48,
+      "p90": 26.82,
+      "tasks": {
+        "fetch": 4,
+        "copy": 22,
+        "assets": 3,
+        "shots": 0,
+        "meta": 1,
+        "predeploy": 130,
+        "create": 5,
+        "build": 425,
+        "upload": 183,
+        "cleanup": 19
+      },
+      "steps": {
+        "build:build_app": 341,
+        "upload:upload_to_app_store": 171,
+        "build:sync_code_signing": 40,
+        "predeploy:Installing iOS pods": 35,
+        "predeploy:Copy app assets": 30,
+        "predeploy:Creating a production JavaScript bundle for iOS": 22,
+        "predeploy:Installing bundle": 17,
+        "predeploy:Reinstalling dependencies": 13,
+        "predeploy:Clearing node_modules directory": 9,
+        "upload:upload_app_privacy_de": 5,
+        "predeploy:Using pod version": 3
+      }
+    },
+    "after": {
+      "n": 5,
+      "p50": 12.83,
+      "p90": 13.75,
+      "tasks": {
+        "fetch": 4,
+        "copy": 9,
+        "assets": 3,
+        "shots": 0,
+        "meta": 1,
+        "predeploy": 81,
+        "create": 3,
+        "build": 477,
+        "upload": 193,
+        "cleanup": 0
+      },
+      "steps": {
+        "build:build_app": 388,
+        "upload:upload_to_app_store": 182,
+        "build:sync_code_signing": 79,
+        "predeploy:Installing iOS pods": 36,
+        "predeploy:Copy ios app assets": 24,
+        "predeploy:Copy app assets": 24,
+        "predeploy:Installing bundle": 18,
+        "upload:upload_app_privacy_de": 4,
+        "predeploy:Using pod version": 3
+      }
+    }
+  }
+}
