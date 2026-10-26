@@ -312,6 +312,10 @@ const purgeTrashNow = () =>
             versionName: string;
             buildNumber: number;
           };
+          // a per-app release override pins its own branch; everything else
+          // builds the global release's branch
+          const appBranch = job.data.branch ?? `v/${releaseDetails.versionName}`;
+          if (job.data.branch) logger.info(`Release override: building ${appBranch}`);
 
           let privateKey = null;
           if (platform === "ios") {
@@ -399,8 +403,8 @@ const purgeTrashNow = () =>
               `cp -r root/${githubrepo} ${workspaceDir}`,
               `cd ${customHostAppDir}`,
               `git fetch --all`,
-              `git checkout v/${releaseDetails.versionName}`,
-              `git pull origin v/${releaseDetails.versionName}`,
+              `git checkout ${appBranch}`,
+              `git pull origin ${appBranch}`,
               // without .watchmanconfig, /etc/watchman.json (enforce_root_files)
               // refuses to watch this copy: watching every workspace made
               // fseventsd grow to tens of GB. Metro and Jest fall back to
