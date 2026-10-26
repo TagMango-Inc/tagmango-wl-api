@@ -528,7 +528,7 @@ const createNewDeploymentHandler = factory.createHandlers(
   async (c) => {
     try {
       const { id: customHostId } = c.req.param();
-      const { target, generateIAPScreenshot } = c.req.valid("json");
+      const { target, generateIAPScreenshot, releaseOverride } = c.req.valid("json");
       const payload: JWTPayloadType = c.get("jwtPayload");
 
       if (!target) {
@@ -1025,15 +1025,24 @@ const createNewDeploymentHandler = factory.createHandlers(
         buildNumber: number;
       };
 
-      let currentVersionName = releaseDetails.versionName;
-      let currentBuildNumber = releaseDetails.buildNumber;
+      let currentVersionName =
+        releaseOverride?.versionName ?? releaseDetails.versionName;
+      let currentBuildNumber =
+        releaseOverride?.buildNumber ?? releaseDetails.buildNumber;
+      const branch = releaseOverride
+        ? (releaseOverride.branch ?? `v/${releaseOverride.versionName}`)
+        : undefined;
 
       if (
         lastDeploymentVersionName &&
         lastDeploymentBuildNumber &&
         lastDeploymentVersionName === currentVersionName
       ) {
-        currentBuildNumber = lastDeploymentBuildNumber + 1;
+        // an override's build number is a floor: redeploying the same
+        // override release still needs a higher build than the last upload
+        currentBuildNumber = releaseOverride
+          ? Math.max(currentBuildNumber, lastDeploymentBuildNumber + 1)
+          : lastDeploymentBuildNumber + 1;
       }
       const updateQuery =
         target === "android"
@@ -1087,6 +1096,7 @@ const createNewDeploymentHandler = factory.createHandlers(
         isFirstDeployment,
         generateIAPScreenshot: generateIAPScreenshot || false,
         ...(appGroupsEnabled !== undefined && { appGroupsEnabled }),
+        ...(branch && { branch }),
       });
 
       // TODO: can't create another job if the job already exists and processing
@@ -1124,6 +1134,7 @@ const createNewDeploymentHandler = factory.createHandlers(
           iosReviewSettings: metadata.iosReviewSettings,
 
           generateIAPScreenshot: generateIAPScreenshot || false,
+          ...(branch && { branch }),
 
           androidDeveloperAccount,
           iosDeveloperAccount,

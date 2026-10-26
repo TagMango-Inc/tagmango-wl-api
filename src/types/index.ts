@@ -44,6 +44,8 @@ export type BuildConfigType = {
   iosDeveloperAccount?: null | WithId<IDeveloperAccountIos>;
   isFirstDeployment: boolean;
   generateIAPScreenshot: boolean;
+  /** TagMangoApp branch for this build; unset means v/<data/release.json versionName> */
+  branch?: string;
   /** iOS only. Jobs queued before this field existed build with App Groups. */
   appGroupsEnabled?: boolean;
 };

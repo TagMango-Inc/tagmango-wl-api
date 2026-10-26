@@ -92,6 +92,8 @@ export interface IDeployment {
   cancelledBy: ObjectId | null;
   isFirstDeployment: boolean;
   generateIAPScreenshot: boolean;
+  /** set when the deployment used a per-app release override (see createNewDeploymentSchema) */
+  branch?: string;
   /** iOS only: whether this deployment built with the OneSignal App Group */
   appGroupsEnabled?: boolean;
   redeploymentId?: ObjectId | null;

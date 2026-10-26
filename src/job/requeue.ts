@@ -136,6 +136,8 @@ export const queueExistingDeployment = async (
       iosReviewSettings: metadata.iosReviewSettings,
 
       generateIAPScreenshot: deployment.generateIAPScreenshot || false,
+      // and from the same branch, if it had a release override
+      ...(deployment.branch && { branch: deployment.branch }),
 
       androidDeveloperAccount,
       iosDeveloperAccount,

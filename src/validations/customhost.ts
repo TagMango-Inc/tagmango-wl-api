@@ -5,6 +5,16 @@ import { RoutingConfig } from "../../src/types/database";
 export const createNewDeploymentSchema = z.object({
   target: z.enum(["android", "ios"]),
   generateIAPScreenshot: z.boolean().optional(),
+  // Temporary: deploy this one app at another release (e.g. a 10.0.2 hotfix)
+  // without touching data/release.json, which bulk redeploys keep using.
+  // branch defaults to v/<versionName>.
+  releaseOverride: z
+    .object({
+      versionName: z.string().regex(/^\d+\.\d+\.\d+$/),
+      buildNumber: z.number().int().positive(),
+      branch: z.string().regex(/^v\/\d+\.\d+\.\d+[\w.-]*$/).optional(),
+    })
+    .optional(),
 });
 
 export const createBulkReDeploymentSchema = z.object({
