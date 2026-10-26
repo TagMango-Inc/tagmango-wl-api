@@ -400,6 +400,11 @@ const purgeTrashNow = () =>
               `git fetch --all`,
               `git checkout v/${releaseDetails.versionName}`,
               `git pull origin v/${releaseDetails.versionName}`,
+              // without .watchmanconfig, /etc/watchman.json (enforce_root_files)
+              // refuses to watch this copy: watching every workspace made
+              // fseventsd grow to tens of GB. Metro and Jest fall back to
+              // crawling the files themselves.
+              `rm -f .watchmanconfig`,
               // gems go to one shared folder per Ruby version + Gemfile.lock
               // instead of vendor/bundle in every workspace (~18 s per
               // deployment). Set in this workspace's .bundle/config: the
