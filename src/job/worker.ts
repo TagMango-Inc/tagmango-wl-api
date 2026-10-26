@@ -61,6 +61,7 @@ import {
   trashStaleEntriesCommand,
   XCODE_TRASH,
 } from "../utils/trash";
+import { verifyJsBundleCommand } from "../utils/verifyJsBundle";
 
 /** thrown by executeTask when the task's process died to a user cancel —
  *  lets the task loop distinguish "stop quietly" from a real failure */
@@ -611,12 +612,14 @@ const purgeTrashNow = () =>
                 ? [
                     `cd ${customHostAppDir}`,
                     `source ~/.zshrc && bundle exec fastlane ${platform} build`,
+                    verifyJsBundleCommand("android"),
                     `cp -r android/app/build/outputs/bundle/release/app-release.aab ../../../outputs/android/${hostId}.aab`,
                     `node ../../../scripts/android-aab.js ${JSON.stringify({ hostId, versionName, buildNumber })}`,
                   ]
                 : [
                     `cd ${customHostAppDir}`,
                     `source ~/.zshrc && bundle exec fastlane ${platform} build`,
+                    verifyJsBundleCommand("ios"),
                   ],
             // step 6: Running the fastlane upload for specific targer platform
             // TODO
