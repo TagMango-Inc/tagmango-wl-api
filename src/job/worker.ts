@@ -43,6 +43,7 @@ import {
 } from "./appStoreConnect";
 import { iosCreateAppCommands } from "./iosPipelines";
 import { withRootRepo, withSimulator } from "./lanes";
+import { trashStaleExternalPods } from "../utils/podCache";
 import {
   hashScreenshots,
   screenshotsReady,
@@ -259,7 +260,15 @@ const purgeTrashNow = () =>
               ? await currentIosSettings(job.data)
               : { iosDeveloperAccount: null, appGroupsEnabled: false };
 
-          if (platform === "ios") await capXcodeCaches();
+          if (platform === "ios") {
+            await capXcodeCaches();
+            // the iOS lane is idle and the simulator turn rules out a Detox
+            // pod install in the other lane (see utils/podCache)
+            const movedPods = await withSimulator(() => trashStaleExternalPods(Date.now())).catch(
+              (error) => (logger.error(error, "Failed to trim the CocoaPods cache"), 0),
+            );
+            if (movedPods) logger.info(`Moved ${movedPods} stale CocoaPods local-path pod entries to trash`);
+          }
 
           let freeGb = await diskFreeGb();
           if (freeGb !== null && freeGb < MIN_FREE_DISK_GB) {
