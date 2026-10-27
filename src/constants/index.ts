@@ -21,6 +21,13 @@ const REMOVE_BUNDLES_CRON = "30 0 * * *"; // daily
 const UPDATE_IOS_REVIEW_STATUS_CRON = "0 */3 * * *";
 const UPDATE_PRE_REQ_CRON = "0 11,23 * * *";
 const UPDATE_ANDROID_PLAY_STORE_STATUS_CRON = "0 */6 * * *"; // Every 6 hours
+// google-play-scraper shadow of the Play Store cron (see
+// src/schedules/play-store-shadow.ts). Starts with the Puppeteer run so both
+// pick the same apps before Puppeteer writes anything.
+const PLAY_SHADOW_CRON = "0 * * * *"; // Every hour
+const PLAY_SHADOW_RUN_BUDGET_MS = 45 * 60 * 1000;
+const PLAY_SHADOW_CONTROL_HOSTS = 20;
+const PLAY_SHADOW_MAX_SKIPPED_RUNS = 24;
 const CLEANUP_DEPLOYMENT_REQUESTS_CRON = "0 0 * * *"; // Daily at midnight
 const DEPLOYMENT_REQUEST_RETENTION_DAYS = 7;
 const CLEANUP_DEPLOYMENT_FOLDERS_CRON = "0 * * * *"; // Every hour
@@ -54,6 +61,10 @@ export {
   GRADLE_BUILD_CACHE_RETENTION_DAYS,
   DEPLOYMENT_REQUIREMENTS,
   githubrepo,
+  PLAY_SHADOW_CONTROL_HOSTS,
+  PLAY_SHADOW_CRON,
+  PLAY_SHADOW_MAX_SKIPPED_RUNS,
+  PLAY_SHADOW_RUN_BUDGET_MS,
   REMOVE_BUNDLES_CRON,
   REMOVE_SUCCESS_LOGS_CRON,
   UPDATE_ANDROID_PLAY_STORE_STATUS_CRON,

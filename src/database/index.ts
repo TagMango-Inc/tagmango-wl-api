@@ -20,6 +20,7 @@ import {
   IMango,
   IMangoRoom,
   IMetaData,
+  IPlayVersionObservation,
   IPost,
   IRedeployment,
   ISubscription,
@@ -54,6 +55,7 @@ abstract class Mongo {
   public static ios_review_runs: Collection<IIosReviewRun>;
   public static ios_review_apps: Collection<IIosReviewApp>;
   public static machine_health: Collection<IMachineHealthSample>;
+  public static play_version_observations: Collection<IPlayVersionObservation>;
 
   public static async connect(): Promise<void> {
     try {
@@ -110,6 +112,10 @@ abstract class Mongo {
       this.machine_health = this.db.collection<IMachineHealthSample>(
         Collections.MACHINE_HEALTH,
       );
+      this.play_version_observations =
+        this.db.collection<IPlayVersionObservation>(
+          Collections.PLAY_VERSION_OBSERVATIONS,
+        );
 
       // fire-and-forget: index creation must never block or crash startup
       ensureIndexes(this.db).catch((err) =>
