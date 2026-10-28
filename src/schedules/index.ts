@@ -10,13 +10,22 @@ import {
   CLEANUP_DEPLOYMENT_FOLDERS_CRON,
   CLEANUP_DEPLOYMENT_REQUESTS_CRON,
   DEPLOYMENT_REQUEST_RETENTION_DAYS,
+  PLAY_SHADOW_CRON,
   UPDATE_ANDROID_PLAY_STORE_STATUS_CRON,
   UPDATE_IOS_REVIEW_STATUS_CRON,
   UPDATE_PRE_REQ_CRON,
 } from "../constants";
 import Mongo from "../database";
+import { IPlayVersionObservation } from "../types/database";
 import { getEnterpriseHosts } from "../utils/enterpriseHostsCache";
+import {
+  findPlayStoreCandidates,
+  getTargetPlayVersion,
+  newPlayRunId,
+  recordPlayObservation,
+} from "../utils/playStore";
 import { cleanupDeploymentFolders } from "./cleanup-deployment-folders";
+import { runPlayStoreShadow } from "./play-store-shadow";
 import { scheduleRemoveBundles } from "./remove-bundle";
 
 const execAsync = util.promisify(exec);
@@ -408,51 +417,35 @@ if (!isPrimaryInstance) {
       return new Promise((resolve) => setTimeout(resolve, delay));
     };
 
-    const releaseDoc = await Mongo.app_release_versions.findOne({});
-    const latestAvailableVersionName = releaseDoc?.versionName;
+    const latestAvailableVersionName = await getTargetPlayVersion();
     if (!latestAvailableVersionName) {
       console.log(
         "No appreleaseversions document found, deployment requests will not auto-complete this run",
       );
     }
 
-    // Scrape non-suspended enterprise hosts that have a Play Store link and a
-    // bundle id, and whose Play Store version hasn't yet caught up to the
-    // global AppZap target. When the target is unknown, fall back to scraping
-    // hosts that have never been scraped.
-    const { activeIds } = await getEnterpriseHosts();
-    const hostsWithPlayStoreLink = await Mongo.customhost
-      .find(
-        {
-          _id: { $in: activeIds },
-          androidShareLink: { $type: "string", $ne: "" },
-        },
-        { projection: { _id: 1 } },
-      )
-      .toArray();
-
-    const allMetadatas = await Mongo.metadata
-      .find({
-        host: { $in: hostsWithPlayStoreLink.map((h) => h._id) },
-        "androidDeploymentDetails.bundleId": { $type: "string", $ne: "" },
-        ...(latestAvailableVersionName
-          ? {
-              "androidDeploymentDetails.playStore.versionName": {
-                $ne: latestAvailableVersionName,
-              },
-            }
-          : {
-              $or: [
-                {
-                  "androidDeploymentDetails.playStore.versionName": {
-                    $exists: false,
-                  },
-                },
-                { "androidDeploymentDetails.playStore.versionName": "" },
-              ],
-            }),
-      })
-      .toArray();
+    const allMetadatas = await findPlayStoreCandidates(
+      latestAvailableVersionName,
+    );
+    const runId = newPlayRunId("puppeteer");
+    // every check is also recorded for the google-play-scraper shadow report
+    const observe = (
+      metadata: (typeof allMetadatas)[number],
+      startedAt: number,
+      fields: Pick<IPlayVersionObservation, "outcome" | "version" | "error">,
+    ) =>
+      recordPlayObservation({
+        runId,
+        source: "puppeteer",
+        host: metadata.host,
+        bundleId: metadata.androidDeploymentDetails.bundleId,
+        targetVersion: latestAvailableVersionName,
+        storedVersion:
+          metadata.androidDeploymentDetails.playStore?.versionName || null,
+        durationMs: Date.now() - startedAt,
+        checkedAt: new Date(startedAt),
+        ...fields,
+      });
 
     console.log(allMetadatas.length, " <- total metadata found for Android scraping");
 
@@ -486,6 +479,7 @@ if (!isPrimaryInstance) {
       let count = 0;
 
       for (const metadata of allMetadatas) {
+        const startedAt = Date.now();
         try {
           const bundleId = metadata.androidDeploymentDetails?.bundleId;
 
@@ -514,6 +508,10 @@ if (!isPrimaryInstance) {
 
           if (notFound) {
             console.log(`❌ ${bundleId}: App not found on Play Store`);
+            await observe(metadata, startedAt, {
+              outcome: "not_found",
+              version: null,
+            });
             await randomDelay();
             continue;
           }
@@ -598,6 +596,7 @@ if (!isPrimaryInstance) {
 
             if (version) {
               console.log(`✅ ${bundleId}: ${version}`);
+              await observe(metadata, startedAt, { outcome: "ok", version });
 
               // Save to database
               await Mongo.metadata.findOneAndUpdate(
@@ -637,9 +636,19 @@ if (!isPrimaryInstance) {
               }
             } else {
               console.log(`❌ ${bundleId}: Version not found`);
+              await observe(metadata, startedAt, {
+                outcome: "no_version",
+                version: null,
+                error: "version not found in About modal",
+              });
             }
           } else {
             console.log(`❌ ${bundleId}: "About this app" button not found`);
+            await observe(metadata, startedAt, {
+              outcome: "no_version",
+              version: null,
+              error: "About this app button not found",
+            });
           }
 
           // Randomized delay before processing next bundle ID (rate limiting)
@@ -648,6 +657,11 @@ if (!isPrimaryInstance) {
           console.log(
             `❌ ${metadata.androidDeploymentDetails?.bundleId}: Error - ${(error as Error).message}`,
           );
+          await observe(metadata, startedAt, {
+            outcome: "error",
+            version: null,
+            error: (error as Error).message,
+          });
         }
       }
 
@@ -660,6 +674,10 @@ if (!isPrimaryInstance) {
       }
     }
   });
+
+  // google-play-scraper shadow of the cron above: records only, compared by
+  // scripts/play-shadow-report.ts
+  cron.schedule(PLAY_SHADOW_CRON, runPlayStoreShadow);
 
   // Cron to cleanup completed deployment requests older than 7 days
   cron.schedule(CLEANUP_DEPLOYMENT_REQUESTS_CRON, async () => {

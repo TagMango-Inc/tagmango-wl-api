@@ -92,6 +92,19 @@ const OWNED_INDEXES: {
     name: "t_1_ttl",
     expireAfterSeconds: 30 * 24 * 3600,
   },
+  // Play Store version checks: per-bundle history for the shadow report;
+  // kept 60 days
+  {
+    collection: Collections.PLAY_VERSION_OBSERVATIONS,
+    keys: { bundleId: 1, checkedAt: 1 },
+    name: "bundleId_1_checkedAt_1",
+  },
+  {
+    collection: Collections.PLAY_VERSION_OBSERVATIONS,
+    keys: { checkedAt: 1 },
+    name: "checkedAt_1_ttl",
+    expireAfterSeconds: 60 * 24 * 3600,
+  },
 ];
 
 // For visibility in logs only — created by the main app, not here.

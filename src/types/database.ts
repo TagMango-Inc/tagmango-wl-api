@@ -21,6 +21,7 @@ export const Collections = {
   IOS_REVIEW_RUNS: "wliosreviewruns",
   IOS_REVIEW_APPS: "wliosreviewapps",
   MACHINE_HEALTH: "wlmachinehealth",
+  PLAY_VERSION_OBSERVATIONS: "wlplayversionobservations",
 } as const;
 
 export const Platform = {
@@ -824,4 +825,31 @@ export interface IMachineHealthSample {
     /** ms the folder scan took */
     scanMs: number;
   };
+}
+
+/**
+ * One Play Store version check by one scraper. The Puppeteer cron (source of
+ * truth) and the google-play-scraper shadow cron both write these, so the two
+ * can be compared before the shadow takes over (scripts/play-shadow-report.ts).
+ */
+export interface IPlayVersionObservation {
+  runId: string;
+  source: "puppeteer" | "gps";
+  host: ObjectId;
+  bundleId: string;
+  /** raw version string as scraped, null when none was found */
+  version: string | null;
+  /** gps only: Play's "updated" timestamp for the listing */
+  storeUpdatedAt?: Date | null;
+  outcome: "ok" | "not_found" | "no_version" | "error" | "throttled";
+  httpStatus?: number;
+  error?: string;
+  /** appreleaseversions.versionName at check time */
+  targetVersion: string | null;
+  /** metadata playStore.versionName at check time */
+  storedVersion: string | null;
+  /** gps only: host already on the target, checked to catch wrong reads */
+  control?: boolean;
+  durationMs: number;
+  checkedAt: Date;
 }

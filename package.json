@@ -21,6 +21,7 @@
     "circular-json": "^0.5.9",
     "dotenv": "^16.4.5",
     "fs-extra": "^11.2.0",
+    "google-play-scraper": "^10.1.4",
     "googleapis": "^144.0.0",
     "hono": "^4.2.8",
     "ioredis": "^5.11.1",
