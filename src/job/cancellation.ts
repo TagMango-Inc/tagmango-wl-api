@@ -51,9 +51,9 @@ export const consumeCancelRequest = (deploymentId: string) => {
   cancelRequests.delete(deploymentId);
 };
 
-const killActiveChild = (deploymentId: string) => {
-  const child = activeChildren.get(deploymentId);
-  if (!child?.pid) return;
+/** SIGTERM the child's whole process group, then SIGKILL after a grace period */
+export const killTaskTree = (child: ChildProcess) => {
+  if (!child.pid) return;
   // the task shell is spawned with detached:true so it leads its own process
   // group — negative pid signals the whole tree (zsh + fastlane + xcodebuild)
   try {
@@ -71,6 +71,11 @@ const killActiveChild = (deploymentId: string) => {
     }
   }, SIGKILL_GRACE_MS);
   timer.unref();
+};
+
+const killActiveChild = (deploymentId: string) => {
+  const child = activeChildren.get(deploymentId);
+  if (child) killTaskTree(child);
 };
 
 /** worker-side: subscribe to cancel requests (dedicated connection — a
