@@ -267,7 +267,14 @@ const main = async () => {
       }
     }
   }
-  const controls = gps.filter((r) => r.control && r.outcome !== "throttled");
+  // Controls catch wrong reads, so only checks that got an answer count;
+  // timeouts and errors are already in the success-rate gate. A control
+  // reported as not found is an answer, and a wrong one.
+  const controlRows = gps.filter((r) => r.control);
+  const controls = controlRows.filter(
+    (r) => r.outcome === "ok" || r.outcome === "not_found",
+  );
+  const controlsUnanswered = controlRows.length - controls.length;
   const controlsOk = controls.filter(
     (r) => r.outcome === "ok" && r.version === r.targetVersion,
   ).length;
@@ -277,7 +284,7 @@ const main = async () => {
   flaps.slice(0, 10).forEach((f) => p(`- ${f}`));
   p();
   p(
-    `Control apps read as the target: **${controlsOk}/${controls.length} (${pct(controlsOk, controls.length)})**`,
+    `Control apps read as the target: **${controlsOk}/${controls.length} answered checks (${pct(controlsOk, controls.length)})**, plus ${controlsUnanswered} unanswered (error, timeout or throttled; not counted)`,
   );
   p();
 
@@ -341,7 +348,7 @@ const main = async () => {
     ],
     ["no flapping", flaps.length === 0, `${flaps.length}`],
     [
-      "control apps 100% correct",
+      "control apps 100% correct (answered checks)",
       controls.length > 0 && controlsOk === controls.length,
       pct(controlsOk, controls.length),
     ],
