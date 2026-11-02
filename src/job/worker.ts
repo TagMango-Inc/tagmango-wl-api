@@ -30,6 +30,7 @@ import {
   clearActiveTask,
   consumeCancelRequest,
   isCancelRequested,
+  killTaskTree,
   registerActiveTask,
   startCancellationListener,
 } from "./cancellation";
@@ -106,6 +107,11 @@ const MIN_FREE_DISK_GB = Number(process.env.WL_MIN_FREE_DISK_GB ?? 40);
 // fills with per-app copies nobody reuses. Each is moved to trash between
 // builds once it passes this cap, and refills on the next iOS build.
 const XCODE_CACHE_MAX_GB = Number(process.env.WL_XCODE_CACHE_MAX_GB ?? 10);
+// A single task that runs longer than this is killed and fails its deployment,
+// so one hung process can't hold its lane. iOS uploads have hung with no
+// output for 2 days (22 Oct, 31 Oct); healthy tasks finish well under 30 min.
+// 0 disables the limit.
+const TASK_TIMEOUT_MIN = Number(process.env.WL_TASK_TIMEOUT_MIN ?? 30);
 const LOW_DISK_RETRY_MS = 10 * 60 * 1000;
 // Without Mongo or DNS every queued job fails within ~30s, and a failed job is
 // removed from Redis while Mongo still shows it pending (784 deployments on
@@ -1131,11 +1137,25 @@ const executeTask = async ({
     });
   }
 
+  let timedOut = false;
+  const timeout =
+    TASK_TIMEOUT_MIN > 0
+      ? setTimeout(() => {
+          timedOut = true;
+          const message = `Task [ ${taskName} ] timed out after ${TASK_TIMEOUT_MIN} min and was killed`;
+          logger.error(message);
+          errorLogs.push({ message, type: "failed", timestamp: new Date() });
+          killTaskTree(e);
+        }, TASK_TIMEOUT_MIN * 60_000)
+      : null;
+
   // waiting for the task to complete
   // if the task is completed then we will get the code
   const code = await new Promise((resolve, reject) => {
     e.on("close", resolve);
     e.on("error", reject);
+  }).finally(() => {
+    if (timeout) clearTimeout(timeout);
   });
   clearActiveTask(deploymentId);
   const taskPerf = await perf.finish(diskFreeStart);
@@ -1267,7 +1287,11 @@ const executeTask = async ({
 
   // after all updates (success or failed) are done in the database then we can return error
   if (code !== 0) {
-    throw new Error(`[ ${taskName} ] task failed with code -> ${code}`);
+    throw new Error(
+      timedOut
+        ? `[ ${taskName} ] task timed out after ${TASK_TIMEOUT_MIN} min`
+        : `[ ${taskName} ] task failed with code -> ${code}`,
+    );
   }
 
   return code;

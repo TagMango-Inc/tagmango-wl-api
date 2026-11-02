@@ -51,6 +51,13 @@ runs at start-up and can take a few minutes at background priority.
 ## Knobs
 
 - `WL_HEALTH_SCAN_MIN`: minutes between folder scans (default 30).
+- `WL_TASK_TIMEOUT_MIN`: the worker kills any single deployment task that runs
+  longer than this and fails the deployment, so a hung process can't hold its
+  lane (default 30, `0` turns it off). Two iOS uploads hung with no output for
+  about 2 days each (22 Oct and 31 Oct 2026) and stopped every iOS build behind
+  them. Of 1,222 successful iOS builds from 16 Oct to 2 Nov, 11 (0.9%) had a
+  task over 30 min, all slow App Store screenshot processing; those now fail
+  and need a restart.
 - Folders, process groups and plan markers: `src/machineHealth/config.ts`
   and `src/machineHealth/markers.ts`.
 
