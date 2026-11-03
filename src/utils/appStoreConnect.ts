@@ -225,7 +225,7 @@ export const ascClient = async (account: WithId<IDeveloperAccountIos>) => {
 
     /** turns on the capabilities the bundle ID doesn't have yet */
     async enableCapabilities(bundle: AscBundleId, capabilities: string[]) {
-      const r = await call("GET", `/bundleIds/${bundle.id}/bundleIdCapabilities?limit=200`);
+      const r = await call("GET", `/bundleIds/${bundle.id}/bundleIdCapabilities`);
       if (!r.ok) throw fail(`reading capabilities of ${bundle.identifier}`, r);
       const have = new Set((r.json.data as any[]).map((c) => c.attributes.capabilityType));
       for (const capabilityType of capabilities.filter((c) => !have.has(c))) {
