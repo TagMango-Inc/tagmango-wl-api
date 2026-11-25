@@ -4,11 +4,7 @@ import Mongo from "../database";
 import { IMetaData, IPlayVersionObservation } from "../types/database";
 import { getEnterpriseHosts } from "./enterpriseHostsCache";
 
-/**
- * Shared by the Puppeteer Play Store cron and the google-play-scraper shadow
- * cron, so both check exactly the same apps and their observations can be
- * compared one to one.
- */
+/** Helpers for the Play Store status cron (src/schedules/play-store-status.ts). */
 
 /** appreleaseversions.versionName: the version AppZap is pushing to all hosts */
 export const getTargetPlayVersion = async (): Promise<string | null> => {
@@ -55,30 +51,10 @@ export const findPlayStoreCandidates = async (
     .toArray();
 };
 
-/**
- * Hosts already on the target, for the shadow's control sample. Sorted by
- * host so the same apps are checked every run.
- */
-export const findPlayStoreControls = async (
-  target: string,
-  limit: number,
-): Promise<WithId<IMetaData>[]> => {
-  const { activeIds } = await getEnterpriseHosts();
-  return Mongo.metadata
-    .find({
-      host: { $in: activeIds },
-      "androidDeploymentDetails.bundleId": { $type: "string", $ne: "" },
-      "androidDeploymentDetails.playStore.versionName": target,
-    })
-    .sort({ host: 1 })
-    .limit(limit)
-    .toArray();
-};
-
 export const newPlayRunId = (source: IPlayVersionObservation["source"]) =>
   `${source}-${new Date().toISOString()}`;
 
-/** Best effort: a failed write must never break a scraper run. */
+/** Best effort: a failed write must never break a run. */
 export const recordPlayObservation = async (
   observation: IPlayVersionObservation,
 ): Promise<void> => {

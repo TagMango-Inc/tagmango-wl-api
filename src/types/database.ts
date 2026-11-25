@@ -828,12 +828,12 @@ export interface IMachineHealthSample {
 }
 
 /**
- * One Play Store version check by one scraper. The Puppeteer cron (source of
- * truth) and the google-play-scraper shadow cron both write these, so the two
- * can be compared before the shadow takes over (scripts/play-shadow-report.ts).
+ * One Play Store version check, written by the Play Store status cron
+ * (src/schedules/play-store-status.ts) for debugging; kept 60 days.
  */
 export interface IPlayVersionObservation {
   runId: string;
+  /** "puppeteer" rows are from the old scraper, before wl-api#73's switch */
   source: "puppeteer" | "gps";
   host: ObjectId;
   bundleId: string;
